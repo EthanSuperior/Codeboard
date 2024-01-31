@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>Your Game Name Goes Here</title>
+    </head>
+    <body></body>
+    <script src="GameEngine.js"></script>
+    <script>
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // CORE GAMEPLAY FUNCTIONS | TOUCH AT YOUR OWN RISK
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        const enemies = [];
+        const projectiles = [];
+        const pickups = [];
+
+        function preload() {
+            for (let type in pickupTypes) pickupTypes[type].type = type;
+            for (let type in weaponTypes) weaponTypes[type].type = type;
+            for (let type in enemyTypes) enemyTypes[type].type = type;
+            for (let time in waves) scheduleTask(spawnWave, { time: +time }, waves[time]);
+        }
+
+        const DownKeyEvents = {
+            KeyP: togglePause,
+            KeyQ: () => gainEXP(5),
+            KeyZ: () => gainEXP(player.neededEXP),
+            KeyK: () => (player.hp = 0),
+        };
+
+        function gainEXP(exp) {
+            player.exp += exp;
+            if (player.exp < player.neededEXP) return;
+            pause();
+            player.exp -= player.neededEXP;
+            player.neededEXP = ++player.level * 10;
+            const isMaxLevel = (o) => weaponTypes[o].currentLevel >= Object.keys(weaponTypes[o].levels).length;
+            let options = Object.keys(weaponTypes).filter((a) => !isMaxLevel(a));
+            if (!options.length) {
+                player.hp += 25;
+                resume();
+            } else showLevelUp(options);
+            gainEXP(0);
+        }
+
+        function showLevelUp(options) {
+            const UILevelUp = makeUI();
+            UILevelUp.add(UIRect([200, 75, 400, 450, 25], { fill: "#4b4e74", stroke: "#cd9958", width: 6 }));
+            UILevelUp.add(UIText(`~ LEVEL UP! ~`, [230, 130], { font: "bold 48px monospace", color: "black" }));
+            const UILevelScroll = UIScroll([215, 130, 375, 380], {
+                scrollHeight: 125 * options.length,
+                bkg: "#4b4e74",
+            });
+            for (let i = 0; i < options.length; i++) {
+                const buttonPos = [225, 150 + i * 125, 350, 100, 25];
+                const buttonAction = (e, x, y) => {
+                    getWeapon(options[i]);
+                    UILevelUp.hide();
+                };
+                const buttonProps = { fill: "#8c8c8c", hoverFill: "#8b8b00", hoverStroke: "#cd9958", hoverWidth: 6 };
+                UILevelScroll.add(UIButton(buttonPos, buttonAction, buttonProps));
+                const weapon = weaponTypes[options[i]];
+                const nextLevel = (weapon.currentLevel ?? 0) + 1;
+                const text = nextLevel == 1 ? `UNLOCK ${options[i]}` : `${options[i]}  ~~  LEVEL ${nextLevel}`;
+                UILevelScroll.add(
+                    UIText(text.toUpperCase(), [290, 180 + i * 125], { font: "24px monospace", color: "black" })
+                );
+                UILevelScroll.add(UIText(weapon.levels[nextLevel].description, [235, 210 + i * 125, 330]));
+            }
+            UILevelUp.add(UILevelScroll);
+            UILevelUp.show();
+        }
+
+        function getWeapon(type) {
+            if (!player.weapons.includes(type)) {
+                player.weapons.push(type);
+                weaponTypes[type].currentLevel = 0;
+            }
+            const level = ++weaponTypes[type].currentLevel;
+            weaponTypes[type] = { ...weaponTypes[type], ...weaponTypes[type].levels[level] };
+            scheduleTask(() => spawnProjectile(weaponTypes[type]), {
+                time: weaponTypes[type].rate,
+                loop: true,
+                id: type,
+            });
+        }
+
+        canvas.width = 800;
+        canvas.height = 600;
+
+        function start() {
+            gainEXP(0);
+        }
+
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // GAME UPDATE FUNCTIONS | TOUCH AT YOUR OWN RISK
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        function updateGame(delta) {
+            if (player.hp <= 0) {
+                const popup = UIPopup([250, 200, 300, 200, 25], { fill: "white", stroke: "black", width: 3 });
+                popup.add(UIText("You Died", [300, 260, 200], { font: "bold 48px monospace", color: "black" }));
+                popup.add(
+                    UIText(`Final Score: ${player.kills}`, [275, 300, 250], {
+                        font: "bold 24px monospace",
+                        color: "black",
+                        center: true,
+                    })
+                );
+                popup.add(UIButton([300, 325, 200, 50, 25], () => location.reload(), { fill: "red", stroke: "black" }));
+                popup.add(UIText("Restart", [335, 361, 150], { font: "bold 36px monospace", color: "black" }));
+                popup.show();
+                return;
+            }
+            // Fill Background Black
+            ctx.fillStyle = "#2a4720";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Update entities
+            updatePlayer(delta);
+            forEntities(pickups, updatePickup, delta);
+            forEntities(enemies, updateEnemy, delta);
+            forEntities(projectiles, updateProjectile, delta);
+            updateUI(delta);
+        }
+
+        function updatePlayer(delta) {
+            const dir = getPlayerMovementDirection();
+
+            // Use acceleration for the player
+            player.speed = clamp(player.speed + player.acceleration, 0, player.maxSpeed);
+
+            // Stop player if no keys are pressed otherwise change your direction.
+            if (dir == null) player.speed = 0;
+            else player.dir = dir;
+
+            updateEntity(player, delta);
+            if (outOfBounds(player, { padding: -player.size / 2 })) {
+                player.x = clamp(player.x, player.size / 2, canvas.width - player.size / 2);
+                player.y = clamp(player.y, player.size / 2, canvas.height - player.size / 2);
+
+                // redraw player now clamped.
+                drawEntity(player, delta);
+            }
+        }
+
+        function updateEnemy(enemy, delta) {
+            enemy.dir = angleTo(enemy, player);
+            updateEntity(enemy, delta);
+            if (detectEntity(player, enemy)) {
+                enemy.x -= (Math.cos(enemy.dir) * enemy.speed * enemy.size) / 20;
+                enemy.y -= (Math.sin(enemy.dir) * enemy.speed * enemy.size) / 20;
+                player.hp -= enemy.dmg;
+            }
+        }
+
+        function updateProjectile(projectile, delta) {
+            updateEntity(projectile, delta);
+            // Check for collision with enemies and kill them
+            forEntities(enemies, function (enemy) {
+                if (projectile.hit.includes(enemy.id)) return;
+                if (detectEntity(enemy, projectile)) {
+                    if (!projectile.pierce || --projectile.pierce <= 0) removeEntity(projectiles, projectile);
+                    projectile.hit.push(enemy.id);
+                    enemy.hp -= projectile.dmg;
+                    if (enemy.hp > 0) return;
+                    removeEntity(enemies, enemy);
+                    player.kills += 1;
+                    spawnDrops(enemy);
+                }
+            });
+            // Remove projectile if it goes off screen
+            if (!projectile.lifespan && outOfBounds(projectile)) removeEntity(projectiles, projectile);
+        }
+
+        function updatePickup(pickup, delta) {
+            updateEntity(pickup, delta);
+            // Check for collision with player and pick them up
+            if (detectEntity(pickup, player)) {
+                removeEntity(pickups, pickup);
+                entityEvent(pickup, "activate");
+            }
+            if (outOfBounds(pickup)) removeEntity(pickups, pickup);
+        }
+
+        function updateUI(delta) {
+            ctx.font = "24px monospace";
+            ctx.fillStyle = "red";
+            ctx.fillText(`HP: ${player.hp}`, 10, 36);
+            ctx.fillStyle = "gold";
+            ctx.fillText(`Kills: ${player.kills}`, 10, 66);
+
+            ctx.fillStyle = "black";
+            ctx.fillRect(5, 5, canvas.width - 10, 12);
+
+            // Draw the progress bar
+            ctx.fillStyle = "#2165db";
+            const progressBarWidth = (player.exp / player.neededEXP) * (canvas.width - 10);
+            ctx.fillRect(5, 5, progressBarWidth, 12);
+        }
+
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // GAME SPAWN FUNCTIONS | TOUCH AT YOUR OWN RISK
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        function spawnEnemy(type) {
+            const dir = Math.random() * Math.PI * 2;
+            const radius = (Math.sqrt(canvas.width * canvas.width + canvas.height * canvas.height) + type.size) / 2;
+            const x = canvas.width / 2 + Math.cos(dir) * radius;
+            const y = canvas.height / 2 + Math.sin(dir) * radius;
+            spawnEntity(enemies, type, { x, y, dir });
+        }
+
+        function spawnProjectile(type) {
+            const dir = angleTo(player, mouse);
+            const count = type.count ?? 1;
+            for (let i = 0; i < count; i++) {
+                const spread = (type.spread ?? 0) * (i - (count - 1) / 2);
+                spawnEntity(projectiles, type, { x: player.x, y: player.y, dir: dir + spread, hit: [] });
+            }
+        }
+
+        function spawnDrops(enemy) {
+            // Spawn Pickups
+            for (let pickupType in pickupTypes) {
+                const pickup = pickupTypes[pickupType];
+                if (Math.random() < pickup.rarity) {
+                    if (pickupType == "gold") {
+                        let total = enemy.exp;
+                        const numObjects = Math.min(100, enemy.exp);
+                        for (let i = 0; i < numObjects; i++) {
+                            // Calculate radius dynamically based on the number of coins
+                            const radius = (canvas.width / 6) * Math.sqrt(i / numObjects) * (numObjects / 100);
+
+                            const angle = (i / numObjects) * (1.61803398875 * Math.PI * Math.PI) * Math.PI * 2;
+
+                            const value = Math.floor(enemy.exp / numObjects);
+                            total -= value;
+                            // Calculate x and y using polar coordinates
+                            const x = enemy.x + radius * Math.cos(angle);
+                            const y = enemy.y + radius * Math.sin(angle);
+
+                            spawnEntity(pickups, pickupTypes.gold, { x, y, value });
+                        }
+                    } else {
+                        const value = pickup.value;
+                        const rand = Math.random() * pickup.size;
+                        const x = enemy.x + rand;
+                        const y = enemy.y + Math.random() * pickup.size - rand;
+                        spawnEntity(pickups, pickup, { x, y, value });
+                    }
+                }
+            }
+        }
+
+        function spawnWave(waveData) {
+            // Remove last wave
+            spawnWave.timers ??= [];
+            spawnWave.timers.forEach(clearTask);
+            spawnWave.timers.length = 0;
+            // Add each enemy
+            for (let type in waveData) {
+                let current = waveData[type];
+                for (let i = 0; i < (current.quantity ?? 1); i++) {
+                    if (current.spawnOnce) spawnEnemy(enemyTypes[type]);
+                    else {
+                        const spawnFunc = () => spawnEnemy(enemyTypes[type]);
+                        const spawnTask = scheduleTask(spawnFunc, { time: current.interval ?? 1, loop: true });
+                        spawnWave.timers.push(spawnTask);
+                    }
+                }
+            }
+        }
+
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // GAME DATA | ADD TO AND CUSTOMIZE FREELY
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        const weaponTypes = {
+            axe: {
+                levels: {
+                    1: {
+                        dmg: 20,
+                        pierce: 3,
+                        count: 1,
+                        description: "High damage, high area scaling.",
+                    },
+                    2: { count: 2, description: "Fires 1 more projectile." },
+                    3: { dmg: 40, description: "Base Damage up by 20." },
+                    4: { pierce: 5, description: "Passes through 2 more enemies." },
+                    5: { count: 3, description: "Fires 1 more projectile." },
+                    6: { dmg: 60, description: "Base Damage up by 20." },
+                    7: { pierce: 7, description: "Passes through 2 more enemies." },
+                    8: { dmg: 80, description: "Base Damage up by 20." },
+                },
+                rotate: true,
+                rotationalOffset: 0,
+                color: "lightgray",
+                speed: 750,
+                size: 30,
+                shape: "triangle",
+                rate: 0.8,
+                lifespan: 4,
+                onspawn: function () {
+                    const spread = 45 * (Math.PI / 180);
+                    this.dir = Math.random() * spread - spread / 2 - Math.PI / 2;
+                    this.speed += -25 + Math.random() * 50;
+                },
+                ontick: function (_, delta) {
+                    const gravity = weaponTypes.axe.speed * delta;
+                    const vecX = this.speed * Math.cos(this.dir);
+                    const vecY = this.speed * Math.sin(this.dir) + gravity;
+                    this.speed = Math.hypot(vecX, vecY);
+                    this.dir = Math.atan2(vecY, vecX);
+                    this.rotationalOffset += (Math.PI / 180) * this.speed * delta * Math.sign(Math.cos(this.dir));
+                },
+            },
+            knife: {
+                levels: {
+                    1: {
+                        dmg: 7,
+                        pierce: 1,
+                        count: 1,
+                        description: "Fires quickly in your mouse's direction.",
+                    },
+                    2: { count: 2, description: "Fires 1 more projectile." },
+                    3: { count: 3, dmg: 12, description: "Fires 1 more projectile. Base Damage up by 5." },
+                    4: { count: 4, description: "Fires 1 more projectile." },
+                    5: { pierce: 2, description: "Passes through 1 more enemy." },
+                    6: { count: 5, description: "Fires 1 more projectile." },
+                    7: { count: 6, dmg: 17, description: "Fires 1 more projectile. Base Damage up by 5." },
+                    8: { pierce: 3, description: "Passes through 1 more enemy." },
+                },
+                size: 5,
+                color: "lightgray",
+                speed: 450,
+                spread: 0.1,
+                rate: 0.4,
+                onspawn: function () {
+                    const dir = angleTo(this, mouse);
+                    const offset = (this.dir -= dir);
+                    this.dir = player.dir;
+                    this.x +=
+                        Math.cos(player.dir + Math.PI / 2) * offset * 100 +
+                        Math.cos(player.dir + Math.PI) * Math.abs(offset) * 100;
+                    this.y +=
+                        Math.sin(player.dir + Math.PI / 2) * offset * 100 +
+                        Math.sin(player.dir + Math.PI) * Math.abs(offset) * 100;
+                },
+            },
+            whip: {
+                levels: {
+                    1: {
+                        size: 50,
+                        dmg: 10,
+                        count: 1,
+                        description: "Attacks horizontally, passes through enemies.",
+                    },
+                    2: { count: 2, description: "Fires 1 more projectile." },
+                    3: { dmg: 15, description: "Base Damage up by 5." },
+                    4: { size: 55, dmg: 20, speed: 8 * 50, description: "Base Area up by 10%. Base Damage up by 5." },
+                    5: { dmg: 25, description: "Base Damage up by 5." },
+                    6: { size: 60, dmg: 30, speed: 10 * 50, description: "Base Area up by 10%. Base Damage up by 5." },
+                    7: { dmg: 35, description: "Base Damage up by 5." },
+                    8: { dmg: 65, description: "Base Damage up by 5." },
+                },
+                color: "tan",
+                speed: 450,
+                spread: 0.5,
+                pierce: 10e10,
+                rate: 0.4,
+                staticY: true,
+                lifespan: 0.1,
+                onspawn: function () {
+                    const isFirst = this.dir - angleTo(player, mouse) >= 0;
+                    if (Math.cos(player.dir) > 0) this.dir = isFirst ? 0 : Math.PI;
+                    else this.dir = isFirst ? Math.PI : 0;
+                },
+                ontick: function (_, delta) {
+                    this.y = player.y;
+                },
+            },
+        };
+
+        const player = {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            speed: 0,
+            maxSpeed: 225,
+            acceleration: 7.5,
+            hp: 120,
+            dir: 0,
+            maxHP: 120,
+            size: 20,
+            kills: 0,
+            exp: 0,
+            neededEXP: 0,
+            level: 0,
+            color: "olive",
+            weapons: [],
+            pickupRadius: 80,
+            ontick: function (_, delta) {
+                //MAGNET RADIUS
+                forEntities(pickups, function (pickup) {
+                    if (detectEntity(pickup, player, pickup.size / 2 + player.pickupRadius)) {
+                        pickup.dir = angleTo(pickup, player);
+                        pickup.speed = 375;
+                    }
+                });
+            },
+        };
+
+        const enemyTypes = {
+            bat: {
+                dmg: 4,
+                hp: 5,
+                speed: 105,
+                size: 16,
+                color: "RebeccaPurple",
+                exp: 1,
+            },
+            weak_bat: {
+                dmg: 4,
+                hp: 1,
+                speed: 105,
+                size: 10,
+                color: "RebeccaPurple",
+                exp: 1,
+            },
+            zombie: {
+                dmg: 9,
+                hp: 10,
+                speed: 105,
+                size: 24,
+                color: "gray",
+                exp: 5,
+            },
+            elite: {
+                dmg: 20,
+                hp: 1000,
+                speed: 85,
+                size: 45,
+                color: "pink",
+                exp: 30,
+            },
+            reaper: {
+                dmg: 65535,
+                hp: 655350,
+                speed: 900,
+                size: 84,
+                color: "red",
+                exp: 0,
+            },
+        };
+
+        const pickupTypes = {
+            exp: {
+                color: "#13a9dc",
+                shape: "circle",
+                size: 12,
+                value: 1,
+                rarity: 1,
+                activate: function () {
+                    gainEXP(this.value);
+                },
+            },
+            health: {
+                color: "red",
+                shape: "circle",
+                size: 16,
+                value: 25,
+                rarity: 0.1,
+                activate: function () {
+                    player.hp = Math.min(player.hp + this.value, player.maxHP);
+                },
+            },
+            vaccum: {
+                color: "blue",
+                shape: "circle",
+                size: 16,
+                value: 1,
+                rarity: 0.02,
+                activate: function () {
+                    function vaccumEffect(pickup) {
+                        if (pickup.type == "vaccum" || pickup.type == "chest") return;
+                        pickup.dir = angleTo(pickup, player);
+                        pickup.speed = distanceTo(pickup, player) * 2 + 375;
+                    }
+                    forEntities(pickups, vaccumEffect);
+                },
+            },
+        };
+
+        const waves = {
+            0: {
+                weak_bat: {
+                    quantity: 5,
+                    interval: 2.5,
+                },
+            },
+            30: {
+                bat: {
+                    quantity: 3, // int
+                    interval: 2, // float
+                },
+                weak_bat: {
+                    quantity: 1, // int
+                    interval: 0.5, // float
+                },
+            },
+            60: {
+                elite: {
+                    quantity: 1,
+                    spawnOnce: true,
+                },
+                zombie: {
+                    quantity: 5,
+                    interval: 2,
+                },
+            },
+        };
+    </script>
+</html>

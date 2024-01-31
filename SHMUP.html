@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>Your Game Name Goes Here</title>
+    </head>
+    <body></body>
+    <script src="GameEngine.js"></script>
+    <script>
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // CORE GAMEPLAY FUNCTIONS | TOUCH AT YOUR OWN RISK
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        const enemies = [];
+        const bullets = [];
+        const pickups = [];
+        // Key state object
+        MouseKeyEvents = {
+            Down: startShooting,
+            Up: stopShooting,
+        };
+        DownKeyEvents = {
+            KeyP: togglePause,
+            Space: startShooting,
+            ControlLeft: startShooting,
+            ControlRight: startShooting,
+            Digit1: () => spawnEntity(pickups, pickupTypes.multi, { x: player.x, y: player.y }),
+            Digit2: () => spawnEntity(pickups, pickupTypes.nuke, { x: player.x, y: player.y }),
+            Digit3: () => spawnEntity(pickups, pickupTypes.vaccum, { x: player.x, y: player.y }),
+            KeyK: () => (player.hp = 0),
+        };
+        UpKeyEvents = {
+            Space: stopShooting,
+            ControlLeft: stopShooting,
+            ControlRight: stopShooting,
+        };
+
+        function stopShooting() {
+            clearTask("shoot");
+        }
+
+        function startShooting(type = player.bulletType) {
+            player.bulletType = type;
+            scheduleTask(
+                spawnBullet,
+                { immediate: true, loop: true, time: bulletTypes[type].rate, id: "shoot" },
+                bulletTypes[type]
+            );
+        }
+
+        function preload() {
+            for (let type in pickupTypes) pickupTypes[type].type = type;
+            for (let type in bulletTypes) bulletTypes[type].type = type;
+            for (let type in enemyTypes) enemyTypes[type].type = type;
+            for (let time in waves) scheduleTask(spawnWave, { time: +time }, waves[time]);
+            playMusic("theme.mp3");
+        }
+
+        canvas.width = 600;
+        canvas.height = 800;
+
+        function start() {
+            // Give points for time survived
+            scheduleTask(() => player.score++, { loop: 1, time: 2 });
+            resume();
+        }
+
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // GAME UPDATE FUNCTIONS | TOUCH AT YOUR OWN RISK
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        function updateGame(delta) {
+            if (player.hp <= 0) {
+                const popup = UIPopup([150, 250, 300, 200, 25], { fill: "white", stroke: "black", width: 3 });
+                popup.add(UIText("You Died", [200, 310, 200], { font: "bold 48px monospace", color: "black" }));
+                popup.add(
+                    UIText(`Final Score: ${player.score}`, [175, 350, 250], {
+                        font: "bold 24px monospace",
+                        color: "black",
+                        center: true,
+                    })
+                );
+                popup.add(UIButton([200, 375, 200, 50, 25], () => location.reload(), { fill: "red", stroke: "black" }));
+                popup.add(UIText("Restart", [235, 411, 150], { font: "bold 36px monospace", color: "black" }));
+                popup.show();
+                return;
+            }
+            // Fill Background Black
+            ctx.fillStyle = "black";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // Update entities
+            updatePlayer(delta);
+            forEntities(pickups, updatePickup, delta);
+            forEntities(enemies, updateEnemy, delta);
+            forEntities(bullets, updateBullet, delta);
+            updateUI(delta);
+        }
+
+        function updatePlayer(delta) {
+            const dir = getPlayerMovementDirection();
+
+            // Use acceleration for the player
+            player.speed = clamp(player.speed + player.acceleration, 0, player.maxSpeed);
+
+            // Stop player if no keys are pressed otherwise change your direction.
+            if (dir == null) player.speed = 0;
+            else player.dir = dir;
+
+            updateEntity(player, delta);
+
+            player.x = clamp(player.x, player.size / 2, canvas.width - player.size / 2);
+            player.y = clamp(player.y, player.size / 2, canvas.height - player.size / 2);
+
+            // redraw player now clamped.
+            drawEntity(player, delta);
+        }
+
+        function updateEnemy(enemy, delta) {
+            updateEntity(enemy, delta);
+            if (detectEntity(player, enemy)) {
+                removeEntity(enemies, enemy);
+                player.hp -= enemy.dmg;
+            }
+            if (enemy.y > canvas.height + enemy.size) {
+                removeEntity(enemies, enemy);
+            }
+        }
+
+        function updateBullet(bullet, delta) {
+            updateEntity(bullet, delta);
+            // Check for collision with enemies and kill them
+            forEntities(enemies, function (enemy) {
+                if (bullet.hit.includes(enemy.id)) return;
+                if (Math.hypot(enemy.x - bullet.x, enemy.y - bullet.y) < enemy.size / 2 + bullet.size / 2) {
+                    if (!bullet.pierce || --bullet.pierce <= 0) removeEntity(bullets, bullet);
+                    bullet.hit.push(enemy.id);
+                    enemy.hp -= bullet.dmg;
+                    if (enemy.hp > 0) return;
+                    removeEntity(enemies, enemy);
+                    spawnDrops(enemy);
+                }
+            });
+            // Remove bullet if it goes off screen
+            if (bullet.y < -20 || bullet.y > canvas.height + 20 || bullet.x < -20 || bullet.x > canvas.width + 20) {
+                removeEntity(bullets, bullet);
+            }
+        }
+
+        function updatePickup(pickup, delta) {
+            updateEntity(pickup, delta);
+            if (detectEntity(pickup, player)) {
+                removeEntity(pickups, pickup);
+                entityEvent(pickup, "activate");
+            }
+            if (pickup.y > canvas.height + pickup.size) {
+                removeEntity(pickups, pickup);
+            }
+        }
+
+        function updateUI(delta) {
+            ctx.font = "24px monospace";
+            ctx.fillStyle = "red";
+            ctx.fillText(`HP: ${player.hp}`, 10, 30);
+            ctx.fillStyle = "gold";
+            ctx.fillText(`Score: ${player.score}`, 10, 60);
+        }
+
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // GAME SPAWN FUNCTIONS | TOUCH AT YOUR OWN RISK
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        function spawnEnemy(type) {
+            const x = Math.random() * canvas.width;
+            spawnEntity(enemies, type, { x, y: -50, dir: Math.PI / 2 });
+        }
+
+        function spawnBullet(type) {
+            playSoundEffect("shoot.wav", { volume: 0.3 });
+            const count = type.count ?? 1;
+            for (let i = 0; i < count; i++) {
+                const spread = (type.spread ?? 0) * (i - (count - 1) / 2);
+                spawnEntity(bullets, type, { x: player.x, y: player.y, dir: -Math.PI / 2 + spread, hit: [] });
+            }
+        }
+
+        function spawnDrops(enemy) {
+            // Spawn Pickups
+            for (let pickupType in pickupTypes) {
+                const pickup = pickupTypes[pickupType];
+                if (Math.random() < pickup.rarity) {
+                    if (pickupType == "gold") {
+                        let total = enemy.point;
+                        const numObjects = Math.min(100, enemy.point);
+                        for (let i = 0; i < numObjects; i++) {
+                            // Calculate radius dynamically based on the number of coins
+                            const radius = (canvas.width / 6) * Math.sqrt(i / numObjects) * (numObjects / 100);
+
+                            const angle = (i / numObjects) * (1.61803398875 * Math.PI * Math.PI) * Math.PI * 2;
+
+                            const value = Math.floor(enemy.point / numObjects);
+                            total -= value;
+                            // Calculate x and y using polar coordinates
+                            const x = enemy.x + radius * Math.cos(angle);
+                            const y = enemy.y + radius * Math.sin(angle);
+
+                            spawnEntity(pickups, pickupTypes.gold, { x, y, value, speed: 30, dir: Math.PI / 2 });
+                        }
+                    } else {
+                        const value = pickup.value;
+                        const rand = Math.random() * pickup.size;
+                        const x = enemy.x + rand;
+                        const y = enemy.y + Math.random() * pickup.size - rand;
+                        spawnEntity(pickups, pickup, { x, y, value, speed: 30, dir: Math.PI / 2 });
+                    }
+                }
+            }
+        }
+
+        function spawnWave(waveData) {
+            // Remove last wave
+            spawnWave.timers ??= [];
+            spawnWave.timers.forEach(clearTask);
+            spawnWave.timers.length = 0;
+            // Add each enemy
+            for (let type in waveData) {
+                let current = waveData[type];
+                for (let i = 0; i < (current.quantity ?? 1); i++) {
+                    if (current.spawnOnce) spawnEnemy(enemyTypes[type]);
+                    else {
+                        const spawnFunc = () => spawnEnemy(enemyTypes[type]);
+                        const spawnTask = scheduleTask(spawnFunc, { time: current.interval ?? 1, loop: true });
+                        spawnWave.timers.push(spawnTask);
+                    }
+                }
+            }
+        }
+
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // GAME DATA | ADD TO AND CUSTOMIZE FREELY
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        const bulletTypes = {
+            normal: {
+                dmg: 1,
+                size: 10,
+                color: "white",
+                speed: 300,
+                rate: 0.2, // .2s between shots (5 shots per second)
+            },
+            multi: {
+                dmg: 1,
+                size: 5,
+                color: "cyan",
+                speed: 375,
+                rate: 0.1,
+                count: 3,
+                spread: 0.1,
+            },
+        };
+
+        const player = {
+            x: canvas.width / 2,
+            y: canvas.height - 50,
+            speed: 0,
+            maxSpeed: 275,
+            acceleration: 7.5,
+            hp: 3,
+            size: 20,
+            score: 0,
+            color: "blue",
+            pickupRadius: 60,
+            bulletType: "normal",
+            ontick: function (_, delta) {
+                //MAGNET RADIUS
+                forEntities(pickups, function (pickup) {
+                    if (detectEntity(pickup, player, pickup.size / 2 + player.pickupRadius)) {
+                        pickup.dir = angleTo(pickup, player);
+                        pickup.speed = 375;
+                    }
+                });
+            },
+        };
+
+        const enemyTypes = {
+            zombie: {
+                dmg: 1,
+                hp: 1,
+                speed: 45,
+                size: 16,
+                color: "green",
+                point: 1,
+            },
+            brute: {
+                dmg: 2,
+                hp: 10,
+                speed: 75,
+                size: 32,
+                color: "#225511",
+                point: 6,
+            },
+            reaper: {
+                dmg: 100,
+                hp: 1200,
+                speed: 7.5,
+                size: canvas.height,
+                color: "white",
+                point: 2_500,
+                onspawn: function () {
+                    this.x = canvas.width / 2;
+                    this.y = -canvas.height / 2;
+                },
+            },
+        };
+
+        const pickupTypes = {
+            gold: {
+                color: "yellow",
+                shape: "circle",
+                size: 12,
+                value: 1,
+                rarity: 1,
+                activate: function () {
+                    player.score += this.value;
+                },
+            },
+            health: {
+                color: "red",
+                size: 16,
+                value: 1,
+                rarity: 0.15,
+                activate: function () {
+                    player.hp += this.value;
+                },
+            },
+            multi: {
+                color: "cyan",
+                shape: "circle",
+                size: 24,
+                value: 1,
+                rarity: 0.05,
+                duration: 15_000,
+                activate: function () {
+                    startShooting(this.type);
+                    const time = this.duration + (tasks.find((t) => t.id == this.type)?.peek() ?? 0);
+                    scheduleTask(startShooting, { time, loop: false, id: this.type }, "normal");
+                },
+            },
+            vaccum: {
+                color: "blue",
+                shape: "circle",
+                size: 16,
+                value: 1,
+                rarity: 0.075,
+                activate: function () {
+                    function vaccumEffect(pickup) {
+                        if (pickup.type == "vaccum") return;
+                        pickup.dir = angleTo(pickup, player);
+                        pickup.speed = distanceTo(pickup, player) * 2 + 375;
+                    }
+                    forEntities(pickups, vaccumEffect);
+                },
+            },
+            nuke: {
+                color: "white",
+                shape: "circle",
+                size: 24,
+                value: 1,
+                rarity: 0.005,
+                activate: function () {
+                    function nukeEffect(enemy) {
+                        enemy.hp -= 100;
+                        if (enemy.hp > 0) return;
+                        removeEntity(enemies, enemy);
+                        spawnDrops(enemy);
+                    }
+                    forEntities(enemies, nukeEffect);
+                },
+            },
+        };
+
+        const waves = {
+            0: {
+                zombie: {
+                    quantity: 2,
+                    interval: 2,
+                },
+            },
+            15: {
+                zombie: {
+                    quantity: 3,
+                    interval: 2,
+                },
+            },
+            30: {
+                zombie: {
+                    quantity: 2,
+                    interval: 1,
+                },
+                brute: {
+                    quantity: 1,
+                    interval: 5,
+                },
+            },
+            45: {
+                zombie: {
+                    quantity: 5,
+                    interval: 1,
+                },
+                brute: {
+                    quantity: 1,
+                    interval: 3,
+                },
+            },
+            90: {
+                zombie: {
+                    quantity: 5,
+                    interval: 0.5,
+                },
+                brute: {
+                    quantity: 1,
+                    interval: 1,
+                },
+                reaper: {
+                    quantity: 1,
+                    interval: 120,
+                },
+            },
+        };
+    </script>
+</html>
