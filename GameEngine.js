@@ -39,6 +39,9 @@ window.onload = () => {
     if (typeof preload !== "undefined") preload();
     if (typeof start !== "undefined") start();
 };
+function onInteract() {
+    window.interacted = true;
+}
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // BASE UI
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -280,6 +283,7 @@ function UIPopup([x, y, w, h, r = 0], { fill, stroke, width, hoverFill, hoverStr
 // BASE IO -- Supports KeyEvents list for events on KeyDown
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 function handleKeyDown(event) {
+    if (!window.interacted) onInteract();
     keys[event.code] = true;
     if (typeof DownKeyEvents !== "undefined") for (let a in DownKeyEvents) if (event.code == a) DownKeyEvents[a]();
 }
@@ -297,11 +301,44 @@ function handleMouseMove(event) {
 }
 
 function handleMouseDown(event) {
+    if (!window.interacted) onInteract();
     if (typeof MouseEvents !== "undefined" && MouseEvents.Down) MouseEvents.Down(event);
 }
 function handleMouseUp(event) {
     if (typeof MouseEvents !== "undefined" && MouseEvents.Up) MouseEvents.Up(event);
 }
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// SOUND FUNCTIONS
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+function playSoundEffect(src, { playrate, volume } = {}) {
+    if (!window.interacted) return;
+    let soundBite = new Audio(src);
+    if (playrate) soundBite.playbackRate = playrate;
+    if (volume) soundBite.volume = volume;
+    soundBite.addEventListener("canplaythrough", soundBite.play);
+}
+
+function playMusic(src, { playrate, volume } = {}) {
+    if (!window.interacted) {
+        const f = onInteract;
+        onInteract = () => {
+            f.call(this);
+            onInteract = f;
+            playMusic(src, { playrate, volume });
+        };
+        return;
+    }
+    if (playMusic.audioPlayer === undefined) {
+        playMusic.audioPlayer = new Audio();
+        playMusic.audioPlayer.loop = true;
+        playMusic.audioPlayer.addEventListener("canplaythrough", playMusic.audioPlayer.play);
+    }
+    if (playrate) playMusic.audioPlayer.playbackRate = playrate;
+    if (volume) playMusic.audioPlayer.volume = volume;
+    playMusic.audioPlayer.src = src;
+}
+
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // TIMING FUNCTIONS
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -363,6 +400,7 @@ function Task(func, { time, loop, id, immediate = false }, ...args) {
 
 function pause() {
     paused = true;
+    playMusic.audioPlayer?.pause();
     cancelAnimationFrame(tasks.updateframe);
     forEntities(tasks, (task) => task.pause());
 }
@@ -370,6 +408,7 @@ function pause() {
 function resume(menu) {
     if (inMenu) return;
     paused = false;
+    if (window.interacted) playMusic.audioPlayer?.play();
     cancelAnimationFrame(tasks.updateframe);
     forEntities(tasks, (task) => task.resume());
     update.lastTimestamp = document.timeline.currentTime;
