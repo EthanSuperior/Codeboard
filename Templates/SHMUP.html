@@ -14,11 +14,11 @@
         const bullets = [];
         const pickups = [];
         // Key state object
-        MouseKeyEvents = {
+        const MouseKeyEvents = {
             Down: startShooting,
             Up: stopShooting,
         };
-        DownKeyEvents = {
+        const DownKeyEvents = {
             KeyP: togglePause,
             Space: startShooting,
             ControlLeft: startShooting,
@@ -28,7 +28,7 @@
             Digit3: () => spawnEntity(pickups, pickupTypes.vaccum, { x: player.x, y: player.y }),
             KeyK: () => (player.hp = 0),
         };
-        UpKeyEvents = {
+        const UpKeyEvents = {
             Space: stopShooting,
             ControlLeft: stopShooting,
             ControlRight: stopShooting,
@@ -47,21 +47,19 @@
             );
         }
 
-        function preload() {
+        game.width = 600;
+        game.height = 800;
+
+        function load() {
+            game.onupdate = updateGame;
+            game.ondraw = drawGame;
             for (let type in pickupTypes) pickupTypes[type].type = type;
             for (let type in bulletTypes) bulletTypes[type].type = type;
             for (let type in enemyTypes) enemyTypes[type].type = type;
             for (let time in waves) scheduleTask(spawnWave, { time: +time }, waves[time]);
-            playMusic("theme.mp3");
-        }
-
-        canvas.width = 600;
-        canvas.height = 800;
-
-        function start() {
+            game.playMusic("theme.mp3");
             // Give points for time survived
             scheduleTask(() => player.score++, { loop: 1, time: 2 });
-            resume();
         }
 
         // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -70,17 +68,15 @@
 
         function updateGame(delta) {
             if (player.hp <= 0) {
-                const popup = UIPopup([150, 250, 300, 200, 25], { fill: "white", stroke: "black", width: 3 });
-                popup.add(UIText("You Died", [200, 310, 200], { font: "bold 48px monospace", color: "black" }));
-                popup.add(
-                    UIText(`Final Score: ${player.score}`, [175, 350, 250], {
-                        font: "bold 24px monospace",
-                        color: "black",
-                        center: true,
-                    })
-                );
-                popup.add(UIButton([200, 375, 200, 50, 25], () => location.reload(), { fill: "red", stroke: "black" }));
-                popup.add(UIText("Restart", [235, 411, 150], { font: "bold 36px monospace", color: "black" }));
+                const popup = UIPopup(150, 250, 300, 200, "You Died", `Final Score: ${player.score}`, 50, {
+                    radius: 25,
+                    background: "white",
+                    textColor: "black",
+                    strokeColor: "black",
+                    buttonColor: "red",
+                    buttonText: "Restart",
+                    buttonAction: () => location.reload(),
+                });
                 popup.show();
                 return;
             }
@@ -92,7 +88,14 @@
             forEntities(pickups, updatePickup, delta);
             forEntities(enemies, updateEnemy, delta);
             forEntities(bullets, updateBullet, delta);
-            updateUI(delta);
+        }
+
+        function drawGame() {
+            drawEntity(player);
+            forEntities(pickups, drawEntity);
+            forEntities(enemies, drawEntity);
+            forEntities(bullets, drawEntity);
+            updateUI();
         }
 
         function updatePlayer(delta) {
@@ -177,8 +180,7 @@
             playSoundEffect("shoot.wav", { volume: 0.3 });
             const count = type.count ?? 1;
             for (let i = 0; i < count; i++) {
-                const spread = (type.spread ?? 0) * (i - (count - 1) / 2);
-                spawnEntity(bullets, type, { x: player.x, y: player.y, dir: -Math.PI / 2 + spread, hit: [] });
+                spawnEntity(bullets, type, { x: player.x, y: player.y, dir: -Math.PI / 2, hit: [], spawnOrder: i + 1 });
             }
         }
 
@@ -253,7 +255,9 @@
                 speed: 375,
                 rate: 0.1,
                 count: 3,
-                spread: 0.1,
+                onspawn: function () {
+                    this.dir += 0.1 * (this.spawnOrder - 1 - (this.count - 1) / 2);
+                },
             },
         };
 
@@ -340,8 +344,9 @@
                 duration: 15_000,
                 activate: function () {
                     startShooting(this.type);
-                    const time = this.duration + (tasks.find((t) => t.id == this.type)?.peek() ?? 0);
-                    scheduleTask(startShooting, { time, loop: false, id: this.type }, "normal");
+                    let task = findTask(this.type);
+                    if (task) task.extend(this.duration);
+                    else scheduleTask(startShooting, { time: this.duration, loop: false, id: this.type }, "normal");
                 },
             },
             vaccum: {
@@ -353,8 +358,8 @@
                 activate: function () {
                     function vaccumEffect(pickup) {
                         if (pickup.type == "vaccum") return;
-                        pickup.dir = angleTo(pickup, player);
-                        pickup.speed = distanceTo(pickup, player) * 2 + 375;
+                        pickup.ontick = () => (pickup.dir = angleTo(pickup, player));
+                        pickup.speed = 500;
                     }
                     forEntities(pickups, vaccumEffect);
                 },
