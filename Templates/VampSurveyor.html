@@ -13,11 +13,18 @@
         const projectiles = [];
         const pickups = [];
 
-        function preload() {
+        function load() {
+            game.onupdate = updateGame;
+            game.ondraw = drawGame;
+
+            game.width = 800;
+            game.height = 600;
             for (let type in pickupTypes) pickupTypes[type].type = type;
             for (let type in weaponTypes) weaponTypes[type].type = type;
             for (let type in enemyTypes) enemyTypes[type].type = type;
             for (let time in waves) scheduleTask(spawnWave, { time: +time }, waves[time]);
+            addUI();
+            gainEXP(0);
         }
 
         const DownKeyEvents = {
@@ -30,7 +37,6 @@
         function gainEXP(exp) {
             player.exp += exp;
             if (player.exp < player.neededEXP) return;
-            pause();
             player.exp -= player.neededEXP;
             player.neededEXP = ++player.level * 10;
             const isMaxLevel = (o) => weaponTypes[o].currentLevel >= Object.keys(weaponTypes[o].levels).length;
@@ -44,27 +50,35 @@
 
         function showLevelUp(options) {
             const UILevelUp = makeUI();
-            UILevelUp.add(UIRect([200, 75, 400, 450, 25], { fill: "#4b4e74", stroke: "#cd9958", width: 6 }));
-            UILevelUp.add(UIText(`~ LEVEL UP! ~`, [230, 130], { font: "bold 48px monospace", color: "black" }));
-            const UILevelScroll = UIScroll([215, 130, 375, 380], {
+            UILevelUp.add(
+                UIRect(200, 75, 400, 450, { radius: 25, fill: "#4b4e74", stroke: "#cd9958", strokeWidth: 6 })
+            );
+            UILevelUp.add(UIText(`~ LEVEL UP! ~`, 230, 130, { font: "bold 48px monospace", color: "black" }));
+            const UILevelScroll = UIScroll(215, 130, 375, 380, {
                 scrollHeight: 125 * options.length,
                 bkg: "#4b4e74",
             });
             for (let i = 0; i < options.length; i++) {
-                const buttonPos = [225, 150 + i * 125, 350, 100, 25];
+                const buttonPos = [225, 150 + i * 125, 350, 100];
                 const buttonAction = (e, x, y) => {
                     getWeapon(options[i]);
                     UILevelUp.hide();
                 };
-                const buttonProps = { fill: "#8c8c8c", hoverFill: "#8b8b00", hoverStroke: "#cd9958", hoverWidth: 6 };
-                UILevelScroll.add(UIButton(buttonPos, buttonAction, buttonProps));
+                const buttonProps = {
+                    radius: 25,
+                    fill: "#8c8c8c",
+                    hoverFill: "#8b8b00",
+                    hoverStroke: "#cd9958",
+                    hoverWidth: 6,
+                };
+                UILevelScroll.add(UIButton(...buttonPos, buttonAction, buttonProps));
                 const weapon = weaponTypes[options[i]];
                 const nextLevel = (weapon.currentLevel ?? 0) + 1;
                 const text = nextLevel == 1 ? `UNLOCK ${options[i]}` : `${options[i]}  ~~  LEVEL ${nextLevel}`;
                 UILevelScroll.add(
-                    UIText(text.toUpperCase(), [290, 180 + i * 125], { font: "24px monospace", color: "black" })
+                    UIText(text.toUpperCase(), 290, 180 + i * 125, { font: "24px monospace", color: "black" })
                 );
-                UILevelScroll.add(UIText(weapon.levels[nextLevel].description, [235, 210 + i * 125, 330]));
+                UILevelScroll.add(UIText(weapon.levels[nextLevel].description, 235, 210 + i * 125, { width: 330 }));
             }
             UILevelUp.add(UILevelScroll);
             UILevelUp.show();
@@ -77,18 +91,11 @@
             }
             const level = ++weaponTypes[type].currentLevel;
             weaponTypes[type] = { ...weaponTypes[type], ...weaponTypes[type].levels[level] };
-            scheduleTask(() => spawnProjectile(weaponTypes[type]), {
+            game.scheduleTask(() => spawnProjectile(weaponTypes[type]), {
                 time: weaponTypes[type].rate,
                 loop: true,
                 id: type,
             });
-        }
-
-        canvas.width = 800;
-        canvas.height = 600;
-
-        function start() {
-            gainEXP(0);
         }
 
         // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -97,17 +104,15 @@
 
         function updateGame(delta) {
             if (player.hp <= 0) {
-                const popup = UIPopup([250, 200, 300, 200, 25], { fill: "white", stroke: "black", width: 3 });
-                popup.add(UIText("You Died", [300, 260, 200], { font: "bold 48px monospace", color: "black" }));
-                popup.add(
-                    UIText(`Final Score: ${player.kills}`, [275, 300, 250], {
-                        font: "bold 24px monospace",
-                        color: "black",
-                        center: true,
-                    })
-                );
-                popup.add(UIButton([300, 325, 200, 50, 25], () => location.reload(), { fill: "red", stroke: "black" }));
-                popup.add(UIText("Restart", [335, 361, 150], { font: "bold 36px monospace", color: "black" }));
+                const popup = UIPopup(250, 200, 300, 200, "You Died", `Final Score: ${player.kills}`, 50, {
+                    radius: 25,
+                    background: "white",
+                    textColor: "black",
+                    strokeColor: "black",
+                    buttonColor: "red",
+                    buttonText: "Restart",
+                    buttonAction: () => location.reload(),
+                });
                 popup.show();
                 return;
             }
@@ -120,7 +125,13 @@
             forEntities(pickups, updatePickup, delta);
             forEntities(enemies, updateEnemy, delta);
             forEntities(projectiles, updateProjectile, delta);
-            updateUI(delta);
+        }
+
+        function drawGame() {
+            drawEntity(player);
+            forEntities(pickups, drawEntity);
+            forEntities(enemies, drawEntity);
+            forEntities(projectiles, drawEntity);
         }
 
         function updatePlayer(delta) {
@@ -132,23 +143,18 @@
             // Stop player if no keys are pressed otherwise change your direction.
             if (dir == null) player.speed = 0;
             else player.dir = dir;
-
+            player.flipX = getXSign(player) < 0;
+            game.cameraX = player.x;
+            game.cameraY = player.y;
             updateEntity(player, delta);
-            if (outOfBounds(player, { padding: -player.size / 2 })) {
-                player.x = clamp(player.x, player.size / 2, canvas.width - player.size / 2);
-                player.y = clamp(player.y, player.size / 2, canvas.height - player.size / 2);
-
-                // redraw player now clamped.
-                drawEntity(player, delta);
-            }
         }
 
         function updateEnemy(enemy, delta) {
             enemy.dir = angleTo(enemy, player);
             updateEntity(enemy, delta);
             if (detectEntity(player, enemy)) {
-                enemy.x -= (Math.cos(enemy.dir) * enemy.speed * enemy.size) / 20;
-                enemy.y -= (Math.sin(enemy.dir) * enemy.speed * enemy.size) / 20;
+                enemy.x -= (getXVelocity(enemy) * enemy.size) / 20;
+                enemy.y -= (getYVelocity(enemy) * enemy.size) / 20;
                 player.hp -= enemy.dmg;
             }
         }
@@ -168,8 +174,6 @@
                     spawnDrops(enemy);
                 }
             });
-            // Remove projectile if it goes off screen
-            if (!projectile.lifespan && outOfBounds(projectile)) removeEntity(projectiles, projectile);
         }
 
         function updatePickup(pickup, delta) {
@@ -179,23 +183,30 @@
                 removeEntity(pickups, pickup);
                 entityEvent(pickup, "activate");
             }
-            if (outOfBounds(pickup)) removeEntity(pickups, pickup);
         }
 
-        function updateUI(delta) {
-            ctx.font = "24px monospace";
-            ctx.fillStyle = "red";
-            ctx.fillText(`HP: ${player.hp}`, 10, 36);
-            ctx.fillStyle = "gold";
-            ctx.fillText(`Kills: ${player.kills}`, 10, 66);
+        function addUI() {
+            const UI = makeUI();
 
-            ctx.fillStyle = "black";
-            ctx.fillRect(5, 5, canvas.width - 10, 12);
+            const healthUI = UIText(`HP: ${player.hp}`, 10, 36, { font: "24px monospace", color: "red" });
+            healthUI.onupdate = () => (healthUI.text = `HP: ${player.hp}`);
+            UI.add(healthUI);
 
-            // Draw the progress bar
-            ctx.fillStyle = "#2165db";
-            const progressBarWidth = (player.exp / player.neededEXP) * (canvas.width - 10);
-            ctx.fillRect(5, 5, progressBarWidth, 12);
+            const killsUI = UIText(`Kills: ${player.kills}`, 10, 66, {
+                font: "24px monospace",
+                color: "gold",
+            });
+            killsUI.onupdate = () => (killsUI.text = `Kills: ${player.kills}`);
+            UI.add(killsUI);
+
+            const getProgress = () => player.exp / player.neededEXP;
+            const playerExpBar = UIProgressBar(getProgress, 5, 5, canvas.width - 10, 12, {
+                background: "black",
+                fill: "#2165db",
+            });
+            UI.add(playerExpBar);
+
+            UI.show({ overlay: true });
         }
 
         // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -204,9 +215,9 @@
 
         function spawnEnemy(type) {
             const dir = Math.random() * Math.PI * 2;
-            const radius = (Math.sqrt(canvas.width * canvas.width + canvas.height * canvas.height) + type.size) / 2;
-            const x = canvas.width / 2 + Math.cos(dir) * radius;
-            const y = canvas.height / 2 + Math.sin(dir) * radius;
+            const radius = (Math.hypot(game.width, game.height) + type.size) / 2;
+            const x = player.x + Math.cos(dir) * radius;
+            const y = player.y + Math.sin(dir) * radius;
             spawnEntity(enemies, type, { x, y, dir });
         }
 
@@ -214,8 +225,7 @@
             const dir = angleTo(player, mouse);
             const count = type.count ?? 1;
             for (let i = 0; i < count; i++) {
-                const spread = (type.spread ?? 0) * (i - (count - 1) / 2);
-                spawnEntity(projectiles, type, { x: player.x, y: player.y, dir: dir + spread, hit: [] });
+                spawnEntity(projectiles, type, { x: player.x, y: player.y, dir, hit: [], spawnOrder: i + 1 });
             }
         }
 
@@ -246,7 +256,7 @@
                         const rand = Math.random() * pickup.size;
                         const x = enemy.x + rand;
                         const y = enemy.y + Math.random() * pickup.size - rand;
-                        spawnEntity(pickups, pickup, { x, y, value });
+                        spawnEntity(pickups, pickup, { x, y, value, lifespan: 10 });
                     }
                 }
             }
@@ -307,11 +317,11 @@
                 },
                 ontick: function (_, delta) {
                     const gravity = weaponTypes.axe.speed * delta;
-                    const vecX = this.speed * Math.cos(this.dir);
-                    const vecY = this.speed * Math.sin(this.dir) + gravity;
+                    const vecX = getXVelocity(this);
+                    const vecY = getYVelocity(this) + gravity;
                     this.speed = Math.hypot(vecX, vecY);
                     this.dir = Math.atan2(vecY, vecX);
-                    this.rotationalOffset += (Math.PI / 180) * this.speed * delta * Math.sign(Math.cos(this.dir));
+                    this.rotationalOffset += (Math.PI / 180) * this.speed * delta * getXSign(this.dir);
                 },
             },
             knife: {
@@ -320,7 +330,7 @@
                         dmg: 7,
                         pierce: 1,
                         count: 1,
-                        description: "Fires quickly in your mouse's direction.",
+                        description: "Fires quickly in your player's direction.",
                     },
                     2: { count: 2, description: "Fires 1 more projectile." },
                     3: { count: 3, dmg: 12, description: "Fires 1 more projectile. Base Damage up by 5." },
@@ -333,11 +343,10 @@
                 size: 5,
                 color: "lightgray",
                 speed: 450,
-                spread: 0.1,
                 rate: 0.4,
+                lifespan: 50,
                 onspawn: function () {
-                    const dir = angleTo(this, mouse);
-                    const offset = (this.dir -= dir);
+                    const offset = (this.spawnOrder - 1 - (this.count - 1) / 2) * 0.1;
                     this.dir = player.dir;
                     this.x +=
                         Math.cos(player.dir + Math.PI / 2) * offset * 100 +
@@ -365,13 +374,12 @@
                 },
                 color: "tan",
                 speed: 450,
-                spread: 0.5,
                 pierce: 10e10,
                 rate: 0.4,
                 staticY: true,
                 lifespan: 0.1,
                 onspawn: function () {
-                    const isFirst = this.dir - angleTo(player, mouse) >= 0;
+                    const isFirst = this.spawnOrder % 2;
                     if (Math.cos(player.dir) > 0) this.dir = isFirst ? 0 : Math.PI;
                     else this.dir = isFirst ? Math.PI : 0;
                 },
@@ -382,8 +390,8 @@
         };
 
         const player = {
-            x: canvas.width / 2,
-            y: canvas.height / 2,
+            x: 0,
+            y: 0,
             speed: 0,
             maxSpeed: 225,
             acceleration: 7.5,
@@ -482,8 +490,8 @@
                 activate: function () {
                     function vaccumEffect(pickup) {
                         if (pickup.type == "vaccum" || pickup.type == "chest") return;
-                        pickup.dir = angleTo(pickup, player);
-                        pickup.speed = distanceTo(pickup, player) * 2 + 375;
+                        pickup.ontick = () => (pickup.dir = angleTo(pickup, player));
+                        pickup.speed = 500;
                     }
                     forEntities(pickups, vaccumEffect);
                 },
