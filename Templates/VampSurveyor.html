@@ -168,14 +168,14 @@
                             const x = enemy.x + radius * Math.cos(angle);
                             const y = enemy.y + radius * Math.sin(angle);
 
-                            spawnEntity(pickups, pickupTypes.gold, { x, y, value });
+                            spawnPickup(pickupTypes.gold, { x, y, value });
                         }
                     } else {
                         const value = pickup.value;
                         const rand = Math.random() * pickup.size;
                         const x = enemy.x + rand;
                         const y = enemy.y + Math.random() * pickup.size - rand;
-                        spawnEntity(pickups, pickup, { x, y, value, lifespan: 10 });
+                        spawnPickup(pickup, { x, y, value, lifespan: 10 });
                     }
                 }
             }
@@ -437,9 +437,9 @@
                 this.angleTowards(player);
             },
             oncollide: function (other) {
-                if (other.groupName != "player") return;
-                this.x -= (this.xVel * this.size) / 20;
-                this.y -= (this.yVel * this.size) / 20;
+                if (other.groupName != "Player") return;
+                this.x -= (this.velocityX * this.size) / 20;
+                this.y -= (this.velocityY * this.size) / 20;
                 other.hp -= this.dmg;
             },
         });
@@ -451,12 +451,12 @@
                 this.raise("onpickup");
             },
             oncollide: function (other) {
-                if (other.groupName != "enemy") return;
-                if (this.hit.includes(enemy.id)) return;
-                this.hit.push(enemy.id);
+                if (other.groupName !== "Enemy") return;
+                if (this.hit.includes(other.id)) return;
+                this.hit.push(other.id);
                 other.hp -= this.dmg;
                 this.pierce--;
-                if (projectile.pierce <= 0) this.despawn();
+                if (this.pierce <= 0) this.despawn();
                 if (other.hp > 0) return;
                 player.kills += 1;
                 spawnDrops(other);
@@ -465,10 +465,13 @@
         });
 
         registerEntity("Pickup", {
-            oncollide: function () {
-                if (other.groupName != "player") return;
+            oncollide: function (other) {
+                if (other.groupName != "Player") return;
                 this.pickup();
                 this.despawn();
+            },
+            pickup: function () {
+                this.raise("onpickup");
             },
         });
 
