@@ -54,7 +54,7 @@ function UIButton(
 function UIText(text, x, y, { width, font, color, center } = {}) {
     const uiElem = {
         ...{ text, x, y, width, font, color, center },
-        ondraw: () => {
+        draw: () => {
             if (color) ctx.fillStyle = uiElem.color;
             if (font) ctx.font = uiElem.font;
             ctx.textBaseline = uiElem.center ? "middle" : "alphabetic";
@@ -70,7 +70,7 @@ function UIText(text, x, y, { width, font, color, center } = {}) {
 function UICircle(x, y, radius, { fill, stroke, strokeWidth, hoverFill, hoverStroke, hoverWidth } = {}) {
     const uiElem = {
         ...{ x, y, radius, fill, stroke, strokeWidth, hoverFill, hoverStroke, hoverWidth },
-        ondraw: () => {
+        draw: () => {
             ctx.beginPath();
             ctx.arc(uiElem.x, uiElem.y, uiElem.radius, 0, 2 * Math.PI);
             const hovered = ctx.isPointInPath(mouse.x, mouse.y);
@@ -94,7 +94,7 @@ function UIRect(
 ) {
     const uiElem = {
         ...{ x, y, width, height, radius, fill, stroke, strokeWidth, hoverFill, hoverStroke, hoverWidth },
-        ondraw: () => {
+        draw: () => {
             ctx.beginPath();
             ctx.roundRect(uiElem.x, uiElem.y, uiElem.width, uiElem.height, uiElem.radius);
             const hovered = ctx.isPointInPath(mouse.x, mouse.y);
@@ -181,8 +181,8 @@ function UIScroll(x, y, w, h, { scrollWidth, scrollHeight, barWidth = 10, bkg = 
             if (!forced) this.drawScrollBarX(true);
         }
     }.bind(UI);
-    const defaultDraw = UI.ondraw;
-    UI.ondraw = function () {
+    const defaultDraw = UI.draw;
+    UI.draw = function () {
         ctx.save();
         ctx.beginPath();
         ctx.rect(x, y, w, h);
@@ -219,12 +219,12 @@ function UIScroll(x, y, w, h, { scrollWidth, scrollHeight, barWidth = 10, bkg = 
     return UI;
 }
 
-function UIProgressBar(update, x, y, width, height, { fill, background } = {}) {
+function UIProgressBar(onupdate, x, y, width, height, { fill, background } = {}) {
     const uiElem = {
         ...{ x, y, width, height, background, fill },
-        onupdate: () => (uiElem.value = update()),
+        update: () => (uiElem.value = onupdate()),
         value: 0,
-        ondraw: () => {
+        draw: () => {
             // Draw the background
             if (uiElem.background) {
                 ctx.fillStyle = uiElem.background;
@@ -245,7 +245,7 @@ function UIProgressBar(update, x, y, width, height, { fill, background } = {}) {
 function UIImage(src, x, y, { width, height } = {}) {
     const uiElem = {
         ...{ src, x, y, width, height },
-        ondraw: () => {
+        draw: () => {
             const image = new Image();
             image.src = uiElem.src;
             image.onload = () => {
@@ -514,8 +514,8 @@ class LayerManager {
         LayerManager.lastTimestamp = timestamp;
         if (!LayerManager.global.ispaused) LayerManager.global.update(delta);
         LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l.update(delta));
-        if (!LayerManager.global.ispaused) LayerManager.global.draw();
-        LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l.draw());
+        if (!LayerManager.global.ispaused) LayerManager.global.predraw();
+        LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l.predraw());
         LayerManager.updateframe = requestAnimationFrame(LayerManager.update);
     };
     static oninteract() {
@@ -563,12 +563,12 @@ class LayerManager {
     }
 }
 class Layer extends Identifiable {
-    constructor({ id, layerNum } = {}, modifiedBaseCalls = {}) {
+    constructor({ id, layerNum } = {}, calls = {}) {
         super(id);
         this.entities = { Entity: new IterableWeakRef() };
         for (let v in Entity.types) this.entities[v] = new IterableWeakRef();
         this.layerNum = layerNum;
-        for (let key in modifiedBaseCalls) appendToFunction(this, key, modifiedBaseCalls[key]);
+        for (let key in calls) this[key] = calls[key];
     }
     // Base Methods
     open = () => {};
@@ -639,29 +639,39 @@ class Layer extends Identifiable {
     cameraY;
     updateRate = 0;
     addEntity = (entity) => {
-        this.entities.push(entity);
+        this.entities[entity.groupName] ??= new IterableWeakRef();
+        this.entities[entity.groupName].push(entity);
     };
-    propigate = (call, ...args) => {};
+    removeEntity = (entity) => {
+        this.entities[entity.groupName]?.remove(entity.id);
+    };
+    propigate = (call, ...args) => {
+        this.raise("on" + call, ...args);
+        for (let v in Entity.types) {
+            this.entities[v] ??= new IterableWeakRef();
+            this.entities[v].forEach((e) => e.raise(call, ...args));
+        }
+    };
     // Game Update Events
-    update = (delta) => forEntities(this.entities, updateEntity, delta);
+    update = (delta) => this.propigate("update", delta);
     predraw = () => {
         ctx.save();
         if (this.cameraX !== undefined && this.cameraY !== undefined)
             ctx.translate(canvas.width / 2 - this.cameraX, canvas.height / 2 - this.cameraY);
-        this.ondraw();
+        this.draw();
         ctx.restore();
     };
-    draw = () => forEntities(this.entities, drawEntity);
-    interact = () => {};
+    draw = () => this.propigate("draw");
+    interact = () => this.propigate("interact");
     // IO Events
-    keydown = (e) => {};
-    keyup = (e) => {};
+    keydown = (e) => this.propigate("keydown", e);
+    keyup = (e) => this.propigate("keyup", e);
     // Mouse IO Events
-    mousedown = (e) => {};
-    mouseup = (e) => {};
-    mousemove = (e) => {};
-    dblclick = (e) => {};
-    wheel = (e) => {};
+    mousedown = (e) => this.propigate("mousedown", e);
+    mouseup = (e) => this.propigate("mouseup", e);
+    mousemove = (e) => this.propigate("mousemove", e);
+    dblclick = (e) => this.propigate("dblclick", e);
+    wheel = (e) => this.propigate("wheel", e);
 }
 class Task extends Identifiable {
     constructor(func, { time, loop, id, immediate } = {}, ...args) {
@@ -723,9 +733,13 @@ class UI extends Layer {
             this.children.forEach((c) => c.onupdate && c.onupdate());
         };
     }
-    ondraw = () => {
-        super.ondraw();
-        this.children.forEach((c) => c.ondraw && c.ondraw());
+    propigate = (call, ...args) => {
+        this.raise("on" + call, ...args);
+        this.children.forEach((c) => c[call] && c[call].call(this, ...args));
+        for (let v in Entity.types) {
+            this.entities[v] ??= new IterableWeakRef();
+            this.entities[v].forEach((e) => e.raise(call, ...args));
+        }
     };
     show = ({ overlay } = {}) => {
         if (overlay) this.layerNum = LayerManager.activeLayer;
@@ -737,7 +751,7 @@ class UI extends Layer {
     };
 
     _callAction = (e) => {
-        this.action(e, mouse.x, mouse.y);
+        this.propigate("action", e, mouse.x, mouse.y);
     };
 
     action = (event, mX, mY) => {
@@ -779,9 +793,7 @@ class Entity extends Identifiable {
     groupName = "Entity";
     constructor({ layerNum } = {}) {
         super();
-        if (layerNum) {
-            LayerManager.get(layerNum);
-        }
+        if (layerNum) LayerManager.get(layerNum);
     }
     update = (delta) => {
         this.raise("onupdate", delta);
@@ -791,8 +803,9 @@ class Entity extends Identifiable {
         }
 
         //Do COLLISION CODE
-
-        this.draw();
+    };
+    spawn = () => {
+        this.raise("onspawn");
     };
     do = (func, ...args) => func.call(this, ...args);
     draw = () => {
@@ -835,7 +848,10 @@ class Entity extends Identifiable {
         this.raise("ondraw");
         ctx.restore();
     };
-    despawn = () => removeEntity(this);
+    despawn = () => despawnEntity(this);
+    angleTowards = (entity) => {
+        this.dir = angleTo(this, entity);
+    };
     set velocityX(value) {
         const velY = this.velocityY;
         this.speed = Math.hypot(value, velY);
@@ -846,6 +862,17 @@ class Entity extends Identifiable {
     }
     get velocityXSign() {
         return Math.sign(this.velocityX);
+    }
+    set velocityY(value) {
+        const velX = this.velocityX;
+        this.speed = Math.hypot(velX, value);
+        this.dir = Math.atan2(value, velX);
+    }
+    get velocityY() {
+        return this.speed * Math.sin(this.dir);
+    }
+    get velocityYSign() {
+        return Math.sign(this.velocityY);
     }
 }
 
@@ -870,10 +897,17 @@ class IterableWeakRef {
     push = (value) => {
         this.#list.push(new WeakRef(value));
     };
-    forEach(callback) {
+    forEach = (callback) => {
         for (const value of this) {
             callback(value);
         }
+    };
+    remove(id) {
+        const indexToRemove = this.#list.findIndex((weakRef) => {
+            const value = weakRef.deref();
+            return value && value.id === id;
+        });
+        if (indexToRemove !== -1) this.#list.splice(indexToRemove, 1);
     }
 }
 
@@ -882,6 +916,7 @@ function registerEntity(name, options) {
     const lowerName = name[0].toLowerCase() + name.slice(1);
     const newSubclass = class extends Entity {
         static group = [];
+        groupName = name;
     };
     for (let val in options) newSubclass.prototype[val] = options[val];
     newSubclass.prototype.groupName = name;
@@ -893,15 +928,16 @@ function registerEntity(name, options) {
             newSubclass.group = value;
         },
     });
-    globalThis["spawn" + upperName] = (subType) => {
+    globalThis["spawn" + upperName] = (subType, additional) => {
         const newEntity = new newSubclass();
         for (let val in subType) newEntity[val] = subType[val];
+        for (let val in additional) newEntity[val] = additional[val];
         globalThis[lowerName + "Group"].push(newEntity);
+        newEntity.layer = LayerManager.currentLayer;
+        newEntity.layer.addEntity(newEntity);
         newEntity.raise("spawn");
         if (newEntity.lifespan)
-            newEntity.lifeTimer = scheduleTask(() => globalThis["spawn" + upperName](newEntity), {
-                time: newEntity.lifespan,
-            });
+            newEntity.lifeTimer = scheduleTask(() => newEntity.despawn(), { time: newEntity.lifespan });
         return newEntity;
     };
     globalThis["forEvery" + upperName + "Do"] = (func, ...args) => {
@@ -919,9 +955,10 @@ function despawnEntity(entity) {
     if (!entity) return;
     entity.raise("ondespawn");
     if (entity.lifeTimer) clearTask(entity.lifeTimer);
-    const idx = Entity.types[entity.name].group.findIndex((e) => e.id === entity.id);
+    const idx = Entity.types[entity.groupName].group.findIndex((e) => e.id === entity.id);
     if (idx == -1) return;
-    Entity.types[entity.name].group.splice(idx, 1);
+    Entity.types[entity.groupName].group.splice(idx, 1);
+    entity.layer.removeEntity(entity);
 }
 
 const global = (LayerManager.global = new Layer(
