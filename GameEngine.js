@@ -439,21 +439,6 @@ function getPlayerMovementDirection({ useCardinal } = {}) {
     return dir;
 }
 
-function getXVelocity(entity) {
-    let { dir, speed } = entity;
-    return speed * Math.cos(dir);
-}
-
-function getYVelocity(entity) {
-    let { dir, speed } = entity;
-    return speed * Math.sin(dir);
-}
-
-function getXSign(entity) {
-    let dir = entity?.dir ?? entity;
-    return Math.cos(dir) > 0 ? 1 : Math.cos(dir) < 0 ? -1 : 0;
-}
-
 function getYSign(entity) {
     let dir = entity?.dir ?? entity;
     return Math.sin(dir) > 0 ? 1 : Math.sin(dir) < 0 ? -1 : 0;
@@ -473,91 +458,15 @@ function appendToFunction(obj, funcName, additionalFunc, { hasPriority } = {}) {
 }
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// ENTITY FUNCTION
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-function spawnEntity(arr, base, props) {
-    const newEntity = { id: crypto.randomUUID(), ...base, ...props };
-    arr.push(newEntity);
-    entityEvent(newEntity, "onspawn");
-    if (newEntity.lifespan)
-        newEntity.lifeTimer = scheduleTask(() => removeEntity(arr, newEntity), { time: newEntity.lifespan });
-}
-
-function removeEntity(arr, entity) {
-    if (!entity) return;
-    entityEvent(entity, "ondespawn");
-    if (entity.lifeTimer) clearTask(entity.lifeTimer);
-    const idx = arr.findIndex((e) => e.id === entity.id);
-    if (idx == -1) return;
-    arr.splice(idx, 1);
-}
-
-function updateEntity(entity, delta) {
-    entityEvent(entity, "ontick", delta);
-    if (entity.speed) {
-        if (!entity.staticX) entity.x += Math.cos(entity.dir ?? 0) * entity.speed * delta;
-        if (!entity.staticY) entity.y += Math.sin(entity.dir ?? 0) * entity.speed * delta;
-    }
-}
-
-function drawEntity(entity, delta) {
-    ctx.save();
-    ctx.translate(entity.x, entity.y);
-    if (entity.rotate) ctx.rotate(entity.dir + Math.PI / 2 + (entity.rotationalOffset ?? 0));
-    const halfSize = entity.size / 2;
-    if (entity.img) {
-        const i = new Image();
-        i.src = entity.img;
-        ctx.save();
-        ctx.scale(entity.flipX ? -1 : 1, entity.flipY ? -1 : 1);
-        ctx.drawImage(i, -halfSize, -halfSize, entity.size, entity.size);
-        ctx.restore();
-        //TODO: ONLOAD ANIMATION CODE
-    } else {
-        ctx.fillStyle = entity.color;
-        if (entity.shape == "custom") {
-            entityEvent(entity, "draw", delta);
-        } else if (entity.shape == "circle") {
-            ctx.beginPath();
-            ctx.arc(0, 0, halfSize, 0, 2 * Math.PI);
-            ctx.fill();
-            ctx.closePath();
-        } else if (entity.shape == "triangle") {
-            ctx.beginPath();
-            ctx.moveTo(0, -halfSize);
-            ctx.lineTo(-halfSize, halfSize);
-            ctx.lineTo(halfSize, halfSize);
-            ctx.fill();
-            ctx.closePath();
-        } else if (entity.shape == "arrow") {
-            ctx.beginPath();
-            ctx.moveTo(0, -halfSize);
-            ctx.lineTo(-halfSize, halfSize);
-            ctx.lineTo(0, halfSize / 2);
-            ctx.lineTo(halfSize, halfSize);
-            ctx.fill();
-            ctx.closePath();
-        } else ctx.fillRect(-halfSize, -halfSize, entity.size, entity.size);
-    }
-    ctx.restore();
-}
-
-function forEntities(arr, func, ...args) {
-    for (let i = arr.length - 1; i >= 0; i--) {
-        const entity = arr[i];
-        if (!entity) continue;
-        func(entity, ...args);
-    }
-}
-
-function entityEvent(entity, call, ...args) {
-    if (entity[call]) entity[call].call(entity, entity, ...args);
-}
-
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // CLASS DEFINITIONS
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+class Identifiable {
+    constructor(id) {
+        this.id = id || crypto.randomUUID();
+    }
+    raise = (call, ...args) => this[call] && this[call].call(this, ...args);
+}
 
 class LayerManager {
     static layers = [];
@@ -568,8 +477,8 @@ class LayerManager {
     static {
         function registerListener(eventName) {
             document.addEventListener(eventName, function (event) {
-                if (!LayerManager.global.ispaused) LayerManager.global["on" + eventName](event);
-                LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l["on" + eventName](event));
+                if (!LayerManager.global.ispaused) LayerManager.global[eventName](event);
+                LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l[eventName](event));
             });
         }
         window.onblur = LayerManager.pause;
@@ -595,22 +504,26 @@ class LayerManager {
     static get currentLayer() {
         return LayerManager.currentLayerStack[0];
     }
+    static layerAt(num) {
+        LayerManager.layers[num] ??= [];
+        return LayerManager.layers[num];
+    }
     static update = (timestamp) => {
         // Fraction of a second since last update.
         const delta = (timestamp - LayerManager.lastTimestamp) / 1000;
         LayerManager.lastTimestamp = timestamp;
-        if (!LayerManager.global.ispaused) LayerManager.global.onupdate(delta);
-        LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l.onupdate(delta));
-        if (!LayerManager.global.ispaused) LayerManager.global.ondraw();
-        LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l.onpredraw());
+        if (!LayerManager.global.ispaused) LayerManager.global.update(delta);
+        LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l.update(delta));
+        if (!LayerManager.global.ispaused) LayerManager.global.draw();
+        LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l.draw());
         LayerManager.updateframe = requestAnimationFrame(LayerManager.update);
     };
     static oninteract() {
         document.removeEventListener("mousedown", this.oninteract, { once: true });
         document.removeEventListener("keydown", this.oninteract, { once: true });
         LayerManager.interacted = true;
-        if (!LayerManager.global.ispaused) LayerManager.global.oninteract();
-        LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l.oninteract());
+        if (!LayerManager.global.ispaused) LayerManager.global.interact();
+        LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l.interact());
     }
     static pause() {
         LayerManager.ispaused = true;
@@ -632,10 +545,7 @@ class LayerManager {
             LayerManager.layers[LayerManager.activeLayer] ??= [];
             LayerManager.layers[LayerManager.activeLayer].push(layer);
             layer.layerNum = LayerManager.activeLayer;
-        } else {
-            LayerManager.layers[layer.layerNum] ??= [];
-            LayerManager.layers[layer.layerNum].push(layer);
-        }
+        } else LayerManager.layerAt(layer.layerNum).push(layer);
     }
     static unregisterLayer(layer) {
         const idx = LayerManager.layers[layer.layerNum].findIndex((e) => e.id === layer.id);
@@ -652,11 +562,12 @@ class LayerManager {
         LayerManager.currentLayerStack?.forEach((l) => l.resume());
     }
 }
-class Layer {
+class Layer extends Identifiable {
     constructor({ id, layerNum } = {}, modifiedBaseCalls = {}) {
-        this.id = id || crypto.randomUUID();
+        super(id);
+        this.entities = { Entity: new IterableWeakRef() };
+        for (let v in Entity.types) this.entities[v] = new IterableWeakRef();
         this.layerNum = layerNum;
-
         for (let key in modifiedBaseCalls) appendToFunction(this, key, modifiedBaseCalls[key]);
     }
     // Base Methods
@@ -668,14 +579,13 @@ class Layer {
     pause = () => {
         console.log(`Paused ${this.constructor.name} ${this.id}`);
         this.tasks.forEach((t) => t.pause());
-        this.sounds.forEach((s) => s.deref()?.pause());
+        this.sounds.forEach((s) => s.pause());
         this.music?.pause();
-        this.sounds = this.sounds.filter((weakRef) => weakRef.deref() !== undefined);
     };
     resume = () => {
         console.log(`Resumed ${this.constructor.name} ${this.id}`);
         this.tasks.forEach((t) => t.resume());
-        this.sounds.forEach((s) => s.deref()?.play());
+        this.sounds.forEach((s) => s.play());
         this.music?.play();
     };
     scheduleTask = (func, options = {}, ...args) => {
@@ -701,7 +611,7 @@ class Layer {
     };
 
     // Sound Methods
-    sounds = [];
+    sounds = new IterableWeakRef();
     playSoundEffect = (source, options = {}) => {
         if (!LayerManager.interacted) return;
         const { playrate, volume } = options;
@@ -709,7 +619,7 @@ class Layer {
         if (playrate) soundBite.playbackRate = playrate;
         if (volume) soundBite.volume = volume;
         soundBite.addEventListener("canplaythrough", soundBite.play);
-        this.sounds.push(new WeakRef(soundBite));
+        this.sounds.push(soundBite);
         soundBite.addEventListener("ended", () => (soundBite.play = () => {}));
     };
     playMusic = (source, options = {}) => {
@@ -728,64 +638,34 @@ class Layer {
     cameraX;
     cameraY;
     updateRate = 0;
-    entities = [];
     addEntity = (entity) => {
         this.entities.push(entity);
     };
+    propigate = (call, ...args) => {};
     // Game Update Events
-    onupdate = (delta) => forEntities(this.entities, updateEntity, delta);
-    set update(value) {
-        appendToFunction(this, "onupdate", value);
-    }
-    onpredraw = () => {
+    update = (delta) => forEntities(this.entities, updateEntity, delta);
+    predraw = () => {
         ctx.save();
         if (this.cameraX !== undefined && this.cameraY !== undefined)
             ctx.translate(canvas.width / 2 - this.cameraX, canvas.height / 2 - this.cameraY);
         this.ondraw();
         ctx.restore();
     };
-    ondraw = () => forEntities(this.entities, drawEntity);
-    set draw(value) {
-        appendToFunction(this, "ondraw", value);
-    }
-    oninteract = () => {};
-    set interact(value) {
-        appendToFunction(this, "oninteract", value);
-    }
+    draw = () => forEntities(this.entities, drawEntity);
+    interact = () => {};
     // IO Events
-    onkeydown = (e) => {};
-    set keydown(value) {
-        appendToFunction(this, "onkeydown", value);
-    }
-    onkeyup = (e) => {};
-    set keyup(value) {
-        appendToFunction(this, "onkeyup", value);
-    }
+    keydown = (e) => {};
+    keyup = (e) => {};
     // Mouse IO Events
-    onmousedown = (e) => {};
-    set mousedown(value) {
-        appendToFunction(this, "onmousedown", value);
-    }
-    onmouseup = (e) => {};
-    set mouseup(value) {
-        appendToFunction(this, "onmouseup", value);
-    }
-    onmousemove = (e) => {};
-    set mousemove(value) {
-        appendToFunction(this, "onmousemove", value);
-    }
-    ondblclick = (e) => {};
-    set dblclick(value) {
-        appendToFunction(this, "ondblclick", value);
-    }
-    onwheel = (e) => {};
-    set wheel(value) {
-        appendToFunction(this, "onwheel", value);
-    }
+    mousedown = (e) => {};
+    mouseup = (e) => {};
+    mousemove = (e) => {};
+    dblclick = (e) => {};
+    wheel = (e) => {};
 }
-class Task {
+class Task extends Identifiable {
     constructor(func, { time, loop, id, immediate } = {}, ...args) {
-        this.id = id ?? crypto.randomUUID();
+        super(id);
         this.func = func;
         this.args = args;
         this.time = 1_000 * (time ?? 0);
@@ -844,7 +724,7 @@ class UI extends Layer {
         };
     }
     ondraw = () => {
-        forEntities(this.entities, drawEntity);
+        super.ondraw();
         this.children.forEach((c) => c.ondraw && c.ondraw());
     };
     show = ({ overlay } = {}) => {
@@ -886,6 +766,162 @@ class UI extends Layer {
         const idx = this.children.findIndex((e) => e.id === id);
         if (idx !== -1) this.children.splice(idx, 1);
     };
+}
+
+class Entity extends Identifiable {
+    static types = {};
+    x = 0;
+    y = 0;
+    dir = 0;
+    speed = 0;
+    staticX = false;
+    staticY = false;
+    groupName = "Entity";
+    constructor({ layerNum } = {}) {
+        super();
+        if (layerNum) {
+            LayerManager.get(layerNum);
+        }
+    }
+    update = (delta) => {
+        this.raise("onupdate", delta);
+        if (this.speed) {
+            if (!this.staticX) this.x += Math.cos(this.dir) * this.speed * delta;
+            if (!this.staticY) this.y += Math.sin(this.dir) * this.speed * delta;
+        }
+
+        //Do COLLISION CODE
+
+        this.draw();
+    };
+    do = (func, ...args) => func.call(this, ...args);
+    draw = () => {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        if (this.rotate) ctx.rotate(this.dir + Math.PI / 2 + (this.rotationalOffset ?? 0));
+        const halfSize = this.size / 2;
+        if (this.img) {
+            const i = new Image();
+            i.src = this.img;
+            ctx.save();
+            ctx.scale(this.flipX ? -1 : 1, this.flipY ? -1 : 1);
+            ctx.drawImage(i, -halfSize, -halfSize, this.size, this.size);
+            ctx.restore();
+            //TODO: ONLOAD ANIMATION CODE
+        } else {
+            ctx.fillStyle = this.color;
+            if (this.shape == "circle") {
+                ctx.beginPath();
+                ctx.arc(0, 0, halfSize, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.closePath();
+            } else if (this.shape == "triangle") {
+                ctx.beginPath();
+                ctx.moveTo(0, -halfSize);
+                ctx.lineTo(-halfSize, halfSize);
+                ctx.lineTo(halfSize, halfSize);
+                ctx.fill();
+                ctx.closePath();
+            } else if (this.shape == "arrow") {
+                ctx.beginPath();
+                ctx.moveTo(0, -halfSize);
+                ctx.lineTo(-halfSize, halfSize);
+                ctx.lineTo(0, halfSize / 2);
+                ctx.lineTo(halfSize, halfSize);
+                ctx.fill();
+                ctx.closePath();
+            } else ctx.fillRect(-halfSize, -halfSize, this.size, this.size);
+        }
+        this.raise("ondraw");
+        ctx.restore();
+    };
+    despawn = () => removeEntity(this);
+    set velocityX(value) {
+        const velY = this.velocityY;
+        this.speed = Math.hypot(value, velY);
+        this.dir = Math.atan2(vecY, value);
+    }
+    get velocityX() {
+        return this.speed * Math.cos(this.dir);
+    }
+    get velocityXSign() {
+        return Math.sign(this.velocityX);
+    }
+}
+
+class IterableWeakRef {
+    #list = [];
+    [Symbol.iterator]() {
+        let index = this.#list.length;
+        return {
+            next: () => {
+                while (index > 0) {
+                    const value = this.#list[--index].deref();
+                    if (value === undefined) {
+                        this.#list.splice(index, 1);
+                        continue;
+                    }
+                    return { value, done: false };
+                }
+                return { done: true };
+            },
+        };
+    }
+    push = (value) => {
+        this.#list.push(new WeakRef(value));
+    };
+    forEach(callback) {
+        for (const value of this) {
+            callback(value);
+        }
+    }
+}
+
+function registerEntity(name, options) {
+    const upperName = name[0].toUpperCase() + name.slice(1);
+    const lowerName = name[0].toLowerCase() + name.slice(1);
+    const newSubclass = class extends Entity {
+        static group = [];
+    };
+    for (let val in options) newSubclass.prototype[val] = options[val];
+    newSubclass.prototype.groupName = name;
+    Object.defineProperty(globalThis, lowerName + "Group", {
+        get() {
+            return newSubclass.group;
+        },
+        set(value) {
+            newSubclass.group = value;
+        },
+    });
+    globalThis["spawn" + upperName] = (subType) => {
+        const newEntity = new newSubclass();
+        for (let val in subType) newEntity[val] = subType[val];
+        globalThis[lowerName + "Group"].push(newEntity);
+        newEntity.raise("spawn");
+        if (newEntity.lifespan)
+            newEntity.lifeTimer = scheduleTask(() => globalThis["spawn" + upperName](newEntity), {
+                time: newEntity.lifespan,
+            });
+        return newEntity;
+    };
+    globalThis["forEvery" + upperName + "Do"] = (func, ...args) => {
+        for (let i = newSubclass.group.length - 1; i >= 0; i--) {
+            const entity = newSubclass.group[i];
+            if (entity) func(entity, ...args);
+        }
+    };
+    if (globalThis[lowerName + "Types"])
+        for (let type in globalThis[lowerName + "Types"]) globalThis[lowerName + "Types"][type].type = type;
+    Entity.types[name] = newSubclass;
+}
+
+function despawnEntity(entity) {
+    if (!entity) return;
+    entity.raise("ondespawn");
+    if (entity.lifeTimer) clearTask(entity.lifeTimer);
+    const idx = Entity.types[entity.name].group.findIndex((e) => e.id === entity.id);
+    if (idx == -1) return;
+    Entity.types[entity.name].group.splice(idx, 1);
 }
 
 const global = (LayerManager.global = new Layer(
