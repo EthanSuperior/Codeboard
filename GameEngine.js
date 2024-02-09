@@ -10,162 +10,106 @@
 // UpKeyEvents = {KeyCode:Function}
 // DownKeyEvents = {KeyCode:Function}
 // CONTRACTED FUNCTIONS
-// preload()
-// start()
+// load()
 // updateGame(delta)
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // CORE VARIABLES
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 const canvas = document.createElement("canvas");
 const ctx = canvas.getContext("2d");
 document.body.appendChild(canvas);
 const keys = {};
-const tasks = [];
-let mouse = { x: 0, y: 0 };
-let paused = false;
-let inMenu = false;
+const mouse = { x: 0, y: 0 };
+
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// CORE EVENTS
+// UI ELEMENTS
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-window.onblur = pause;
-window.onfocus = resume;
-document.addEventListener("keydown", handleKeyDown);
-document.addEventListener("keyup", handleKeyUp);
-document.addEventListener("mousemove", handleMouseMove);
-document.addEventListener("mousedown", handleMouseDown);
-document.addEventListener("mouseup", handleMouseUp);
-window.onload = () => {
-    if (typeof preload !== "undefined") preload();
-    if (typeof start !== "undefined") start();
-};
-function onInteract() {
-    window.interacted = true;
+
+const makeUI = (id) => new UI({ id });
+
+function UIButton(
+    x,
+    y,
+    width,
+    height,
+    action,
+    { radius = 0, fill, stroke, strokeWidth, hoverFill, hoverStroke, hoverWidth } = {}
+) {
+    const uiElem = UIRect(x, y, width, height, {
+        radius,
+        fill,
+        stroke,
+        strokeWidth,
+        hoverFill,
+        hoverStroke,
+        hoverWidth,
+    });
+    uiElem.detect = (mX, mY) => detectRect(uiElem.x, uiElem.y, uiElem.width, uiElem.height, mX, mY);
+    uiElem.action = action;
+    return uiElem;
 }
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// BASE UI
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-function makeUI(id) {
-    return new UI(id);
-}
-function UI(id) {
-    this.children = [];
-    this.id = id ?? crypto.randomUUID();
-    this.parentUI = true;
-    this.show = function () {
-        if (this.parentUI) {
-            inMenu = true;
-            pause();
-        }
-        this.children.forEach((c) => c.show && c.show());
-        if (this.parentUI) {
-            document.addEventListener("mousedown", this._callAction, { once: true });
-            document.addEventListener("mousemove", this.draw);
-            requestAnimationFrame(this.draw);
-        }
-    }.bind(this);
-    this._callAction = function (e) {
-        this.action(e, mouse.x, mouse.y);
-    }.bind(this);
-    this.draw = function () {
-        this.children.forEach((c) => c.draw && c.draw());
-    }.bind(this);
-    this.action = function (event, mX, mY) {
-        if (this.parentUI) {
-            event.stopImmediatePropagation();
-            document.addEventListener("mousedown", this._callAction, { once: true });
-        }
-        this.children.forEach((c) => c.action && c.detect(mX, mY) && c.action(event, mX, mY));
-    }.bind(this);
-    this.detect = function (mX, mY) {
-        return true;
-    }.bind(this);
-    this.hide = function () {
-        this.children.forEach((c) => c.hide && c.hide());
-        document.removeEventListener("mousedown", this._callAction, { once: true });
-        document.removeEventListener("mousemove", this.draw);
-        if (this.parentUI) {
-            inMenu = false;
-            resume();
-        }
-    }.bind(this);
-    this.add = function (ui) {
-        ui.id ??= crypto.randomUUID();
-        ui.detect ??= () => true;
-        ui.parentUI = false;
-        this.children.push(ui);
-        return ui.id;
-    }.bind(this);
-    this.get = function (id) {
-        return this.children.find((e) => e.id === id);
-    }.bind(this);
-    this.remove = function (id) {
-        const idx = this.children.findIndex((e) => e.id === id);
-        if (idx == -1) return;
-        this.children.splice(idx, 1);
-    }.bind(this);
-}
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// BASIC UI ELEMENTS
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-function UIButton([x, y, w, h, r = 0], action, { fill, stroke, width, hoverFill, hoverStroke, hoverWidth } = {}) {
-    return {
-        draw: () => {
-            ctx.beginPath();
-            ctx.roundRect(x, y, w, h, r);
-            const hovered = ctx.isPointInPath(mouse.x, mouse.y);
-            ctx.fillStyle = (hovered && hoverFill) || fill;
-            if (fill || (hovered && hoverFill)) ctx.fill();
-            ctx.lineWidth = (hovered && hoverWidth) || width;
-            ctx.strokeStyle = (hovered && hoverStroke) || stroke;
-            if (stroke || (hovered && hoverStroke)) ctx.stroke();
-            ctx.closePath();
-        },
-        detect: (mX, mY) => detectRect(x, y, w, h, mX, mY),
-        action,
-    };
-}
-function UIText(text, [x, y, width], { font, color, center } = {}) {
-    return {
-        draw: () => {
-            // TO ADD: TEXT CENTER W/ WIDTH && NEXT_LINES
-            if (color) ctx.fillStyle = color;
-            if (font) ctx.font = font;
-            ctx.fillText(text, x, y, width);
+
+function UIText(text, x, y, { width, font, color, center } = {}) {
+    const uiElem = {
+        ...{ text, x, y, width, font, color, center },
+        ondraw: () => {
+            if (color) ctx.fillStyle = uiElem.color;
+            if (font) ctx.font = uiElem.font;
+            ctx.textBaseline = uiElem.center ? "middle" : "alphabetic";
+
+            const centeredX = uiElem.x - (uiElem.center ? (ctx.measureText(uiElem.text).width - uiElem.width) / 2 : 0);
+            ctx.fillText(uiElem.text, centeredX, uiElem.y, uiElem.width);
         },
     };
+
+    return uiElem;
 }
-function UICircle([x, y, r], { fill, stroke, width, hoverFill, hoverStroke, hoverWidth } = {}) {
-    return {
-        draw: () => {
+
+function UICircle(x, y, radius, { fill, stroke, strokeWidth, hoverFill, hoverStroke, hoverWidth } = {}) {
+    const uiElem = {
+        ...{ x, y, radius, fill, stroke, strokeWidth, hoverFill, hoverStroke, hoverWidth },
+        ondraw: () => {
             ctx.beginPath();
-            ctx.arc(x, y, r, 0, 2 * Math.PI);
+            ctx.arc(uiElem.x, uiElem.y, uiElem.radius, 0, 2 * Math.PI);
             const hovered = ctx.isPointInPath(mouse.x, mouse.y);
-            ctx.fillStyle = (hovered && hoverFill) || fill;
-            if (fill || (hovered && hoverFill)) ctx.fill();
-            ctx.lineWidth = (hovered && hoverWidth) || width;
-            ctx.strokeStyle = (hovered && hoverStroke) || stroke;
-            if (stroke || (hovered && hoverStroke)) ctx.stroke();
+            ctx.fillStyle = (hovered && uiElem.hoverFill) || uiElem.fill;
+            if (uiElem.fill || (hovered && uiElem.hoverFill)) ctx.fill();
+            ctx.lineWidth = (hovered && uiElem.hoverWidth) || uiElem.strokeWidth;
+            ctx.strokeStyle = (hovered && uiElem.hoverStroke) || uiElem.stroke;
+            if (uiElem.stroke || (hovered && uiElem.hoverStroke)) ctx.stroke();
             ctx.closePath();
         },
     };
+    return uiElem;
 }
-function UIRect([x, y, w, h, r = 0], { fill, stroke, width, hoverFill, hoverStroke, hoverWidth } = {}) {
-    return {
-        draw: () => {
+
+function UIRect(
+    x,
+    y,
+    width,
+    height,
+    { radius = 0, fill, stroke, strokeWidth, hoverFill, hoverStroke, hoverWidth } = {}
+) {
+    const uiElem = {
+        ...{ x, y, width, height, radius, fill, stroke, strokeWidth, hoverFill, hoverStroke, hoverWidth },
+        ondraw: () => {
             ctx.beginPath();
-            ctx.roundRect(x, y, w, h, r);
+            ctx.roundRect(uiElem.x, uiElem.y, uiElem.width, uiElem.height, uiElem.radius);
             const hovered = ctx.isPointInPath(mouse.x, mouse.y);
-            ctx.fillStyle = (hovered && hoverFill) || fill;
-            if (fill || (hovered && hoverFill)) ctx.fill();
-            ctx.lineWidth = (hovered && hoverWidth) || width;
-            ctx.strokeStyle = (hovered && hoverStroke) || stroke;
-            if (stroke || (hovered && hoverStroke)) ctx.stroke();
+            ctx.fillStyle = (hovered && uiElem.hoverFill) || uiElem.fill;
+            if (uiElem.fill || (hovered && uiElem.hoverFill)) ctx.fill();
+            ctx.lineWidth = (hovered && uiElem.hoverWidth) || uiElem.strokeWidth;
+            ctx.strokeStyle = (hovered && uiElem.hoverStroke) || uiElem.stroke;
+            if (uiElem.stroke || (hovered && uiElem.hoverStroke)) ctx.stroke();
             ctx.closePath();
         },
     };
+    return uiElem;
 }
-function UIScroll([x, y, w, h], { scrollWidth, scrollHeight, barWidth = 10, bkg = "#000", hideScroll = false } = {}) {
+
+function UIScroll(x, y, w, h, { scrollWidth, scrollHeight, barWidth = 10, bkg = "#000", hideScroll = false } = {}) {
     const UI = makeUI();
     UI.scrollBarWidth = barWidth;
     UI.content = { width: scrollWidth ?? w, height: scrollHeight ?? h };
@@ -176,9 +120,9 @@ function UIScroll([x, y, w, h], { scrollWidth, scrollHeight, barWidth = 10, bkg 
     UI.onscroll = function (e) {
         this.scrollPosition.x = clamp(this.scrollPosition.x + e.deltaX, 0, this.displayWidth);
         this.scrollPosition.y = clamp(this.scrollPosition.y + e.deltaY, 0, this.displayHeight);
-        this.draw();
+        this.ondraw();
     }.bind(UI);
-    UI.onscrolljump = function (e) {
+    UI.scrolljump = function (e) {
         const clickedX =
             this.scroll.x && detectRect(x, y + h - this.scrollBarWidth, w, this.scrollBarWidth, mouse.x, mouse.y);
         const clickedY =
@@ -196,14 +140,14 @@ function UIScroll([x, y, w, h], { scrollWidth, scrollHeight, barWidth = 10, bkg 
             this.scrollPosition.y = Math.max(0, Math.min(newScrollRatio * this.displayHeight, this.displayHeight));
         }
         if (e) e.stopImmediatePropagation();
-        this.draw();
+        this.ondraw();
     }.bind(UI);
     UI.startScroll = function () {
-        this.onscrolljump();
-        document.addEventListener("mousemove", this.onscrolljump);
+        this.scrolljump();
+        document.addEventListener("mousemove", this.scrolljump);
     }.bind(UI);
     UI.stopScroll = function () {
-        document.removeEventListener("mousemove", this.onscrolljump);
+        document.removeEventListener("mousemove", this.scrolljump);
     }.bind(UI);
     UI.drawScrollBarX = function (forced = !hideScroll) {
         if (!this.scroll.x) return;
@@ -237,8 +181,8 @@ function UIScroll([x, y, w, h], { scrollWidth, scrollHeight, barWidth = 10, bkg 
             if (!forced) this.drawScrollBarX(true);
         }
     }.bind(UI);
-    const defaultDraw = UI.draw;
-    UI.draw = function () {
+    const defaultDraw = UI.ondraw;
+    UI.ondraw = function () {
         ctx.save();
         ctx.beginPath();
         ctx.rect(x, y, w, h);
@@ -264,7 +208,7 @@ function UIScroll([x, y, w, h], { scrollWidth, scrollHeight, barWidth = 10, bkg 
         document.removeEventListener("wheel", this.onscroll);
         document.removeEventListener("mousedown", this.startScroll);
         document.removeEventListener("mouseup", this.stopScroll);
-        document.removeEventListener("mousemove", this.onscrolljump);
+        document.removeEventListener("mousemove", this.scrolljump);
         defaultHide.call(this);
     }.bind(UI);
     const defaultAction = UI.action;
@@ -274,16 +218,96 @@ function UIScroll([x, y, w, h], { scrollWidth, scrollHeight, barWidth = 10, bkg 
     UI.detect = (mX, mY) => detectRect(x, y, w, h, mX, mY);
     return UI;
 }
-function UIPopup([x, y, w, h, r = 0], { fill, stroke, width, hoverFill, hoverStroke, hoverWidth } = {}) {
-    const UI = makeUI();
-    UI.add(UIRect([x, y, w, h, r], { fill, stroke, width, hoverFill, hoverStroke, hoverWidth }));
-    return UI;
+
+function UIProgressBar(update, x, y, width, height, { fill, background } = {}) {
+    const uiElem = {
+        ...{ x, y, width, height, background, fill },
+        onupdate: () => (uiElem.value = update()),
+        value: 0,
+        ondraw: () => {
+            // Draw the background
+            if (uiElem.background) {
+                ctx.fillStyle = uiElem.background;
+                ctx.fillRect(uiElem.x, uiElem.y, uiElem.width, uiElem.height);
+            }
+
+            // Draw the progress bar
+            if (uiElem.fill) {
+                ctx.fillStyle = uiElem.fill;
+                const progressBarWidth = uiElem.value * uiElem.width;
+                ctx.fillRect(uiElem.x, uiElem.y, progressBarWidth, uiElem.height);
+            }
+        },
+    };
+    return uiElem;
 }
+
+function UIImage(src, x, y, { width, height } = {}) {
+    const uiElem = {
+        ...{ src, x, y, width, height },
+        ondraw: () => {
+            const image = new Image();
+            image.src = uiElem.src;
+            image.onload = () => {
+                ctx.drawImage(image, uiElem.x, uiElem.y, uiElem.width, uiElem.height);
+            };
+        },
+    };
+
+    return uiElem;
+}
+
+function UIPopup(
+    x,
+    y,
+    width,
+    height,
+    title,
+    message,
+    scale,
+    { radius, textColor, border, strokeColor, buttonText = "Close", buttonColor, buttonAction, background } = {}
+) {
+    const popup = makeUI();
+    const halfScale = scale / 2;
+    popup.add(
+        UIRect(x, y, width, height, { radius: radius, fill: background, stroke: strokeColor, strokeWidth: border })
+    );
+    popup.add(
+        UIText(title, x, y + scale, { width: width, center: true, font: `bold ${scale}px monospace`, color: textColor })
+    );
+    popup.add(
+        UIText(message, x, y + scale + scale, {
+            width: width,
+            font: `bold ${halfScale}px monospace`,
+            color: textColor,
+            center: true,
+        })
+    );
+    popup.add(
+        UIButton(x + halfScale, y + height - scale - halfScale, width - scale, scale, buttonAction ?? popup.hide, {
+            radius: radius,
+            fill: buttonColor,
+            strokeWidth: border,
+            stroke: strokeColor,
+        })
+    );
+    popup.add(
+        UIText(buttonText, x, y + height - scale, {
+            width: width,
+            font: `bold ${scale * 0.75}px monospace`,
+            color: textColor,
+            center: true,
+        })
+    );
+
+    return popup;
+}
+
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// BASE IO -- Supports KeyEvents list for events on KeyDown
+// BASE IO -- Use EventNameEvents to add default events
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 function handleKeyDown(event) {
-    if (!window.interacted) onInteract();
     keys[event.code] = true;
     if (typeof DownKeyEvents !== "undefined") for (let a in DownKeyEvents) if (event.code == a) DownKeyEvents[a]();
 }
@@ -293,6 +317,14 @@ function handleKeyUp(event) {
     if (typeof UpKeyEvents !== "undefined") for (let a in UpKeyEvents) if (event.code == a) UpKeyEvents[a]();
 }
 
+function handleMouseDown(event) {
+    if (typeof MouseEvents !== "undefined" && MouseEvents.Down) MouseEvents.Down(event);
+}
+
+function handleMouseUp(event) {
+    if (typeof MouseEvents !== "undefined" && MouseEvents.Up) MouseEvents.Up(event);
+}
+
 function handleMouseMove(event) {
     const rect = canvas.getBoundingClientRect();
     mouse.x = event.clientX - rect.left;
@@ -300,125 +332,42 @@ function handleMouseMove(event) {
     if (typeof MouseEvents !== "undefined" && MouseEvents.Move) MouseEvents.Move(e);
 }
 
-function handleMouseDown(event) {
-    if (!window.interacted) onInteract();
-    if (typeof MouseEvents !== "undefined" && MouseEvents.Down) MouseEvents.Down(event);
-}
-function handleMouseUp(event) {
-    if (typeof MouseEvents !== "undefined" && MouseEvents.Up) MouseEvents.Up(event);
-}
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// SOUND FUNCTIONS
+// SOUND FUNCTIONS - https://sfxr.me/
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-function playSoundEffect(src, { playrate, volume } = {}) {
-    if (!window.interacted) return;
-    let soundBite = new Audio(src);
-    if (playrate) soundBite.playbackRate = playrate;
-    if (volume) soundBite.volume = volume;
-    soundBite.addEventListener("canplaythrough", soundBite.play);
-}
+playSoundEffect = (source, options) => {
+    if (options?.global) return LayerManager.global.playSoundEffect(source, options);
+    else return LayerManager.currentLayer.playSoundEffect(source, options);
+};
 
-function playMusic(src, { playrate, volume } = {}) {
-    if (!window.interacted) {
-        const f = onInteract;
-        onInteract = () => {
-            f.call(this);
-            onInteract = f;
-            playMusic(src, { playrate, volume });
-        };
-        return;
-    }
-    if (playMusic.audioPlayer === undefined) {
-        playMusic.audioPlayer = new Audio();
-        playMusic.audioPlayer.loop = true;
-        playMusic.audioPlayer.addEventListener("canplaythrough", playMusic.audioPlayer.play);
-    }
-    if (playrate) playMusic.audioPlayer.playbackRate = playrate;
-    if (volume) playMusic.audioPlayer.volume = volume;
-    playMusic.audioPlayer.src = src;
-}
+playMusic = (source, options) => {
+    if (options?.global) return LayerManager.global.playMusic(source, options);
+    else return LayerManager.currentLayer.playMusic(source, options);
+};
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // TIMING FUNCTIONS
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-const scheduleTask = (func, options, ...args) => new Task(func, options, ...args).id;
-const clearTask = (id) => {
-    const idx = tasks.findIndex((e) => e.id === id);
-    if (idx < 0) return;
-    tasks[idx].pause();
-    tasks.splice(idx, 1);
+
+const scheduleTask = (func, options, ...args) => {
+    if (options?.global) return LayerManager.global.scheduleTask(func, options, ...args);
+    else return LayerManager.currentLayer.scheduleTask(func, options, ...args);
+};
+const clearTask = (id, options) => {
+    if (options?.global) return LayerManager.global.clearTask(id);
+    else return LayerManager.currentLayer.clearTask(id);
+};
+const findTask = (id, options) => {
+    if (options?.global) return LayerManager.global.findTask(id);
+    else return LayerManager.currentLayer.findTask(id);
 };
 
-function Task(func, { time, loop, id, immediate = false }, ...args) {
-    const exists = id && tasks.find((e) => e.id === id);
-    const task = exists || this;
-    task.id = id ?? crypto.randomUUID();
-    task.func = func;
-    task.args = args;
-    task.time = 1_000 * time ?? 0;
-    task.loop = !!loop;
-    if (exists) {
-        if (task.isPaused) return task;
-        task.pause();
-        task.resume();
-        return task;
-    }
-    task.isPaused = paused;
-    task.remaining = task.time;
-    task.start = ((delay) => {
-        if (task.isPaused) return;
-        task.startTime = Date.now();
-        const timeout = () => {
-            this.func(...this.args);
-            if (this.loop) this.start(this.time);
-            else removeEntity(tasks, this);
-        };
-        clearTimeout(task.timer);
-        this.timer = setTimeout(timeout.bind(this), delay);
-    }).bind(task);
-    task.pause = () => {
-        if (task.isPaused) return;
-        task.isPaused = true;
-        clearTimeout(task.timer);
-        task.remaining = task.time - (Date.now() - task.startTime);
-    };
-    task.resume = () => {
-        task.isPaused = false;
-        task.start(task.remaining);
-    };
-    task.peek = () => {
-        if (!task.isPaused) {
-            task.remaining = task.time - (Date.now() - task.startTime);
-        }
-        return task.remaining;
-    };
-    if (immediate) task.func(...task.args);
-    task.start(task.remaining);
-    tasks.push(task);
-}
+const pause = () => LayerManager.pause();
+const resume = () => LayerManager.resume();
 
-function pause() {
-    paused = true;
-    playMusic.audioPlayer?.pause();
-    cancelAnimationFrame(tasks.updateframe);
-    forEntities(tasks, (task) => task.pause());
-}
+const togglePause = () => (LayerManager.ispaused ? resume : pause)();
 
-function resume(menu) {
-    if (inMenu) return;
-    paused = false;
-    if (window.interacted) playMusic.audioPlayer?.play();
-    cancelAnimationFrame(tasks.updateframe);
-    forEntities(tasks, (task) => task.resume());
-    update.lastTimestamp = document.timeline.currentTime;
-    tasks.updateframe = requestAnimationFrame(update);
-}
-
-function togglePause() {
-    if (paused) resume();
-    else pause();
-}
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // UTILITY FUNCTIONS
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -490,44 +439,49 @@ function getPlayerMovementDirection({ useCardinal } = {}) {
     return dir;
 }
 
+function getXVelocity(entity) {
+    let { dir, speed } = entity;
+    return speed * Math.cos(dir);
+}
+
+function getYVelocity(entity) {
+    let { dir, speed } = entity;
+    return speed * Math.sin(dir);
+}
+
+function getXSign(entity) {
+    let dir = entity?.dir ?? entity;
+    return Math.cos(dir) > 0 ? 1 : Math.cos(dir) < 0 ? -1 : 0;
+}
+
+function getYSign(entity) {
+    let dir = entity?.dir ?? entity;
+    return Math.sin(dir) > 0 ? 1 : Math.sin(dir) < 0 ? -1 : 0;
+}
+
 function clamp(val, min, max) {
     return Math.min(Math.max(val, min), max);
 }
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// UPDATE FUNCTION
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-function update(timestamp) {
-    if (paused) return;
-    //Fraction of a second since last update.
-    const delta = (timestamp - update.lastTimestamp) / 1000;
-    update.lastTimestamp = timestamp;
-    if (typeof updateGame !== "undefined") updateGame(delta);
-    tasks.updateframe = requestAnimationFrame(update);
+
+function appendToFunction(obj, funcName, additionalFunc, { hasPriority } = {}) {
+    const baseFunc = obj[funcName];
+    obj[funcName] = function (...args) {
+        if (hasPriority) additionalFunc.call(this, ...args);
+        baseFunc.call(this, ...args);
+        if (!hasPriority) additionalFunc.call(this, ...args);
+    };
 }
 
-function forEntities(arr, func, ...args) {
-    for (let i = arr.length - 1; i >= 0; i--) {
-        const entity = arr[i];
-        if (!entity) continue;
-        func(entity, ...args);
-    }
-}
-
-function entityEvent(entity, call, ...args) {
-    if (entity[call]) entity[call].call(entity, entity, ...args);
-}
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// ENTITY FUNCTION
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 function spawnEntity(arr, base, props) {
     const newEntity = { id: crypto.randomUUID(), ...base, ...props };
     arr.push(newEntity);
     entityEvent(newEntity, "onspawn");
     if (newEntity.lifespan)
-        newEntity.lifeTimer = scheduleTask(
-            () => {
-                removeEntity(arr, newEntity);
-            },
-            { time: newEntity.lifespan }
-        );
+        newEntity.lifeTimer = scheduleTask(() => removeEntity(arr, newEntity), { time: newEntity.lifespan });
 }
 
 function removeEntity(arr, entity) {
@@ -545,7 +499,6 @@ function updateEntity(entity, delta) {
         if (!entity.staticX) entity.x += Math.cos(entity.dir ?? 0) * entity.speed * delta;
         if (!entity.staticY) entity.y += Math.sin(entity.dir ?? 0) * entity.speed * delta;
     }
-    drawEntity(entity, delta);
 }
 
 function drawEntity(entity, delta) {
@@ -556,7 +509,10 @@ function drawEntity(entity, delta) {
     if (entity.img) {
         const i = new Image();
         i.src = entity.img;
+        ctx.save();
+        ctx.scale(entity.flipX ? -1 : 1, entity.flipY ? -1 : 1);
         ctx.drawImage(i, -halfSize, -halfSize, entity.size, entity.size);
+        ctx.restore();
         //TODO: ONLOAD ANIMATION CODE
     } else {
         ctx.fillStyle = entity.color;
@@ -586,3 +542,396 @@ function drawEntity(entity, delta) {
     }
     ctx.restore();
 }
+
+function forEntities(arr, func, ...args) {
+    for (let i = arr.length - 1; i >= 0; i--) {
+        const entity = arr[i];
+        if (!entity) continue;
+        func(entity, ...args);
+    }
+}
+
+function entityEvent(entity, call, ...args) {
+    if (entity[call]) entity[call].call(entity, entity, ...args);
+}
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// CLASS DEFINITIONS
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+class LayerManager {
+    static layers = [];
+    static activeLayer = -1;
+    static lastTimestamp;
+    static global;
+    static ispaused = true;
+    static {
+        function registerListener(eventName) {
+            document.addEventListener(eventName, function (event) {
+                if (!LayerManager.global.ispaused) LayerManager.global["on" + eventName](event);
+                LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l["on" + eventName](event));
+            });
+        }
+        window.onblur = LayerManager.pause;
+        window.onfocus = LayerManager.resume;
+        window.onload = () => {
+            if (typeof load !== "undefined") load();
+            LayerManager.resume();
+        };
+        document.addEventListener("mousedown", this.oninteract, { once: true });
+        document.addEventListener("keydown", this.oninteract, { once: true });
+        // document.addEventListener("contextmenu", (e) => e.preventDefault());
+        registerListener("keydown");
+        registerListener("keyup");
+        registerListener("mousemove");
+        registerListener("mousedown");
+        registerListener("mouseup");
+        registerListener("dblclick");
+        registerListener("wheel");
+    }
+    static get currentLayerStack() {
+        return LayerManager.layers[LayerManager.activeLayer];
+    }
+    static get currentLayer() {
+        return LayerManager.currentLayerStack[0];
+    }
+    static update = (timestamp) => {
+        // Fraction of a second since last update.
+        const delta = (timestamp - LayerManager.lastTimestamp) / 1000;
+        LayerManager.lastTimestamp = timestamp;
+        if (!LayerManager.global.ispaused) LayerManager.global.onupdate(delta);
+        LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l.onupdate(delta));
+        if (!LayerManager.global.ispaused) LayerManager.global.ondraw();
+        LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l.onpredraw());
+        LayerManager.updateframe = requestAnimationFrame(LayerManager.update);
+    };
+    static oninteract() {
+        document.removeEventListener("mousedown", this.oninteract, { once: true });
+        document.removeEventListener("keydown", this.oninteract, { once: true });
+        LayerManager.interacted = true;
+        if (!LayerManager.global.ispaused) LayerManager.global.oninteract();
+        LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l.oninteract());
+    }
+    static pause() {
+        LayerManager.ispaused = true;
+        cancelAnimationFrame(LayerManager.updateframe);
+        LayerManager.global.pause();
+        LayerManager.currentLayerStack.forEach((l) => l.pause());
+    }
+    static resume() {
+        LayerManager.ispaused = false;
+        cancelAnimationFrame(LayerManager.updateframe);
+        LayerManager.lastTimestamp = document.timeline.currentTime;
+        LayerManager.updateframe = requestAnimationFrame(LayerManager.update);
+        LayerManager.global.resume();
+        LayerManager.currentLayerStack.forEach((l) => l.resume());
+    }
+    static registerLayer(layer) {
+        if (layer.layerNum === undefined) {
+            LayerManager.changeLayer(LayerManager.activeLayer + 1);
+            LayerManager.layers[LayerManager.activeLayer] ??= [];
+            LayerManager.layers[LayerManager.activeLayer].push(layer);
+            layer.layerNum = LayerManager.activeLayer;
+        } else {
+            LayerManager.layers[layer.layerNum] ??= [];
+            LayerManager.layers[layer.layerNum].push(layer);
+        }
+    }
+    static unregisterLayer(layer) {
+        const idx = LayerManager.layers[layer.layerNum].findIndex((e) => e.id === layer.id);
+        if (idx !== -1) LayerManager.layers[layer.layerNum].splice(idx, 1)[0].pause();
+        if (LayerManager.layers[layer.layerNum].length === 0) {
+            LayerManager.layers.splice(layer.layerNum, 1);
+            LayerManager.changeLayer(LayerManager.activeLayer - 1);
+        }
+    }
+    static changeLayer(layerNum) {
+        console.log("switched layer");
+        LayerManager.currentLayerStack?.forEach((l) => l.pause());
+        LayerManager.activeLayer = layerNum;
+        LayerManager.currentLayerStack?.forEach((l) => l.resume());
+    }
+}
+class Layer {
+    constructor({ id, layerNum } = {}, modifiedBaseCalls = {}) {
+        this.id = id || crypto.randomUUID();
+        this.layerNum = layerNum;
+
+        for (let key in modifiedBaseCalls) appendToFunction(this, key, modifiedBaseCalls[key]);
+    }
+    // Base Methods
+    open = () => {};
+    close = () => {};
+    // Timing Methods
+    tasks = [];
+    ispaused = false;
+    pause = () => {
+        console.log(`Paused ${this.constructor.name} ${this.id}`);
+        this.tasks.forEach((t) => t.pause());
+        this.sounds.forEach((s) => s.deref()?.pause());
+        this.music?.pause();
+        this.sounds = this.sounds.filter((weakRef) => weakRef.deref() !== undefined);
+    };
+    resume = () => {
+        console.log(`Resumed ${this.constructor.name} ${this.id}`);
+        this.tasks.forEach((t) => t.resume());
+        this.sounds.forEach((s) => s.deref()?.play());
+        this.music?.play();
+    };
+    scheduleTask = (func, options = {}, ...args) => {
+        let task = options.id && this.findTask(options.id);
+        if (task) {
+            task.func = func;
+            task.args = args;
+            task.time = 1_000 * options.time ?? task.time;
+            task.loop = !!(options.loop ?? task.loop);
+        } else {
+            task = new Task(func, options, ...args);
+            task.manager = this;
+            this.tasks.push(task);
+        }
+        task.refresh();
+        return task.id;
+    };
+    findTask = (id) => this.tasks.find((t) => t.id === id);
+    clearTask = (id) => {
+        const idx = this.tasks.findIndex((e) => e.id === id);
+        if (idx < 0) return;
+        this.tasks.splice(idx, 1)[0].pause();
+    };
+
+    // Sound Methods
+    sounds = [];
+    playSoundEffect = (source, options = {}) => {
+        if (!LayerManager.interacted) return;
+        const { playrate, volume } = options;
+        let soundBite = new Audio(source);
+        if (playrate) soundBite.playbackRate = playrate;
+        if (volume) soundBite.volume = volume;
+        soundBite.addEventListener("canplaythrough", soundBite.play);
+        this.sounds.push(new WeakRef(soundBite));
+        soundBite.addEventListener("ended", () => (soundBite.play = () => {}));
+    };
+    playMusic = (source, options = {}) => {
+        if (!LayerManager.interacted) return (this.interact = () => this.playMusic(source, options));
+        const { playrate, volume } = options;
+        if (this.music === undefined) {
+            this.music = new Audio();
+            this.music.loop = true;
+            this.music.addEventListener("canplaythrough", this.music.play);
+        }
+        if (playrate) this.music.playbackRate = playrate;
+        if (volume) this.music.volume = volume;
+        this.music.src = source;
+    };
+    // Gameplay Methods
+    cameraX;
+    cameraY;
+    updateRate = 0;
+    entities = [];
+    addEntity = (entity) => {
+        this.entities.push(entity);
+    };
+    // Game Update Events
+    onupdate = (delta) => forEntities(this.entities, updateEntity, delta);
+    set update(value) {
+        appendToFunction(this, "onupdate", value);
+    }
+    onpredraw = () => {
+        ctx.save();
+        if (this.cameraX !== undefined && this.cameraY !== undefined)
+            ctx.translate(canvas.width / 2 - this.cameraX, canvas.height / 2 - this.cameraY);
+        this.ondraw();
+        ctx.restore();
+    };
+    ondraw = () => forEntities(this.entities, drawEntity);
+    set draw(value) {
+        appendToFunction(this, "ondraw", value);
+    }
+    oninteract = () => {};
+    set interact(value) {
+        appendToFunction(this, "oninteract", value);
+    }
+    // IO Events
+    onkeydown = (e) => {};
+    set keydown(value) {
+        appendToFunction(this, "onkeydown", value);
+    }
+    onkeyup = (e) => {};
+    set keyup(value) {
+        appendToFunction(this, "onkeyup", value);
+    }
+    // Mouse IO Events
+    onmousedown = (e) => {};
+    set mousedown(value) {
+        appendToFunction(this, "onmousedown", value);
+    }
+    onmouseup = (e) => {};
+    set mouseup(value) {
+        appendToFunction(this, "onmouseup", value);
+    }
+    onmousemove = (e) => {};
+    set mousemove(value) {
+        appendToFunction(this, "onmousemove", value);
+    }
+    ondblclick = (e) => {};
+    set dblclick(value) {
+        appendToFunction(this, "ondblclick", value);
+    }
+    onwheel = (e) => {};
+    set wheel(value) {
+        appendToFunction(this, "onwheel", value);
+    }
+}
+class Task {
+    constructor(func, { time, loop, id, immediate } = {}, ...args) {
+        this.id = id ?? crypto.randomUUID();
+        this.func = func;
+        this.args = args;
+        this.time = 1_000 * (time ?? 0);
+        this.loop = !!loop;
+        this.ispaused = false;
+        this.startTime = Date.now();
+        this.remaining = this.time;
+        this.timeout = () => {
+            if (this.ispaused) return;
+            this.func(...this.args);
+            if (this.loop) this.start(this.time);
+            else this.manager.clearTask(this.id);
+        };
+        if (immediate) this.func(...this.args);
+    }
+    start = (delay) => {
+        if (this.ispaused) return;
+        this.startTime = Date.now();
+        clearTimeout(this.timer);
+        this.timer = setTimeout(this.timeout, delay);
+    };
+    pause = () => {
+        if (this.ispaused) return;
+        this.ispaused = true;
+        clearTimeout(this.timer);
+        this.remaining = this.time - (Date.now() - this.startTime);
+    };
+    resume = () => {
+        this.peek();
+        this.ispaused = false;
+        clearTimeout(this.timer);
+        this.start(this.remaining);
+    };
+    refresh = () => {
+        if (this.ispaused) return;
+        this.pause();
+        this.resume();
+    };
+    peek = () => {
+        if (this.ispaused) return this.remaining;
+        this.remaining = this.time - (Date.now() - this.startTime);
+        return this.remaining;
+    };
+    extend = (addtionalTime) => {
+        this.time += 1_000 * addtionalTime;
+        this.resume();
+    };
+}
+class UI extends Layer {
+    children = [];
+    constructor({ id }) {
+        super({ id });
+        this.parentUI = true;
+        this.update = () => {
+            this.children.forEach((c) => c.onupdate && c.onupdate());
+        };
+    }
+    ondraw = () => {
+        forEntities(this.entities, drawEntity);
+        this.children.forEach((c) => c.ondraw && c.ondraw());
+    };
+    show = ({ overlay } = {}) => {
+        if (overlay) this.layerNum = LayerManager.activeLayer;
+        if (this.parentUI) LayerManager.registerLayer(this);
+
+        this.children.forEach((c) => c.show && c.show());
+
+        if (this.parentUI) this.mousedown = this._callAction;
+    };
+
+    _callAction = (e) => {
+        this.action(e, mouse.x, mouse.y);
+    };
+
+    action = (event, mX, mY) => {
+        if (this.parentUI) event.stopImmediatePropagation();
+        this.children.forEach((c) => c.action && c.detect(mX, mY) && c.action(event, mX, mY));
+    };
+
+    detect = (mX, mY) => true;
+
+    hide = () => {
+        this.children.forEach((c) => c.hide && c.hide());
+        if (this.parentUI) LayerManager.unregisterLayer(this);
+    };
+
+    add = (ui) => {
+        ui.id = ui.id || crypto.randomUUID();
+        ui.detect = ui.detect || (() => true);
+        ui.parentUI = false;
+        this.children.push(ui);
+        return ui.id;
+    };
+
+    get = (id) => this.children.find((e) => e.id === id);
+
+    remove = (id) => {
+        const idx = this.children.findIndex((e) => e.id === id);
+        if (idx !== -1) this.children.splice(idx, 1);
+    };
+}
+
+const global = (LayerManager.global = new Layer(
+    { layerNum: null, id: "global" },
+    {
+        onkeydown: handleKeyDown,
+        onkeyup: handleKeyUp,
+        onmousedown: handleMouseDown,
+        onmouseup: handleMouseUp,
+        onmousemove: handleMouseMove,
+    }
+));
+
+const game = new Layer({ id: "game" });
+
+Object.defineProperty(game, "width", {
+    get() {
+        return canvas.width;
+    },
+    set(value) {
+        canvas.width = value;
+    },
+});
+
+Object.defineProperty(game, "height", {
+    get() {
+        return canvas.height;
+    },
+    set(value) {
+        canvas.height = value;
+    },
+});
+
+LayerManager.registerLayer(game);
+
+// TODO LIST:
+// Move registration of layer to makeUI?
+// Make scroll bar a class
+// Check if event.stopPropigation() is needed
+// Add text input
+// Add Icon to weapons
+// Add Animations and .frames and playAnimation()
+// Add comments && doc strings
+// Add Example Template
+// Add Platformer and Tile Template
+//      https://www.freecodecamp.org/news/learning-javascript-by-making-a-game-4aca51ad9030/
+//      https://jobtalle.com/2d_platformer_physics.html
+//      https://www.educative.io/answers/how-to-make-a-simple-platformer-using-javascript
+//      https://eloquentjavascript.net/15_event.html
