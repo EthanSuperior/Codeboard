@@ -786,6 +786,7 @@ class Entity extends Identifiable {
     static types = {};
     x = 0;
     y = 0;
+    size = 0;
     dir = 0;
     speed = 0;
     staticX = false;
@@ -801,8 +802,17 @@ class Entity extends Identifiable {
             if (!this.staticX) this.x += Math.cos(this.dir) * this.speed * delta;
             if (!this.staticY) this.y += Math.sin(this.dir) * this.speed * delta;
         }
-
-        //Do COLLISION CODE
+        for (let v in Entity.types) {
+            for (let e of Entity.types[v].group) {
+                if (v === this.groupName && e.id === this.id) continue;
+                if (this.distanceTo(e) <= (this.size + e.size) / 2) {
+                    this.raise("collide", e);
+                }
+            }
+        }
+    };
+    collide = (other) => {
+        this.raise("oncollide", other);
     };
     spawn = () => {
         this.raise("onspawn");
@@ -852,6 +862,7 @@ class Entity extends Identifiable {
     angleTowards = (entity) => {
         this.dir = angleTo(this, entity);
     };
+    distanceTo = (entity) => distanceTo(this, entity);
     set velocityX(value) {
         const velY = this.velocityY;
         this.speed = Math.hypot(value, velY);
@@ -941,10 +952,7 @@ function registerEntity(name, options) {
         return newEntity;
     };
     globalThis["forEvery" + upperName + "Do"] = (func, ...args) => {
-        for (let i = newSubclass.group.length - 1; i >= 0; i--) {
-            const entity = newSubclass.group[i];
-            if (entity) func(entity, ...args);
-        }
+        for (let i = newSubclass.group.length - 1; i >= 0; i--) newSubclass.group[i]?.do(func, ...args);
     };
     if (globalThis[lowerName + "Types"])
         for (let type in globalThis[lowerName + "Types"]) globalThis[lowerName + "Types"][type].type = type;
