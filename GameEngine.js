@@ -54,7 +54,7 @@ function UIButton(
 function UIText(text, x, y, { width, font, color, center } = {}) {
     const uiElem = {
         ...{ text, x, y, width, font, color, center },
-        draw: () => {
+        ondraw: () => {
             if (color) ctx.fillStyle = uiElem.color;
             if (font) ctx.font = uiElem.font;
             ctx.textBaseline = uiElem.center ? "middle" : "alphabetic";
@@ -70,7 +70,7 @@ function UIText(text, x, y, { width, font, color, center } = {}) {
 function UICircle(x, y, radius, { fill, stroke, strokeWidth, hoverFill, hoverStroke, hoverWidth } = {}) {
     const uiElem = {
         ...{ x, y, radius, fill, stroke, strokeWidth, hoverFill, hoverStroke, hoverWidth },
-        draw: () => {
+        ondraw: () => {
             ctx.beginPath();
             ctx.arc(uiElem.x, uiElem.y, uiElem.radius, 0, 2 * Math.PI);
             const hovered = ctx.isPointInPath(mouse.x, mouse.y);
@@ -94,7 +94,7 @@ function UIRect(
 ) {
     const uiElem = {
         ...{ x, y, width, height, radius, fill, stroke, strokeWidth, hoverFill, hoverStroke, hoverWidth },
-        draw: () => {
+        ondraw: () => {
             ctx.beginPath();
             ctx.roundRect(uiElem.x, uiElem.y, uiElem.width, uiElem.height, uiElem.radius);
             const hovered = ctx.isPointInPath(mouse.x, mouse.y);
@@ -181,8 +181,8 @@ function UIScroll(x, y, w, h, { scrollWidth, scrollHeight, barWidth = 10, bkg = 
             if (!forced) this.drawScrollBarX(true);
         }
     }.bind(UI);
-    const defaultDraw = UI.draw;
-    UI.draw = function () {
+    const defaultDraw = UI.ondraw;
+    UI.ondraw = function () {
         ctx.save();
         ctx.beginPath();
         ctx.rect(x, y, w, h);
@@ -224,7 +224,7 @@ function UIProgressBar(getprogress, x, y, width, height, { fill, background } = 
         ...{ x, y, width, height, background, fill, getprogress },
         onupdate: () => (uiElem.value = uiElem.getprogress()),
         value: 0,
-        draw: () => {
+        ondraw: () => {
             // Draw the background
             if (uiElem.background) {
                 ctx.fillStyle = uiElem.background;
@@ -244,7 +244,7 @@ function UIProgressBar(getprogress, x, y, width, height, { fill, background } = 
 function UIImage(src, x, y, { width, height } = {}) {
     const uiElem = {
         ...{ src, x, y, width, height },
-        draw: () => {
+        ondraw: () => {
             const image = new Image();
             image.src = uiElem.src;
             image.onload = () => {
@@ -438,6 +438,21 @@ function getPlayerMovementDirection({ useCardinal } = {}) {
     return dir;
 }
 
+function getXVelocity(entity) {
+    let { dir, speed } = entity;
+    return speed * Math.cos(dir);
+}
+
+function getYVelocity(entity) {
+    let { dir, speed } = entity;
+    return speed * Math.sin(dir);
+}
+
+function getXSign(entity) {
+    let dir = entity?.dir ?? entity;
+    return Math.cos(dir) > 0 ? 1 : Math.cos(dir) < 0 ? -1 : 0;
+}
+
 function getYSign(entity) {
     let dir = entity?.dir ?? entity;
     return Math.sin(dir) > 0 ? 1 : Math.sin(dir) < 0 ? -1 : 0;
@@ -457,14 +472,32 @@ function appendToFunction(obj, funcName, additionalFunc, { hasPriority } = {}) {
 }
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// CLASS DEFINITIONS
+// ENTITY FUNCTION
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-class Identifiable {
-    constructor(id) {
-        this.id = id || crypto.randomUUID();
+function spawnEntity(arr, base, props) {
+    const newEntity = { id: crypto.randomUUID(), ...base, ...props };
+    arr.push(newEntity);
+    entityEvent(newEntity, "onspawn");
+    if (newEntity.lifespan)
+        newEntity.lifeTimer = scheduleTask(() => removeEntity(arr, newEntity), { time: newEntity.lifespan });
+}
+
+function removeEntity(arr, entity) {
+    if (!entity) return;
+    entityEvent(entity, "ondespawn");
+    if (entity.lifeTimer) clearTask(entity.lifeTimer);
+    const idx = arr.findIndex((e) => e.id === entity.id);
+    if (idx == -1) return;
+    arr.splice(idx, 1);
+}
+
+function updateEntity(entity, delta) {
+    entityEvent(entity, "ontick", delta);
+    if (entity.speed) {
+        if (!entity.staticX) entity.x += Math.cos(entity.dir ?? 0) * entity.speed * delta;
+        if (!entity.staticY) entity.y += Math.sin(entity.dir ?? 0) * entity.speed * delta;
     }
-    raise = (call, ...args) => this[call] && this[call].call(this, ...args);
 }
 class LayerManager {
     static layers = [];
@@ -475,8 +508,8 @@ class LayerManager {
     static {
         function registerListener(eventName) {
             document.addEventListener(eventName, function (event) {
-                if (!LayerManager.global.ispaused) LayerManager.global[eventName](event);
-                LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l[eventName](event));
+                if (!LayerManager.global.ispaused) LayerManager.global["on" + eventName](event);
+                LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l["on" + eventName](event));
             });
         }
         window.onblur = LayerManager.pause;
@@ -502,26 +535,22 @@ class LayerManager {
     static get currentLayer() {
         return LayerManager.currentLayerStack[0];
     }
-    static layerAt(num) {
-        LayerManager.layers[num] ??= [];
-        return LayerManager.layers[num];
-    }
     static update = (timestamp) => {
         // Fraction of a second since last update.
         const delta = (timestamp - LayerManager.lastTimestamp) / 1000;
         LayerManager.lastTimestamp = timestamp;
-        if (!LayerManager.global.ispaused) LayerManager.global.update(delta);
-        LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l.update(delta));
-        if (!LayerManager.global.ispaused) LayerManager.global.predraw();
-        LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l.predraw());
+        if (!LayerManager.global.ispaused) LayerManager.global.onupdate(delta);
+        LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l.onupdate(delta));
+        if (!LayerManager.global.ispaused) LayerManager.global.ondraw();
+        LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l.onpredraw());
         LayerManager.updateframe = requestAnimationFrame(LayerManager.update);
     };
     static oninteract() {
         document.removeEventListener("mousedown", this.oninteract, { once: true });
         document.removeEventListener("keydown", this.oninteract, { once: true });
         LayerManager.interacted = true;
-        if (!LayerManager.global.ispaused) LayerManager.global.interact();
-        LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l.interact());
+        if (!LayerManager.global.ispaused) LayerManager.global.oninteract();
+        LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l.oninteract());
     }
     static pause() {
         LayerManager.ispaused = true;
@@ -543,7 +572,10 @@ class LayerManager {
             LayerManager.layers[LayerManager.activeLayer] ??= [];
             LayerManager.layers[LayerManager.activeLayer].push(layer);
             layer.layerNum = LayerManager.activeLayer;
-        } else LayerManager.layerAt(layer.layerNum).push(layer);
+        } else {
+            LayerManager.layers[layer.layerNum] ??= [];
+            LayerManager.layers[layer.layerNum].push(layer);
+        }
     }
     static unregisterLayer(layer) {
         const idx = LayerManager.layers[layer.layerNum].findIndex((e) => e.id === layer.id);
@@ -559,13 +591,12 @@ class LayerManager {
         LayerManager.currentLayerStack?.forEach((l) => l.resume());
     }
 }
-class Layer extends Identifiable {
-    constructor({ id, layerNum } = {}, calls = {}) {
-        super(id);
-        this.entities = { Entity: new IterableWeakRef() };
-        for (let v in Entity.types) this.entities[v] = new IterableWeakRef();
+class Layer {
+    constructor({ id, layerNum } = {}, modifiedBaseCalls = {}) {
+        this.id = id || crypto.randomUUID();
         this.layerNum = layerNum;
-        for (let key in calls) this[key] = calls[key];
+
+        for (let key in modifiedBaseCalls) appendToFunction(this, key, modifiedBaseCalls[key]);
     }
     // Base Methods
     open = () => {};
@@ -575,12 +606,13 @@ class Layer extends Identifiable {
     ispaused = false;
     pause = () => {
         this.tasks.forEach((t) => t.pause());
-        this.sounds.forEach((s) => s.pause());
+        this.sounds.forEach((s) => s.deref()?.pause());
         this.music?.pause();
+        this.sounds = this.sounds.filter((weakRef) => weakRef.deref() !== undefined);
     };
     resume = () => {
         this.tasks.forEach((t) => t.resume());
-        this.sounds.forEach((s) => s.play());
+        this.sounds.forEach((s) => s.deref()?.play());
         this.music?.play();
     };
     scheduleTask = (func, options = {}, ...args) => {
@@ -606,7 +638,7 @@ class Layer extends Identifiable {
     };
 
     // Sound Methods
-    sounds = new IterableWeakRef();
+    sounds = [];
     playSoundEffect = (source, options = {}) => {
         if (!LayerManager.interacted) return;
         const { playrate, volume } = options;
@@ -614,7 +646,7 @@ class Layer extends Identifiable {
         if (playrate) soundBite.playbackRate = playrate;
         if (volume) soundBite.volume = volume;
         soundBite.addEventListener("canplaythrough", soundBite.play);
-        this.sounds.push(soundBite);
+        this.sounds.push(new WeakRef(soundBite));
         soundBite.addEventListener("ended", () => (soundBite.play = () => {}));
     };
     playMusic = (source, options = {}) => {
@@ -633,44 +665,64 @@ class Layer extends Identifiable {
     cameraX;
     cameraY;
     updateRate = 0;
+    entities = [];
     addEntity = (entity) => {
-        this.entities[entity.groupName] ??= new IterableWeakRef();
-        this.entities[entity.groupName].push(entity);
-    };
-    removeEntity = (entity) => {
-        this.entities[entity.groupName]?.remove(entity.id);
-    };
-    propigate = (call, ...args) => {
-        this.raise("on" + call, ...args);
-        for (let v in Entity.types) {
-            this.entities[v] ??= new IterableWeakRef();
-            this.entities[v].forEach((e) => e.raise(call, ...args));
-        }
+        this.entities.push(entity);
     };
     // Game Update Events
-    update = (delta) => this.propigate("update", delta);
-    predraw = () => {
+    onupdate = (delta) => forEntities(this.entities, updateEntity, delta);
+    set update(value) {
+        appendToFunction(this, "onupdate", value);
+    }
+    onpredraw = () => {
         ctx.save();
         if (this.cameraX !== undefined && this.cameraY !== undefined)
             ctx.translate(canvas.width / 2 - this.cameraX, canvas.height / 2 - this.cameraY);
-        this.draw();
+        this.ondraw();
         ctx.restore();
     };
-    draw = () => this.propigate("draw");
-    interact = () => this.propigate("interact");
+    ondraw = () => forEntities(this.entities, drawEntity);
+    set draw(value) {
+        appendToFunction(this, "ondraw", value);
+    }
+    oninteract = () => {};
+    set interact(value) {
+        appendToFunction(this, "oninteract", value);
+    }
     // IO Events
-    keydown = (e) => this.propigate("keydown", e);
-    keyup = (e) => this.propigate("keyup", e);
+    onkeydown = (e) => {};
+    set keydown(value) {
+        appendToFunction(this, "onkeydown", value);
+    }
+    onkeyup = (e) => {};
+    set keyup(value) {
+        appendToFunction(this, "onkeyup", value);
+    }
     // Mouse IO Events
-    mousedown = (e) => this.propigate("mousedown", e);
-    mouseup = (e) => this.propigate("mouseup", e);
-    mousemove = (e) => this.propigate("mousemove", e);
-    dblclick = (e) => this.propigate("dblclick", e);
-    wheel = (e) => this.propigate("wheel", e);
+    onmousedown = (e) => {};
+    set mousedown(value) {
+        appendToFunction(this, "onmousedown", value);
+    }
+    onmouseup = (e) => {};
+    set mouseup(value) {
+        appendToFunction(this, "onmouseup", value);
+    }
+    onmousemove = (e) => {};
+    set mousemove(value) {
+        appendToFunction(this, "onmousemove", value);
+    }
+    ondblclick = (e) => {};
+    set dblclick(value) {
+        appendToFunction(this, "ondblclick", value);
+    }
+    onwheel = (e) => {};
+    set wheel(value) {
+        appendToFunction(this, "onwheel", value);
+    }
 }
-class Task extends Identifiable {
+class Task {
     constructor(func, { time, loop, id, immediate } = {}, ...args) {
-        super(id);
+        this.id = id ?? crypto.randomUUID();
         this.func = func;
         this.args = args;
         this.time = 1_000 * (time ?? 0);
@@ -728,13 +780,9 @@ class UI extends Layer {
             this.children.forEach((c) => c.onupdate && c.onupdate());
         };
     }
-    propigate = (call, ...args) => {
-        this.raise("on" + call, ...args);
-        this.children.forEach((c) => c[call] && c[call].call(this, ...args));
-        for (let v in Entity.types) {
-            this.entities[v] ??= new IterableWeakRef();
-            this.entities[v].forEach((e) => e.raise(call, ...args));
-        }
+    ondraw = () => {
+        forEntities(this.entities, drawEntity);
+        this.children.forEach((c) => c.ondraw && c.ondraw());
     };
     show = ({ overlay } = {}) => {
         if (overlay) this.layerNum = LayerManager.activeLayer;
@@ -746,7 +794,7 @@ class UI extends Layer {
     };
 
     _callAction = (e) => {
-        this.propigate("action", e, mouse.x, mouse.y);
+        this.action(e, mouse.x, mouse.y);
     };
 
     action = (event, mX, mY) => {

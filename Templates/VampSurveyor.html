@@ -12,6 +12,7 @@
 
         function load() {
             game.onupdate = updateGame;
+            game.ondraw = drawGame;
 
             game.width = 800;
             game.height = 600;
@@ -34,17 +35,11 @@
             }
             const level = ++weaponTypes[type].currentLevel;
             weaponTypes[type] = { ...weaponTypes[type], ...weaponTypes[type].levels[level] };
-            game.scheduleTask(
-                () => {
-                    for (let i = 0; i < (weaponTypes[type].count ?? 1); i++)
-                        spawnProjectile(weaponTypes[type], { spawnOrder: i });
-                },
-                {
-                    time: weaponTypes[type].rate,
-                    loop: true,
-                    id: type,
-                }
-            );
+            game.scheduleTask(() => spawnProjectile(weaponTypes[type]), {
+                time: weaponTypes[type].rate,
+                loop: true,
+                id: type,
+            });
         }
 
         // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -56,6 +51,70 @@
             // Fill Background Black
             ctx.fillStyle = "#2a4720";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Update entities
+            updatePlayer(delta);
+            forEntities(pickups, updatePickup, delta);
+            forEntities(enemies, updateEnemy, delta);
+            forEntities(projectiles, updateProjectile, delta);
+        }
+
+        function drawGame() {
+            drawEntity(player);
+            forEntities(pickups, drawEntity);
+            forEntities(enemies, drawEntity);
+            forEntities(projectiles, drawEntity);
+        }
+
+        function updatePlayer(delta) {
+            const dir = getPlayerMovementDirection();
+
+            // Use acceleration for the player
+            player.speed = clamp(player.speed + player.acceleration, 0, player.maxSpeed);
+
+            // Stop player if no keys are pressed otherwise change your direction.
+            if (dir == null) player.speed = 0;
+            else player.dir = dir;
+            player.flipX = getXSign(player) < 0;
+            game.cameraX = player.x;
+            game.cameraY = player.y;
+            updateEntity(player, delta);
+        }
+
+        function updateEnemy(enemy, delta) {
+            enemy.dir = angleTo(enemy, player);
+            updateEntity(enemy, delta);
+            if (detectEntity(player, enemy)) {
+                enemy.x -= (getXVelocity(enemy) * enemy.size) / 20;
+                enemy.y -= (getYVelocity(enemy) * enemy.size) / 20;
+                player.hp -= enemy.dmg;
+            }
+        }
+
+        function updateProjectile(projectile, delta) {
+            updateEntity(projectile, delta);
+            // Check for collision with enemies and kill them
+            forEntities(enemies, function (enemy) {
+                if (projectile.hit.includes(enemy.id)) return;
+                if (detectEntity(enemy, projectile)) {
+                    if (!projectile.pierce || --projectile.pierce <= 0) removeEntity(projectiles, projectile);
+                    projectile.hit.push(enemy.id);
+                    enemy.hp -= projectile.dmg;
+                    if (enemy.hp > 0) return;
+                    removeEntity(enemies, enemy);
+                    player.kills += 1;
+                    spawnDrops(enemy);
+                }
+            });
+        }
+
+        function updatePickup(pickup, delta) {
+            updateEntity(pickup, delta);
+            // Check for collision with player and pick them up
+            if (detectEntity(pickup, player)) {
+                removeEntity(pickups, pickup);
+                entityEvent(pickup, "activate");
+            }
         }
 
         function addUI() {
@@ -135,6 +194,22 @@
         // GAME SPAWN FUNCTIONS | TOUCH AT YOUR OWN RISK
         // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+        function spawnEnemy(type) {
+            const dir = Math.random() * Math.PI * 2;
+            const radius = (Math.hypot(game.width, game.height) + type.size) / 2;
+            const x = player.x + Math.cos(dir) * radius;
+            const y = player.y + Math.sin(dir) * radius;
+            spawnEntity(enemies, type, { x, y, dir });
+        }
+
+        function spawnProjectile(type) {
+            const dir = angleTo(player, mouse);
+            const count = type.count ?? 1;
+            for (let i = 0; i < count; i++) {
+                spawnEntity(projectiles, type, { x: player.x, y: player.y, dir, hit: [], spawnOrder: i + 1 });
+            }
+        }
+
         function spawnDrops(enemy) {
             // Spawn Pickups
             function addDrop(x, y, value) {
@@ -204,15 +279,17 @@
                 rate: 0.8,
                 lifespan: 4,
                 onspawn: function () {
-                    this.x = player.x;
-                    this.y = player.y;
                     const spread = 45 * (Math.PI / 180);
                     this.dir = Math.random() * spread - spread / 2 - Math.PI / 2;
                     this.speed += -25 + Math.random() * 50;
                 },
-                onupdate: function (delta) {
-                    this.velocityY += 750 * delta;
-                    this.rotationalOffset += (Math.PI / 180) * this.speed * delta * this.velocityXSign;
+                ontick: function (_, delta) {
+                    const gravity = weaponTypes.axe.speed * delta;
+                    const vecX = getXVelocity(this);
+                    const vecY = getYVelocity(this) + gravity;
+                    this.speed = Math.hypot(vecX, vecY);
+                    this.dir = Math.atan2(vecY, vecX);
+                    this.rotationalOffset += (Math.PI / 180) * this.speed * delta * getXSign(this.dir);
                 },
             },
             knife: {
@@ -237,11 +314,8 @@
                 rate: 0.4,
                 lifespan: 50,
                 onspawn: function () {
-                    this.x = player.x;
-                    this.y = player.y;
-                    const offset = (this.spawnOrder - (this.count - 1) / 2) * 0.1;
+                    const offset = (this.spawnOrder - 1 - (this.count - 1) / 2) * 0.1;
                     this.dir = player.dir;
-                    // TODO CLEAN UP
                     this.x +=
                         Math.cos(player.dir + Math.PI / 2) * offset * 100 +
                         Math.cos(player.dir + Math.PI) * Math.abs(offset) * 100;
@@ -273,17 +347,12 @@
                 staticY: true,
                 lifespan: 0.1,
                 onspawn: function () {
-                    this.x = player.x;
-                    this.y = player.y;
-                    const isFirst = !(this.spawnOrder % 2);
+                    const isFirst = this.spawnOrder % 2;
                     if (Math.cos(player.dir) > 0) this.dir = isFirst ? 0 : Math.PI;
                     else this.dir = isFirst ? Math.PI : 0;
                 },
-                onupdate: function (delta) {
+                ontick: function (_, delta) {
                     this.y = player.y;
-                },
-                ondespawn: function () {
-                    this.color = "red";
                 },
             },
         };
@@ -348,7 +417,7 @@
                 size: 16,
                 value: 25,
                 rarity: 0.1,
-                onpickup: function () {
+                activate: function () {
                     player.hp = Math.min(player.hp + this.value, player.maxHP);
                 },
             },
@@ -358,8 +427,13 @@
                 size: 16,
                 value: 1,
                 rarity: 0.02,
-                onpickup: function () {
-                    forEveryPickupDo(vaccumEffect, 500);
+                activate: function () {
+                    function vaccumEffect(pickup) {
+                        if (pickup.type == "vaccum" || pickup.type == "chest") return;
+                        pickup.ontick = () => (pickup.dir = angleTo(pickup, player));
+                        pickup.speed = 500;
+                    }
+                    forEntities(pickups, vaccumEffect);
                 },
             },
         };
