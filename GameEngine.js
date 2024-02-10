@@ -219,10 +219,10 @@ function UIScroll(x, y, w, h, { scrollWidth, scrollHeight, barWidth = 10, bkg = 
     return UI;
 }
 
-function UIProgressBar(onupdate, x, y, width, height, { fill, background } = {}) {
+function UIProgressBar(getprogress, x, y, width, height, { fill, background } = {}) {
     const uiElem = {
-        ...{ x, y, width, height, background, fill },
-        update: () => (uiElem.value = onupdate()),
+        ...{ x, y, width, height, background, fill, getprogress },
+        onupdate: () => (uiElem.value = uiElem.getprogress()),
         value: 0,
         draw: () => {
             // Draw the background
@@ -234,8 +234,7 @@ function UIProgressBar(onupdate, x, y, width, height, { fill, background } = {})
             // Draw the progress bar
             if (uiElem.fill) {
                 ctx.fillStyle = uiElem.fill;
-                const progressBarWidth = uiElem.value * uiElem.width;
-                ctx.fillRect(uiElem.x, uiElem.y, progressBarWidth, uiElem.height);
+                ctx.fillRect(uiElem.x, uiElem.y, uiElem.value * uiElem.width, uiElem.height);
             }
         },
     };
@@ -467,7 +466,6 @@ class Identifiable {
     }
     raise = (call, ...args) => this[call] && this[call].call(this, ...args);
 }
-
 class LayerManager {
     static layers = [];
     static activeLayer = -1;
@@ -556,7 +554,6 @@ class LayerManager {
         }
     }
     static changeLayer(layerNum) {
-        console.log("switched layer");
         LayerManager.currentLayerStack?.forEach((l) => l.pause());
         LayerManager.activeLayer = layerNum;
         LayerManager.currentLayerStack?.forEach((l) => l.resume());
@@ -577,13 +574,11 @@ class Layer extends Identifiable {
     tasks = [];
     ispaused = false;
     pause = () => {
-        console.log(`Paused ${this.constructor.name} ${this.id}`);
         this.tasks.forEach((t) => t.pause());
         this.sounds.forEach((s) => s.pause());
         this.music?.pause();
     };
     resume = () => {
-        console.log(`Resumed ${this.constructor.name} ${this.id}`);
         this.tasks.forEach((t) => t.resume());
         this.sounds.forEach((s) => s.play());
         this.music?.play();
@@ -789,6 +784,9 @@ class Entity extends Identifiable {
     size = 0;
     dir = 0;
     speed = 0;
+    exp = 0;
+    neededXP = 0;
+    level = 0;
     staticX = false;
     staticY = false;
     groupName = "Entity";
@@ -798,23 +796,25 @@ class Entity extends Identifiable {
     }
     update = (delta) => {
         this.raise("onupdate", delta);
+        if (this.acceleration) this.speed = clamp(this.speed + this.acceleration, 0, this.maxSpeed);
         if (this.speed) {
             if (!this.staticX) this.x += Math.cos(this.dir) * this.speed * delta;
             if (!this.staticY) this.y += Math.sin(this.dir) * this.speed * delta;
         }
-        for (let v in Entity.types) {
-            for (let e of Entity.types[v].group) {
-                if (v === this.groupName && e.id === this.id) continue;
-                if (this.distanceTo(e) <= (this.size + e.size) / 2) {
-                    this.raise("collide", e);
-                }
+        if (this.collisions) this.checkCollision();
+    };
+    checkCollision = () => {
+        for (let group of this.collisions) {
+            for (let e of Entity.types[group].group) {
+                if (group === this.groupName && e.id === this.id) continue;
+                if (this.distanceTo(e) <= (this.size + e.size) / 2) this.raise("collide", e);
             }
         }
     };
-    collide = (other) => {
-        this.raise("oncollide", other);
-    };
+    collide = (other) => this.raise("oncollide", other);
     spawn = () => {
+        if (this.acceleration) this.maxSpeed ??= this.speed;
+        if (this.hp) this.maxHP ??= this.hp;
         this.raise("onspawn");
     };
     do = (func, ...args) => func.call(this, ...args);
@@ -863,6 +863,21 @@ class Entity extends Identifiable {
         this.dir = angleTo(this, entity);
     };
     distanceTo = (entity) => distanceTo(this, entity);
+    levelup = () => {
+        this.level++;
+        this.raise("onlevelup");
+    };
+    get xp() {
+        return this.exp;
+    }
+    set xp(value) {
+        this.exp = value;
+        if (!this.neededXP) return;
+        while (this.exp >= this.neededXP) {
+            this.exp -= this.neededXP;
+            this.raise("levelup");
+        }
+    }
     set velocityX(value) {
         const velY = this.velocityY;
         this.speed = Math.hypot(value, velY);
@@ -922,11 +937,17 @@ class IterableWeakRef {
     }
 }
 
-function registerEntity(name, options) {
+function registerEntity(name, options, types) {
     const upperName = name[0].toUpperCase() + name.slice(1);
     const lowerName = name[0].toLowerCase() + name.slice(1);
     const newSubclass = class extends Entity {
         static group = [];
+        static get subtypes() {
+            return types;
+        }
+        set(value) {
+            types = value;
+        }
         groupName = name;
     };
     for (let val in options) newSubclass.prototype[val] = options[val];
@@ -954,8 +975,12 @@ function registerEntity(name, options) {
     globalThis["forEvery" + upperName + "Do"] = (func, ...args) => {
         for (let i = newSubclass.group.length - 1; i >= 0; i--) newSubclass.group[i]?.do(func, ...args);
     };
-    if (globalThis[lowerName + "Types"])
-        for (let type in globalThis[lowerName + "Types"]) globalThis[lowerName + "Types"][type].type = type;
+    if (types) {
+        for (let type in types) types[type].type = type;
+        globalThis["forEvery" + upperName + "TypeDo"] = (func, ...args) => {
+            for (let type in newSubclass.subtypes) func.call(newSubclass.subtypes[type], ...args);
+        };
+    }
     Entity.types[name] = newSubclass;
 }
 
@@ -1004,15 +1029,15 @@ LayerManager.registerLayer(game);
 
 // TODO LIST:
 // Move registration of layer to makeUI?
-// Make scroll bar a class
+// Make All UI extend class
 // Check if event.stopPropigation() is needed
-// Add text input
+// Add text input UI
 // Add Icon to weapons
 // Add Animations and .frames and playAnimation()
 // Add comments && doc strings
 // Add Example Template
 // Add Platformer and Tile Template
-//      https://www.freecodecamp.org/news/learning-javascript-by-making-a-game-4aca51ad9030/
-//      https://jobtalle.com/2d_platformer_physics.html
-//      https://www.educative.io/answers/how-to-make-a-simple-platformer-using-javascript
-//      https://eloquentjavascript.net/15_event.html
+//   https://www.freecodecamp.org/news/learning-javascript-by-making-a-game-4aca51ad9030/
+//   https://jobtalle.com/2d_platformer_physics.html
+//   https://www.educative.io/answers/how-to-make-a-simple-platformer-using-javascript
+//   https://eloquentjavascript.net/15_event.html
