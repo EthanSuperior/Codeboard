@@ -219,10 +219,10 @@ function UIScroll(x, y, w, h, { scrollWidth, scrollHeight, barWidth = 10, bkg = 
     return UI;
 }
 
-function UIProgressBar(getprogress, x, y, width, height, { fill, background } = {}) {
+function UIProgressBar(update, x, y, width, height, { fill, background } = {}) {
     const uiElem = {
-        ...{ x, y, width, height, background, fill, getprogress },
-        onupdate: () => (uiElem.value = uiElem.getprogress()),
+        ...{ x, y, width, height, background, fill },
+        onupdate: () => (uiElem.value = update()),
         value: 0,
         ondraw: () => {
             // Draw the background
@@ -234,7 +234,8 @@ function UIProgressBar(getprogress, x, y, width, height, { fill, background } = 
             // Draw the progress bar
             if (uiElem.fill) {
                 ctx.fillStyle = uiElem.fill;
-                ctx.fillRect(uiElem.x, uiElem.y, uiElem.value * uiElem.width, uiElem.height);
+                const progressBarWidth = uiElem.value * uiElem.width;
+                ctx.fillRect(uiElem.x, uiElem.y, progressBarWidth, uiElem.height);
             }
         },
     };
@@ -499,6 +500,65 @@ function updateEntity(entity, delta) {
         if (!entity.staticY) entity.y += Math.sin(entity.dir ?? 0) * entity.speed * delta;
     }
 }
+
+function drawEntity(entity, delta) {
+    ctx.save();
+    ctx.translate(entity.x, entity.y);
+    if (entity.rotate) ctx.rotate(entity.dir + Math.PI / 2 + (entity.rotationalOffset ?? 0));
+    const halfSize = entity.size / 2;
+    if (entity.img) {
+        const i = new Image();
+        i.src = entity.img;
+        ctx.save();
+        ctx.scale(entity.flipX ? -1 : 1, entity.flipY ? -1 : 1);
+        ctx.drawImage(i, -halfSize, -halfSize, entity.size, entity.size);
+        ctx.restore();
+        //TODO: ONLOAD ANIMATION CODE
+    } else {
+        ctx.fillStyle = entity.color;
+        if (entity.shape == "custom") {
+            entityEvent(entity, "draw", delta);
+        } else if (entity.shape == "circle") {
+            ctx.beginPath();
+            ctx.arc(0, 0, halfSize, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.closePath();
+        } else if (entity.shape == "triangle") {
+            ctx.beginPath();
+            ctx.moveTo(0, -halfSize);
+            ctx.lineTo(-halfSize, halfSize);
+            ctx.lineTo(halfSize, halfSize);
+            ctx.fill();
+            ctx.closePath();
+        } else if (entity.shape == "arrow") {
+            ctx.beginPath();
+            ctx.moveTo(0, -halfSize);
+            ctx.lineTo(-halfSize, halfSize);
+            ctx.lineTo(0, halfSize / 2);
+            ctx.lineTo(halfSize, halfSize);
+            ctx.fill();
+            ctx.closePath();
+        } else ctx.fillRect(-halfSize, -halfSize, entity.size, entity.size);
+    }
+    ctx.restore();
+}
+
+function forEntities(arr, func, ...args) {
+    for (let i = arr.length - 1; i >= 0; i--) {
+        const entity = arr[i];
+        if (!entity) continue;
+        func(entity, ...args);
+    }
+}
+
+function entityEvent(entity, call, ...args) {
+    if (entity[call]) entity[call].call(entity, entity, ...args);
+}
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// CLASS DEFINITIONS
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 class LayerManager {
     static layers = [];
     static activeLayer = -1;
@@ -586,6 +646,7 @@ class LayerManager {
         }
     }
     static changeLayer(layerNum) {
+        console.log("switched layer");
         LayerManager.currentLayerStack?.forEach((l) => l.pause());
         LayerManager.activeLayer = layerNum;
         LayerManager.currentLayerStack?.forEach((l) => l.resume());
@@ -605,12 +666,14 @@ class Layer {
     tasks = [];
     ispaused = false;
     pause = () => {
+        console.log(`Paused ${this.constructor.name} ${this.id}`);
         this.tasks.forEach((t) => t.pause());
         this.sounds.forEach((s) => s.deref()?.pause());
         this.music?.pause();
         this.sounds = this.sounds.filter((weakRef) => weakRef.deref() !== undefined);
     };
     resume = () => {
+        console.log(`Resumed ${this.constructor.name} ${this.id}`);
         this.tasks.forEach((t) => t.resume());
         this.sounds.forEach((s) => s.deref()?.play());
         this.music?.play();
@@ -825,223 +888,6 @@ class UI extends Layer {
     };
 }
 
-class Entity extends Identifiable {
-    static types = {};
-    x = 0;
-    y = 0;
-    size = 0;
-    dir = 0;
-    speed = 0;
-    exp = 0;
-    neededXP = 0;
-    level = 0;
-    staticX = false;
-    staticY = false;
-    groupName = "Entity";
-    constructor({ layerNum } = {}) {
-        super();
-        if (layerNum) LayerManager.get(layerNum);
-    }
-    update = (delta) => {
-        this.raise("onupdate", delta);
-        if (this.acceleration) this.speed = clamp(this.speed + this.acceleration, 0, this.maxSpeed);
-        if (this.speed) {
-            if (!this.staticX) this.x += Math.cos(this.dir) * this.speed * delta;
-            if (!this.staticY) this.y += Math.sin(this.dir) * this.speed * delta;
-        }
-        if (this.collisions) this.checkCollision();
-    };
-    checkCollision = () => {
-        for (let group of this.collisions) {
-            for (let e of Entity.types[group].group) {
-                if (group === this.groupName && e.id === this.id) continue;
-                if (this.distanceTo(e) <= (this.size + e.size) / 2) this.raise("collide", e);
-            }
-        }
-    };
-    collide = (other) => this.raise("oncollide", other);
-    spawn = () => {
-        if (this.acceleration) this.maxSpeed ??= this.speed;
-        if (this.hp) this.maxHP ??= this.hp;
-        this.raise("onspawn");
-    };
-    do = (func, ...args) => func.call(this, ...args);
-    draw = () => {
-        ctx.save();
-        ctx.translate(this.x, this.y);
-        if (this.rotate) ctx.rotate(this.dir + Math.PI / 2 + (this.rotationalOffset ?? 0));
-        const halfSize = this.size / 2;
-        if (this.img) {
-            const i = new Image();
-            i.src = this.img;
-            ctx.save();
-            ctx.scale(this.flipX ? -1 : 1, this.flipY ? -1 : 1);
-            ctx.drawImage(i, -halfSize, -halfSize, this.size, this.size);
-            ctx.restore();
-            //TODO: ONLOAD ANIMATION CODE
-        } else {
-            ctx.fillStyle = this.color;
-            if (this.shape == "circle") {
-                ctx.beginPath();
-                ctx.arc(0, 0, halfSize, 0, 2 * Math.PI);
-                ctx.fill();
-                ctx.closePath();
-            } else if (this.shape == "triangle") {
-                ctx.beginPath();
-                ctx.moveTo(0, -halfSize);
-                ctx.lineTo(-halfSize, halfSize);
-                ctx.lineTo(halfSize, halfSize);
-                ctx.fill();
-                ctx.closePath();
-            } else if (this.shape == "arrow") {
-                ctx.beginPath();
-                ctx.moveTo(0, -halfSize);
-                ctx.lineTo(-halfSize, halfSize);
-                ctx.lineTo(0, halfSize / 2);
-                ctx.lineTo(halfSize, halfSize);
-                ctx.fill();
-                ctx.closePath();
-            } else ctx.fillRect(-halfSize, -halfSize, this.size, this.size);
-        }
-        this.raise("ondraw");
-        ctx.restore();
-    };
-    despawn = () => despawnEntity(this);
-    angleTowards = (entity) => {
-        this.dir = angleTo(this, entity);
-    };
-    distanceTo = (entity) => distanceTo(this, entity);
-    levelup = () => {
-        this.level++;
-        this.raise("onlevelup");
-    };
-    get xp() {
-        return this.exp;
-    }
-    set xp(value) {
-        this.exp = value;
-        if (!this.neededXP) return;
-        while (this.exp >= this.neededXP) {
-            this.exp -= this.neededXP;
-            this.raise("levelup");
-        }
-    }
-    set velocityX(value) {
-        const velY = this.velocityY;
-        this.speed = Math.hypot(value, velY);
-        this.dir = Math.atan2(vecY, value);
-    }
-    get velocityX() {
-        return this.speed * Math.cos(this.dir);
-    }
-    get velocityXSign() {
-        return Math.sign(this.velocityX);
-    }
-    set velocityY(value) {
-        const velX = this.velocityX;
-        this.speed = Math.hypot(velX, value);
-        this.dir = Math.atan2(value, velX);
-    }
-    get velocityY() {
-        return this.speed * Math.sin(this.dir);
-    }
-    get velocityYSign() {
-        return Math.sign(this.velocityY);
-    }
-}
-
-class IterableWeakRef {
-    #list = [];
-    [Symbol.iterator]() {
-        let index = this.#list.length;
-        return {
-            next: () => {
-                while (index > 0) {
-                    const value = this.#list[--index].deref();
-                    if (value === undefined) {
-                        this.#list.splice(index, 1);
-                        continue;
-                    }
-                    return { value, done: false };
-                }
-                return { done: true };
-            },
-        };
-    }
-    push = (value) => {
-        this.#list.push(new WeakRef(value));
-    };
-    forEach = (callback) => {
-        for (const value of this) {
-            callback(value);
-        }
-    };
-    remove(id) {
-        const indexToRemove = this.#list.findIndex((weakRef) => {
-            const value = weakRef.deref();
-            return value && value.id === id;
-        });
-        if (indexToRemove !== -1) this.#list.splice(indexToRemove, 1);
-    }
-}
-
-function registerEntity(name, options, types) {
-    const upperName = name[0].toUpperCase() + name.slice(1);
-    const lowerName = name[0].toLowerCase() + name.slice(1);
-    const newSubclass = class extends Entity {
-        static group = [];
-        static get subtypes() {
-            return types;
-        }
-        set(value) {
-            types = value;
-        }
-        groupName = name;
-    };
-    for (let val in options) newSubclass.prototype[val] = options[val];
-    newSubclass.prototype.groupName = name;
-    Object.defineProperty(globalThis, lowerName + "Group", {
-        get() {
-            return newSubclass.group;
-        },
-        set(value) {
-            newSubclass.group = value;
-        },
-    });
-    globalThis["spawn" + upperName] = (subType, additional) => {
-        const newEntity = new newSubclass();
-        for (let val in subType) newEntity[val] = subType[val];
-        for (let val in additional) newEntity[val] = additional[val];
-        globalThis[lowerName + "Group"].push(newEntity);
-        newEntity.layer = LayerManager.currentLayer;
-        newEntity.layer.addEntity(newEntity);
-        newEntity.raise("spawn");
-        if (newEntity.lifespan)
-            newEntity.lifeTimer = scheduleTask(() => newEntity.despawn(), { time: newEntity.lifespan });
-        return newEntity;
-    };
-    globalThis["forEvery" + upperName + "Do"] = (func, ...args) => {
-        for (let i = newSubclass.group.length - 1; i >= 0; i--) newSubclass.group[i]?.do(func, ...args);
-    };
-    if (types) {
-        for (let type in types) types[type].type = type;
-        globalThis["forEvery" + upperName + "TypeDo"] = (func, ...args) => {
-            for (let type in newSubclass.subtypes) func.call(newSubclass.subtypes[type], ...args);
-        };
-    }
-    Entity.types[name] = newSubclass;
-}
-
-function despawnEntity(entity) {
-    if (!entity) return;
-    entity.raise("ondespawn");
-    if (entity.lifeTimer) clearTask(entity.lifeTimer);
-    const idx = Entity.types[entity.groupName].group.findIndex((e) => e.id === entity.id);
-    if (idx == -1) return;
-    Entity.types[entity.groupName].group.splice(idx, 1);
-    entity.layer.removeEntity(entity);
-}
-
 const global = (LayerManager.global = new Layer(
     { layerNum: null, id: "global" },
     {
@@ -1077,15 +923,15 @@ LayerManager.registerLayer(game);
 
 // TODO LIST:
 // Move registration of layer to makeUI?
-// Make All UI extend class
+// Make scroll bar a class
 // Check if event.stopPropigation() is needed
-// Add text input UI
+// Add text input
 // Add Icon to weapons
 // Add Animations and .frames and playAnimation()
 // Add comments && doc strings
 // Add Example Template
 // Add Platformer and Tile Template
-//   https://www.freecodecamp.org/news/learning-javascript-by-making-a-game-4aca51ad9030/
-//   https://jobtalle.com/2d_platformer_physics.html
-//   https://www.educative.io/answers/how-to-make-a-simple-platformer-using-javascript
-//   https://eloquentjavascript.net/15_event.html
+//      https://www.freecodecamp.org/news/learning-javascript-by-making-a-game-4aca51ad9030/
+//      https://jobtalle.com/2d_platformer_physics.html
+//      https://www.educative.io/answers/how-to-make-a-simple-platformer-using-javascript
+//      https://eloquentjavascript.net/15_event.html
