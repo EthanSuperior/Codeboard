@@ -54,7 +54,7 @@ function UIButton(
 function UIText(text, x, y, { width, font, color, center } = {}) {
     const uiElem = {
         ...{ text, x, y, width, font, color, center },
-        ondraw: () => {
+        draw: () => {
             if (color) ctx.fillStyle = uiElem.color;
             if (font) ctx.font = uiElem.font;
             ctx.textBaseline = uiElem.center ? "middle" : "alphabetic";
@@ -70,7 +70,7 @@ function UIText(text, x, y, { width, font, color, center } = {}) {
 function UICircle(x, y, radius, { fill, stroke, strokeWidth, hoverFill, hoverStroke, hoverWidth } = {}) {
     const uiElem = {
         ...{ x, y, radius, fill, stroke, strokeWidth, hoverFill, hoverStroke, hoverWidth },
-        ondraw: () => {
+        draw: () => {
             ctx.beginPath();
             ctx.arc(uiElem.x, uiElem.y, uiElem.radius, 0, 2 * Math.PI);
             const hovered = ctx.isPointInPath(mouse.x, mouse.y);
@@ -94,7 +94,7 @@ function UIRect(
 ) {
     const uiElem = {
         ...{ x, y, width, height, radius, fill, stroke, strokeWidth, hoverFill, hoverStroke, hoverWidth },
-        ondraw: () => {
+        draw: () => {
             ctx.beginPath();
             ctx.roundRect(uiElem.x, uiElem.y, uiElem.width, uiElem.height, uiElem.radius);
             const hovered = ctx.isPointInPath(mouse.x, mouse.y);
@@ -181,8 +181,8 @@ function UIScroll(x, y, w, h, { scrollWidth, scrollHeight, barWidth = 10, bkg = 
             if (!forced) this.drawScrollBarX(true);
         }
     }.bind(UI);
-    const defaultDraw = UI.ondraw;
-    UI.ondraw = function () {
+    const defaultDraw = UI.draw;
+    UI.draw = function () {
         ctx.save();
         ctx.beginPath();
         ctx.rect(x, y, w, h);
@@ -219,12 +219,12 @@ function UIScroll(x, y, w, h, { scrollWidth, scrollHeight, barWidth = 10, bkg = 
     return UI;
 }
 
-function UIProgressBar(update, x, y, width, height, { fill, background } = {}) {
+function UIProgressBar(getprogress, x, y, width, height, { fill, background } = {}) {
     const uiElem = {
-        ...{ x, y, width, height, background, fill },
-        onupdate: () => (uiElem.value = update()),
+        ...{ x, y, width, height, background, fill, getprogress },
+        onupdate: () => (uiElem.value = uiElem.getprogress()),
         value: 0,
-        ondraw: () => {
+        draw: () => {
             // Draw the background
             if (uiElem.background) {
                 ctx.fillStyle = uiElem.background;
@@ -234,8 +234,7 @@ function UIProgressBar(update, x, y, width, height, { fill, background } = {}) {
             // Draw the progress bar
             if (uiElem.fill) {
                 ctx.fillStyle = uiElem.fill;
-                const progressBarWidth = uiElem.value * uiElem.width;
-                ctx.fillRect(uiElem.x, uiElem.y, progressBarWidth, uiElem.height);
+                ctx.fillRect(uiElem.x, uiElem.y, uiElem.value * uiElem.width, uiElem.height);
             }
         },
     };
@@ -245,7 +244,7 @@ function UIProgressBar(update, x, y, width, height, { fill, background } = {}) {
 function UIImage(src, x, y, { width, height } = {}) {
     const uiElem = {
         ...{ src, x, y, width, height },
-        ondraw: () => {
+        draw: () => {
             const image = new Image();
             image.src = uiElem.src;
             image.onload = () => {
@@ -439,21 +438,6 @@ function getPlayerMovementDirection({ useCardinal } = {}) {
     return dir;
 }
 
-function getXVelocity(entity) {
-    let { dir, speed } = entity;
-    return speed * Math.cos(dir);
-}
-
-function getYVelocity(entity) {
-    let { dir, speed } = entity;
-    return speed * Math.sin(dir);
-}
-
-function getXSign(entity) {
-    let dir = entity?.dir ?? entity;
-    return Math.cos(dir) > 0 ? 1 : Math.cos(dir) < 0 ? -1 : 0;
-}
-
 function getYSign(entity) {
     let dir = entity?.dir ?? entity;
     return Math.sin(dir) > 0 ? 1 : Math.sin(dir) < 0 ? -1 : 0;
@@ -473,92 +457,15 @@ function appendToFunction(obj, funcName, additionalFunc, { hasPriority } = {}) {
 }
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// ENTITY FUNCTION
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-function spawnEntity(arr, base, props) {
-    const newEntity = { id: crypto.randomUUID(), ...base, ...props };
-    arr.push(newEntity);
-    entityEvent(newEntity, "onspawn");
-    if (newEntity.lifespan)
-        newEntity.lifeTimer = scheduleTask(() => removeEntity(arr, newEntity), { time: newEntity.lifespan });
-}
-
-function removeEntity(arr, entity) {
-    if (!entity) return;
-    entityEvent(entity, "ondespawn");
-    if (entity.lifeTimer) clearTask(entity.lifeTimer);
-    const idx = arr.findIndex((e) => e.id === entity.id);
-    if (idx == -1) return;
-    arr.splice(idx, 1);
-}
-
-function updateEntity(entity, delta) {
-    entityEvent(entity, "ontick", delta);
-    if (entity.speed) {
-        if (!entity.staticX) entity.x += Math.cos(entity.dir ?? 0) * entity.speed * delta;
-        if (!entity.staticY) entity.y += Math.sin(entity.dir ?? 0) * entity.speed * delta;
-    }
-}
-
-function drawEntity(entity, delta) {
-    ctx.save();
-    ctx.translate(entity.x, entity.y);
-    if (entity.rotate) ctx.rotate(entity.dir + Math.PI / 2 + (entity.rotationalOffset ?? 0));
-    const halfSize = entity.size / 2;
-    if (entity.img) {
-        const i = new Image();
-        i.src = entity.img;
-        ctx.save();
-        ctx.scale(entity.flipX ? -1 : 1, entity.flipY ? -1 : 1);
-        ctx.drawImage(i, -halfSize, -halfSize, entity.size, entity.size);
-        ctx.restore();
-        //TODO: ONLOAD ANIMATION CODE
-    } else {
-        ctx.fillStyle = entity.color;
-        if (entity.shape == "custom") {
-            entityEvent(entity, "draw", delta);
-        } else if (entity.shape == "circle") {
-            ctx.beginPath();
-            ctx.arc(0, 0, halfSize, 0, 2 * Math.PI);
-            ctx.fill();
-            ctx.closePath();
-        } else if (entity.shape == "triangle") {
-            ctx.beginPath();
-            ctx.moveTo(0, -halfSize);
-            ctx.lineTo(-halfSize, halfSize);
-            ctx.lineTo(halfSize, halfSize);
-            ctx.fill();
-            ctx.closePath();
-        } else if (entity.shape == "arrow") {
-            ctx.beginPath();
-            ctx.moveTo(0, -halfSize);
-            ctx.lineTo(-halfSize, halfSize);
-            ctx.lineTo(0, halfSize / 2);
-            ctx.lineTo(halfSize, halfSize);
-            ctx.fill();
-            ctx.closePath();
-        } else ctx.fillRect(-halfSize, -halfSize, entity.size, entity.size);
-    }
-    ctx.restore();
-}
-
-function forEntities(arr, func, ...args) {
-    for (let i = arr.length - 1; i >= 0; i--) {
-        const entity = arr[i];
-        if (!entity) continue;
-        func(entity, ...args);
-    }
-}
-
-function entityEvent(entity, call, ...args) {
-    if (entity[call]) entity[call].call(entity, entity, ...args);
-}
-
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // CLASS DEFINITIONS
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+class Identifiable {
+    constructor(id) {
+        this.id = id || crypto.randomUUID();
+    }
+    raise = (call, ...args) => this[call] && this[call].call(this, ...args);
+}
 class LayerManager {
     static layers = [];
     static activeLayer = -1;
@@ -568,8 +475,8 @@ class LayerManager {
     static {
         function registerListener(eventName) {
             document.addEventListener(eventName, function (event) {
-                if (!LayerManager.global.ispaused) LayerManager.global["on" + eventName](event);
-                LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l["on" + eventName](event));
+                if (!LayerManager.global.ispaused) LayerManager.global[eventName](event);
+                LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l[eventName](event));
             });
         }
         window.onblur = LayerManager.pause;
@@ -595,22 +502,26 @@ class LayerManager {
     static get currentLayer() {
         return LayerManager.currentLayerStack[0];
     }
+    static layerAt(num) {
+        LayerManager.layers[num] ??= [];
+        return LayerManager.layers[num];
+    }
     static update = (timestamp) => {
         // Fraction of a second since last update.
         const delta = (timestamp - LayerManager.lastTimestamp) / 1000;
         LayerManager.lastTimestamp = timestamp;
-        if (!LayerManager.global.ispaused) LayerManager.global.onupdate(delta);
-        LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l.onupdate(delta));
-        if (!LayerManager.global.ispaused) LayerManager.global.ondraw();
-        LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l.onpredraw());
+        if (!LayerManager.global.ispaused) LayerManager.global.update(delta);
+        LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l.update(delta));
+        if (!LayerManager.global.ispaused) LayerManager.global.predraw();
+        LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l.predraw());
         LayerManager.updateframe = requestAnimationFrame(LayerManager.update);
     };
     static oninteract() {
         document.removeEventListener("mousedown", this.oninteract, { once: true });
         document.removeEventListener("keydown", this.oninteract, { once: true });
         LayerManager.interacted = true;
-        if (!LayerManager.global.ispaused) LayerManager.global.oninteract();
-        LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l.oninteract());
+        if (!LayerManager.global.ispaused) LayerManager.global.interact();
+        LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l.interact());
     }
     static pause() {
         LayerManager.ispaused = true;
@@ -632,10 +543,7 @@ class LayerManager {
             LayerManager.layers[LayerManager.activeLayer] ??= [];
             LayerManager.layers[LayerManager.activeLayer].push(layer);
             layer.layerNum = LayerManager.activeLayer;
-        } else {
-            LayerManager.layers[layer.layerNum] ??= [];
-            LayerManager.layers[layer.layerNum].push(layer);
-        }
+        } else LayerManager.layerAt(layer.layerNum).push(layer);
     }
     static unregisterLayer(layer) {
         const idx = LayerManager.layers[layer.layerNum].findIndex((e) => e.id === layer.id);
@@ -646,18 +554,18 @@ class LayerManager {
         }
     }
     static changeLayer(layerNum) {
-        console.log("switched layer");
         LayerManager.currentLayerStack?.forEach((l) => l.pause());
         LayerManager.activeLayer = layerNum;
         LayerManager.currentLayerStack?.forEach((l) => l.resume());
     }
 }
-class Layer {
-    constructor({ id, layerNum } = {}, modifiedBaseCalls = {}) {
-        this.id = id || crypto.randomUUID();
+class Layer extends Identifiable {
+    constructor({ id, layerNum } = {}, calls = {}) {
+        super(id);
+        this.entities = { Entity: new IterableWeakRef() };
+        for (let v in Entity.types) this.entities[v] = new IterableWeakRef();
         this.layerNum = layerNum;
-
-        for (let key in modifiedBaseCalls) appendToFunction(this, key, modifiedBaseCalls[key]);
+        for (let key in calls) this[key] = calls[key];
     }
     // Base Methods
     open = () => {};
@@ -666,16 +574,13 @@ class Layer {
     tasks = [];
     ispaused = false;
     pause = () => {
-        console.log(`Paused ${this.constructor.name} ${this.id}`);
         this.tasks.forEach((t) => t.pause());
-        this.sounds.forEach((s) => s.deref()?.pause());
+        this.sounds.forEach((s) => s.pause());
         this.music?.pause();
-        this.sounds = this.sounds.filter((weakRef) => weakRef.deref() !== undefined);
     };
     resume = () => {
-        console.log(`Resumed ${this.constructor.name} ${this.id}`);
         this.tasks.forEach((t) => t.resume());
-        this.sounds.forEach((s) => s.deref()?.play());
+        this.sounds.forEach((s) => s.play());
         this.music?.play();
     };
     scheduleTask = (func, options = {}, ...args) => {
@@ -701,7 +606,7 @@ class Layer {
     };
 
     // Sound Methods
-    sounds = [];
+    sounds = new IterableWeakRef();
     playSoundEffect = (source, options = {}) => {
         if (!LayerManager.interacted) return;
         const { playrate, volume } = options;
@@ -709,7 +614,7 @@ class Layer {
         if (playrate) soundBite.playbackRate = playrate;
         if (volume) soundBite.volume = volume;
         soundBite.addEventListener("canplaythrough", soundBite.play);
-        this.sounds.push(new WeakRef(soundBite));
+        this.sounds.push(soundBite);
         soundBite.addEventListener("ended", () => (soundBite.play = () => {}));
     };
     playMusic = (source, options = {}) => {
@@ -728,64 +633,44 @@ class Layer {
     cameraX;
     cameraY;
     updateRate = 0;
-    entities = [];
     addEntity = (entity) => {
-        this.entities.push(entity);
+        this.entities[entity.groupName] ??= new IterableWeakRef();
+        this.entities[entity.groupName].push(entity);
+    };
+    removeEntity = (entity) => {
+        this.entities[entity.groupName]?.remove(entity.id);
+    };
+    propigate = (call, ...args) => {
+        this.raise("on" + call, ...args);
+        for (let v in Entity.types) {
+            this.entities[v] ??= new IterableWeakRef();
+            this.entities[v].forEach((e) => e.raise(call, ...args));
+        }
     };
     // Game Update Events
-    onupdate = (delta) => forEntities(this.entities, updateEntity, delta);
-    set update(value) {
-        appendToFunction(this, "onupdate", value);
-    }
-    onpredraw = () => {
+    update = (delta) => this.propigate("update", delta);
+    predraw = () => {
         ctx.save();
         if (this.cameraX !== undefined && this.cameraY !== undefined)
             ctx.translate(canvas.width / 2 - this.cameraX, canvas.height / 2 - this.cameraY);
-        this.ondraw();
+        this.draw();
         ctx.restore();
     };
-    ondraw = () => forEntities(this.entities, drawEntity);
-    set draw(value) {
-        appendToFunction(this, "ondraw", value);
-    }
-    oninteract = () => {};
-    set interact(value) {
-        appendToFunction(this, "oninteract", value);
-    }
+    draw = () => this.propigate("draw");
+    interact = () => this.propigate("interact");
     // IO Events
-    onkeydown = (e) => {};
-    set keydown(value) {
-        appendToFunction(this, "onkeydown", value);
-    }
-    onkeyup = (e) => {};
-    set keyup(value) {
-        appendToFunction(this, "onkeyup", value);
-    }
+    keydown = (e) => this.propigate("keydown", e);
+    keyup = (e) => this.propigate("keyup", e);
     // Mouse IO Events
-    onmousedown = (e) => {};
-    set mousedown(value) {
-        appendToFunction(this, "onmousedown", value);
-    }
-    onmouseup = (e) => {};
-    set mouseup(value) {
-        appendToFunction(this, "onmouseup", value);
-    }
-    onmousemove = (e) => {};
-    set mousemove(value) {
-        appendToFunction(this, "onmousemove", value);
-    }
-    ondblclick = (e) => {};
-    set dblclick(value) {
-        appendToFunction(this, "ondblclick", value);
-    }
-    onwheel = (e) => {};
-    set wheel(value) {
-        appendToFunction(this, "onwheel", value);
-    }
+    mousedown = (e) => this.propigate("mousedown", e);
+    mouseup = (e) => this.propigate("mouseup", e);
+    mousemove = (e) => this.propigate("mousemove", e);
+    dblclick = (e) => this.propigate("dblclick", e);
+    wheel = (e) => this.propigate("wheel", e);
 }
-class Task {
+class Task extends Identifiable {
     constructor(func, { time, loop, id, immediate } = {}, ...args) {
-        this.id = id ?? crypto.randomUUID();
+        super(id);
         this.func = func;
         this.args = args;
         this.time = 1_000 * (time ?? 0);
@@ -843,9 +728,13 @@ class UI extends Layer {
             this.children.forEach((c) => c.onupdate && c.onupdate());
         };
     }
-    ondraw = () => {
-        forEntities(this.entities, drawEntity);
-        this.children.forEach((c) => c.ondraw && c.ondraw());
+    propigate = (call, ...args) => {
+        this.raise("on" + call, ...args);
+        this.children.forEach((c) => c[call] && c[call].call(this, ...args));
+        for (let v in Entity.types) {
+            this.entities[v] ??= new IterableWeakRef();
+            this.entities[v].forEach((e) => e.raise(call, ...args));
+        }
     };
     show = ({ overlay } = {}) => {
         if (overlay) this.layerNum = LayerManager.activeLayer;
@@ -857,7 +746,7 @@ class UI extends Layer {
     };
 
     _callAction = (e) => {
-        this.action(e, mouse.x, mouse.y);
+        this.propigate("action", e, mouse.x, mouse.y);
     };
 
     action = (event, mX, mY) => {
@@ -886,6 +775,223 @@ class UI extends Layer {
         const idx = this.children.findIndex((e) => e.id === id);
         if (idx !== -1) this.children.splice(idx, 1);
     };
+}
+
+class Entity extends Identifiable {
+    static types = {};
+    x = 0;
+    y = 0;
+    size = 0;
+    dir = 0;
+    speed = 0;
+    exp = 0;
+    neededXP = 0;
+    level = 0;
+    staticX = false;
+    staticY = false;
+    groupName = "Entity";
+    constructor({ layerNum } = {}) {
+        super();
+        if (layerNum) LayerManager.get(layerNum);
+    }
+    update = (delta) => {
+        this.raise("onupdate", delta);
+        if (this.acceleration) this.speed = clamp(this.speed + this.acceleration, 0, this.maxSpeed);
+        if (this.speed) {
+            if (!this.staticX) this.x += Math.cos(this.dir) * this.speed * delta;
+            if (!this.staticY) this.y += Math.sin(this.dir) * this.speed * delta;
+        }
+        if (this.collisions) this.checkCollision();
+    };
+    checkCollision = () => {
+        for (let group of this.collisions) {
+            for (let e of Entity.types[group].group) {
+                if (group === this.groupName && e.id === this.id) continue;
+                if (this.distanceTo(e) <= (this.size + e.size) / 2) this.raise("collide", e);
+            }
+        }
+    };
+    collide = (other) => this.raise("oncollide", other);
+    spawn = () => {
+        if (this.acceleration) this.maxSpeed ??= this.speed;
+        if (this.hp) this.maxHP ??= this.hp;
+        this.raise("onspawn");
+    };
+    do = (func, ...args) => func.call(this, ...args);
+    draw = () => {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        if (this.rotate) ctx.rotate(this.dir + Math.PI / 2 + (this.rotationalOffset ?? 0));
+        const halfSize = this.size / 2;
+        if (this.img) {
+            const i = new Image();
+            i.src = this.img;
+            ctx.save();
+            ctx.scale(this.flipX ? -1 : 1, this.flipY ? -1 : 1);
+            ctx.drawImage(i, -halfSize, -halfSize, this.size, this.size);
+            ctx.restore();
+            //TODO: ONLOAD ANIMATION CODE
+        } else {
+            ctx.fillStyle = this.color;
+            if (this.shape == "circle") {
+                ctx.beginPath();
+                ctx.arc(0, 0, halfSize, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.closePath();
+            } else if (this.shape == "triangle") {
+                ctx.beginPath();
+                ctx.moveTo(0, -halfSize);
+                ctx.lineTo(-halfSize, halfSize);
+                ctx.lineTo(halfSize, halfSize);
+                ctx.fill();
+                ctx.closePath();
+            } else if (this.shape == "arrow") {
+                ctx.beginPath();
+                ctx.moveTo(0, -halfSize);
+                ctx.lineTo(-halfSize, halfSize);
+                ctx.lineTo(0, halfSize / 2);
+                ctx.lineTo(halfSize, halfSize);
+                ctx.fill();
+                ctx.closePath();
+            } else ctx.fillRect(-halfSize, -halfSize, this.size, this.size);
+        }
+        this.raise("ondraw");
+        ctx.restore();
+    };
+    despawn = () => despawnEntity(this);
+    angleTowards = (entity) => {
+        this.dir = angleTo(this, entity);
+    };
+    distanceTo = (entity) => distanceTo(this, entity);
+    levelup = () => {
+        this.level++;
+        this.raise("onlevelup");
+    };
+    get xp() {
+        return this.exp;
+    }
+    set xp(value) {
+        this.exp = value;
+        if (!this.neededXP) return;
+        while (this.exp >= this.neededXP) {
+            this.exp -= this.neededXP;
+            this.raise("levelup");
+        }
+    }
+    set velocityX(value) {
+        const velY = this.velocityY;
+        this.speed = Math.hypot(value, velY);
+        this.dir = Math.atan2(vecY, value);
+    }
+    get velocityX() {
+        return this.speed * Math.cos(this.dir);
+    }
+    get velocityXSign() {
+        return Math.sign(this.velocityX);
+    }
+    set velocityY(value) {
+        const velX = this.velocityX;
+        this.speed = Math.hypot(velX, value);
+        this.dir = Math.atan2(value, velX);
+    }
+    get velocityY() {
+        return this.speed * Math.sin(this.dir);
+    }
+    get velocityYSign() {
+        return Math.sign(this.velocityY);
+    }
+}
+
+class IterableWeakRef {
+    #list = [];
+    [Symbol.iterator]() {
+        let index = this.#list.length;
+        return {
+            next: () => {
+                while (index > 0) {
+                    const value = this.#list[--index].deref();
+                    if (value === undefined) {
+                        this.#list.splice(index, 1);
+                        continue;
+                    }
+                    return { value, done: false };
+                }
+                return { done: true };
+            },
+        };
+    }
+    push = (value) => {
+        this.#list.push(new WeakRef(value));
+    };
+    forEach = (callback) => {
+        for (const value of this) {
+            callback(value);
+        }
+    };
+    remove(id) {
+        const indexToRemove = this.#list.findIndex((weakRef) => {
+            const value = weakRef.deref();
+            return value && value.id === id;
+        });
+        if (indexToRemove !== -1) this.#list.splice(indexToRemove, 1);
+    }
+}
+
+function registerEntity(name, options, types) {
+    const upperName = name[0].toUpperCase() + name.slice(1);
+    const lowerName = name[0].toLowerCase() + name.slice(1);
+    const newSubclass = class extends Entity {
+        static group = [];
+        static get subtypes() {
+            return types;
+        }
+        set(value) {
+            types = value;
+        }
+        groupName = name;
+    };
+    for (let val in options) newSubclass.prototype[val] = options[val];
+    newSubclass.prototype.groupName = name;
+    Object.defineProperty(globalThis, lowerName + "Group", {
+        get() {
+            return newSubclass.group;
+        },
+        set(value) {
+            newSubclass.group = value;
+        },
+    });
+    globalThis["spawn" + upperName] = (subType, additional) => {
+        const newEntity = new newSubclass();
+        for (let val in subType) newEntity[val] = subType[val];
+        for (let val in additional) newEntity[val] = additional[val];
+        globalThis[lowerName + "Group"].push(newEntity);
+        newEntity.layer = LayerManager.currentLayer;
+        newEntity.layer.addEntity(newEntity);
+        newEntity.raise("spawn");
+        if (newEntity.lifespan)
+            newEntity.lifeTimer = scheduleTask(() => newEntity.despawn(), { time: newEntity.lifespan });
+        return newEntity;
+    };
+    globalThis["forEvery" + upperName + "Do"] = (func, ...args) => {
+        for (let i = newSubclass.group.length - 1; i >= 0; i--) newSubclass.group[i]?.do(func, ...args);
+    };
+    if (types) {
+        for (let type in types) types[type].type = type;
+        globalThis["forEvery" + upperName + "TypeDo"] = (func, ...args) => {
+            for (let type in newSubclass.subtypes) func.call(newSubclass.subtypes[type], ...args);
+        };
+    }
+    Entity.types[name] = newSubclass;
+}
+
+function despawnEntity(entity) {
+    if (!entity) return;
+    entity.raise("ondespawn");
+    if (entity.lifeTimer) clearTask(entity.lifeTimer);
+    const idx = Entity.types[entity.groupName].group.findIndex((e) => e.id === entity.id);
+    if (idx == -1) return;
+    Entity.types[entity.groupName].group.splice(idx, 1);
+    entity.layer.removeEntity(entity);
 }
 
 const global = (LayerManager.global = new Layer(
@@ -923,15 +1029,15 @@ LayerManager.registerLayer(game);
 
 // TODO LIST:
 // Move registration of layer to makeUI?
-// Make scroll bar a class
+// Make All UI extend class
 // Check if event.stopPropigation() is needed
-// Add text input
+// Add text input UI
 // Add Icon to weapons
 // Add Animations and .frames and playAnimation()
 // Add comments && doc strings
 // Add Example Template
 // Add Platformer and Tile Template
-//      https://www.freecodecamp.org/news/learning-javascript-by-making-a-game-4aca51ad9030/
-//      https://jobtalle.com/2d_platformer_physics.html
-//      https://www.educative.io/answers/how-to-make-a-simple-platformer-using-javascript
-//      https://eloquentjavascript.net/15_event.html
+//   https://www.freecodecamp.org/news/learning-javascript-by-making-a-game-4aca51ad9030/
+//   https://jobtalle.com/2d_platformer_physics.html
+//   https://www.educative.io/answers/how-to-make-a-simple-platformer-using-javascript
+//   https://eloquentjavascript.net/15_event.html
