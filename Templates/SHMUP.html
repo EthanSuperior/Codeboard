@@ -10,9 +10,6 @@
         // CORE GAMEPLAY FUNCTIONS | TOUCH AT YOUR OWN RISK
         // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-        const enemies = [];
-        const bullets = [];
-        const pickups = [];
         // Key state object
         const MouseKeyEvents = {
             Down: startShooting,
@@ -23,9 +20,9 @@
             Space: startShooting,
             ControlLeft: startShooting,
             ControlRight: startShooting,
-            Digit1: () => spawnEntity(pickups, pickupTypes.multi, { x: player.x, y: player.y }),
-            Digit2: () => spawnEntity(pickups, pickupTypes.nuke, { x: player.x, y: player.y }),
-            Digit3: () => spawnEntity(pickups, pickupTypes.vaccum, { x: player.x, y: player.y }),
+            Digit1: () => spawnPickup(pickupTypes.multi, { x: player.x, y: player.y }),
+            Digit2: () => spawnPickup(pickupTypes.nuke, { x: player.x, y: player.y }),
+            Digit3: () => spawnPickup(pickupTypes.vaccum, { x: player.x, y: player.y }),
             KeyK: () => (player.hp = 0),
         };
         const UpKeyEvents = {
@@ -41,7 +38,11 @@
         function startShooting(type = player.bulletType) {
             player.bulletType = type;
             scheduleTask(
-                spawnBullet,
+                (type) => {
+                    for (let i = 0; i < (type.count ?? 1); i++) {
+                        spawnBullet(type, { spawnOrder: i + 1, dir: -Math.PI / 2 });
+                    }
+                },
                 { immediate: true, loop: true, time: bulletTypes[type].rate, id: "shoot" },
                 bulletTypes[type]
             );
@@ -52,14 +53,11 @@
 
         function load() {
             game.onupdate = updateGame;
-            game.ondraw = drawGame;
-            for (let type in pickupTypes) pickupTypes[type].type = type;
-            for (let type in bulletTypes) bulletTypes[type].type = type;
-            for (let type in enemyTypes) enemyTypes[type].type = type;
             for (let time in waves) scheduleTask(spawnWave, { time: +time }, waves[time]);
             game.playMusic("theme.mp3");
             // Give points for time survived
             scheduleTask(() => player.score++, { loop: 1, time: 2 });
+            addUI();
         }
 
         // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -68,153 +66,71 @@
 
         function updateGame(delta) {
             if (player.hp <= 0) {
-                const popup = UIPopup(150, 250, 300, 200, "You Died", `Final Score: ${player.score}`, 50, {
-                    radius: 25,
-                    background: "white",
-                    textColor: "black",
-                    strokeColor: "black",
-                    buttonColor: "red",
-                    buttonText: "Restart",
-                    buttonAction: () => location.reload(),
-                });
-                popup.show();
-                return;
+                return showDeath();
             }
             // Fill Background Black
             ctx.fillStyle = "black";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            // Update entities
-            updatePlayer(delta);
-            forEntities(pickups, updatePickup, delta);
-            forEntities(enemies, updateEnemy, delta);
-            forEntities(bullets, updateBullet, delta);
         }
-
-        function drawGame() {
-            drawEntity(player);
-            forEntities(pickups, drawEntity);
-            forEntities(enemies, drawEntity);
-            forEntities(bullets, drawEntity);
-            updateUI();
-        }
-
-        function updatePlayer(delta) {
-            const dir = getPlayerMovementDirection();
-
-            // Use acceleration for the player
-            player.speed = clamp(player.speed + player.acceleration, 0, player.maxSpeed);
-
-            // Stop player if no keys are pressed otherwise change your direction.
-            if (dir == null) player.speed = 0;
-            else player.dir = dir;
-
-            updateEntity(player, delta);
-
-            player.x = clamp(player.x, player.size / 2, canvas.width - player.size / 2);
-            player.y = clamp(player.y, player.size / 2, canvas.height - player.size / 2);
-
-            // redraw player now clamped.
-            drawEntity(player, delta);
-        }
-
-        function updateEnemy(enemy, delta) {
-            updateEntity(enemy, delta);
-            if (detectEntity(player, enemy)) {
-                removeEntity(enemies, enemy);
-                player.hp -= enemy.dmg;
-            }
-            if (enemy.y > canvas.height + enemy.size) {
-                removeEntity(enemies, enemy);
-            }
-        }
-
-        function updateBullet(bullet, delta) {
-            updateEntity(bullet, delta);
-            // Check for collision with enemies and kill them
-            forEntities(enemies, function (enemy) {
-                if (bullet.hit.includes(enemy.id)) return;
-                if (Math.hypot(enemy.x - bullet.x, enemy.y - bullet.y) < enemy.size / 2 + bullet.size / 2) {
-                    if (!bullet.pierce || --bullet.pierce <= 0) removeEntity(bullets, bullet);
-                    bullet.hit.push(enemy.id);
-                    enemy.hp -= bullet.dmg;
-                    if (enemy.hp > 0) return;
-                    removeEntity(enemies, enemy);
-                    spawnDrops(enemy);
-                }
+        function showDeath() {
+            const popup = UIPopup(150, 250, 300, 200, "You Died", `Final Score: ${player.score}`, 50, {
+                radius: 25,
+                background: "white",
+                textColor: "black",
+                strokeColor: "black",
+                buttonColor: "red",
+                buttonText: "Restart",
+                buttonAction: () => location.reload(),
             });
-            // Remove bullet if it goes off screen
-            if (bullet.y < -20 || bullet.y > canvas.height + 20 || bullet.x < -20 || bullet.x > canvas.width + 20) {
-                removeEntity(bullets, bullet);
-            }
+            popup.show();
         }
-
-        function updatePickup(pickup, delta) {
-            updateEntity(pickup, delta);
-            if (detectEntity(pickup, player)) {
-                removeEntity(pickups, pickup);
-                entityEvent(pickup, "activate");
-            }
-            if (pickup.y > canvas.height + pickup.size) {
-                removeEntity(pickups, pickup);
-            }
-        }
-
-        function updateUI(delta) {
-            ctx.font = "24px monospace";
-            ctx.fillStyle = "red";
-            ctx.fillText(`HP: ${player.hp}`, 10, 30);
-            ctx.fillStyle = "gold";
-            ctx.fillText(`Score: ${player.score}`, 10, 60);
+        function addUI() {
+            const UI = makeUI();
+            const healthUI = UIText(`HP: ${player.hp}`, 10, 30, { font: "24px monospace", color: "red" });
+            healthUI.onupdate = () => (healthUI.text = `HP: ${player.hp}`);
+            UI.add(healthUI);
+            const killsUI = UIText(`Score: ${player.score}`, 10, 60, {
+                font: "24px monospace",
+                color: "gold",
+            });
+            killsUI.onupdate = () => (killsUI.text = `Score: ${player.score}`);
+            UI.add(killsUI);
+            UI.show({ overlay: true });
         }
 
         // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         // GAME SPAWN FUNCTIONS | TOUCH AT YOUR OWN RISK
         // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-        function spawnEnemy(type) {
-            const x = Math.random() * canvas.width;
-            spawnEntity(enemies, type, { x, y: -50, dir: Math.PI / 2 });
-        }
-
-        function spawnBullet(type) {
-            playSoundEffect("shoot.wav", { volume: 0.3 });
-            const count = type.count ?? 1;
-            for (let i = 0; i < count; i++) {
-                spawnEntity(bullets, type, { x: player.x, y: player.y, dir: -Math.PI / 2, hit: [], spawnOrder: i + 1 });
-            }
-        }
-
         function spawnDrops(enemy) {
             // Spawn Pickups
-            for (let pickupType in pickupTypes) {
-                const pickup = pickupTypes[pickupType];
-                if (Math.random() < pickup.rarity) {
-                    if (pickupType == "gold") {
-                        let total = enemy.point;
-                        const numObjects = Math.min(100, enemy.point);
+            function addDrop(x, y, point) {
+                if (Math.random() < this.rarity) {
+                    if (this.type == "gold") {
+                        let total = point;
+                        const numObjects = Math.min(100, point);
                         for (let i = 0; i < numObjects; i++) {
                             // Calculate radius dynamically based on the number of coins
                             const radius = (canvas.width / 6) * Math.sqrt(i / numObjects) * (numObjects / 100);
 
                             const angle = (i / numObjects) * (1.61803398875 * Math.PI * Math.PI) * Math.PI * 2;
 
-                            const value = Math.floor(enemy.point / numObjects);
+                            const value = Math.floor(point / numObjects);
                             total -= value;
                             // Calculate x and y using polar coordinates
-                            const x = enemy.x + radius * Math.cos(angle);
-                            const y = enemy.y + radius * Math.sin(angle);
+                            x += radius * Math.cos(angle);
+                            y += radius * Math.sin(angle);
 
-                            spawnEntity(pickups, pickupTypes.gold, { x, y, value, speed: 30, dir: Math.PI / 2 });
+                            spawnPickup(this, { x, y, value, speed: 30, dir: Math.PI / 2 });
                         }
                     } else {
-                        const value = pickup.value;
-                        const rand = Math.random() * pickup.size;
-                        const x = enemy.x + rand;
-                        const y = enemy.y + Math.random() * pickup.size - rand;
-                        spawnEntity(pickups, pickup, { x, y, value, speed: 30, dir: Math.PI / 2 });
+                        const rand = Math.random() * this.size;
+                        x += rand;
+                        y += Math.random() * this.size - rand;
+                        spawnPickup(this, { x, y, speed: 30, dir: Math.PI / 2 });
                     }
                 }
             }
+            forEveryPickupTypeDo(addDrop, enemy.x, enemy.y, enemy.point);
         }
 
         function spawnWave(waveData) {
@@ -236,6 +152,12 @@
             }
         }
 
+        function vaccumEffect(speed, maxDist) {
+            if (this.type == "vaccum" || this.type == "chest") return;
+            if (this.distanceTo(player) > maxDist) return;
+            this.speed = speed;
+            this.onupdate = () => this.angleTowards(player);
+        }
         // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         // GAME DATA | ADD TO AND CUSTOMIZE FREELY
         // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -258,29 +180,6 @@
                 onspawn: function () {
                     this.dir += 0.1 * (this.spawnOrder - 1 - (this.count - 1) / 2);
                 },
-            },
-        };
-
-        const player = {
-            x: canvas.width / 2,
-            y: canvas.height - 50,
-            speed: 0,
-            maxSpeed: 275,
-            acceleration: 7.5,
-            hp: 3,
-            size: 20,
-            score: 0,
-            color: "blue",
-            pickupRadius: 60,
-            bulletType: "normal",
-            ontick: function (_, delta) {
-                //MAGNET RADIUS
-                forEntities(pickups, function (pickup) {
-                    if (detectEntity(pickup, player, pickup.size / 2 + player.pickupRadius)) {
-                        pickup.dir = angleTo(pickup, player);
-                        pickup.speed = 375;
-                    }
-                });
             },
         };
 
@@ -322,7 +221,7 @@
                 size: 12,
                 value: 1,
                 rarity: 1,
-                activate: function () {
+                onpickup: function () {
                     player.score += this.value;
                 },
             },
@@ -331,7 +230,7 @@
                 size: 16,
                 value: 1,
                 rarity: 0.15,
-                activate: function () {
+                onpickup: function () {
                     player.hp += this.value;
                 },
             },
@@ -341,8 +240,8 @@
                 size: 24,
                 value: 1,
                 rarity: 0.05,
-                duration: 15_000,
-                activate: function () {
+                duration: 15,
+                onpickup: function () {
                     startShooting(this.type);
                     let task = findTask(this.type);
                     if (task) task.extend(this.duration);
@@ -355,13 +254,8 @@
                 size: 16,
                 value: 1,
                 rarity: 0.075,
-                activate: function () {
-                    function vaccumEffect(pickup) {
-                        if (pickup.type == "vaccum") return;
-                        pickup.ontick = () => (pickup.dir = angleTo(pickup, player));
-                        pickup.speed = 500;
-                    }
-                    forEntities(pickups, vaccumEffect);
+                onpickup: function () {
+                    forEveryPickupDo(vaccumEffect, 500);
                 },
             },
             nuke: {
@@ -370,14 +264,14 @@
                 size: 24,
                 value: 1,
                 rarity: 0.005,
-                activate: function () {
-                    function nukeEffect(enemy) {
-                        enemy.hp -= 100;
-                        if (enemy.hp > 0) return;
-                        removeEntity(enemies, enemy);
-                        spawnDrops(enemy);
+                onpickup: function () {
+                    function nukeEffect() {
+                        this.hp -= 100;
+                        if (this.hp > 0) return;
+                        this.despawn();
+                        spawnDrops(this);
                     }
-                    forEntities(enemies, nukeEffect);
+                    forEveryEnemyDo(nukeEffect);
                 },
             },
         };
@@ -430,5 +324,102 @@
                 },
             },
         };
+        registerEntity(
+            "Enemy",
+            {
+                collisions: ["Player"],
+                onspawn: function () {
+                    this.y = -50;
+                    this.dir = Math.PI / 2;
+                    this.x = Math.random() * canvas.width;
+                },
+                onupdate: function () {
+                    if (this.y > game.height + this.size) this.despawn();
+                },
+                oncollide: function (other) {
+                    other.hp -= this.dmg;
+                    this.despawn();
+                },
+            },
+            enemyTypes
+        );
+        registerEntity(
+            "Bullet",
+            {
+                hit: [],
+                pierce: 1,
+                collisions: ["Enemy"],
+                onspawn: function () {
+                    this.x = player.x;
+                    this.y = player.y;
+                    playSoundEffect("shoot.wav", { volume: 0.3 });
+                },
+                onupdate: function (delta) {
+                    if (outOfBounds(this, 20)) this.despawn();
+                },
+                oncollide: function (other) {
+                    if (this.hit.includes(other.id)) return;
+                    this.hit.push(other.id);
+                    other.hp -= this.dmg;
+                    this.pierce--;
+                    if (this.pierce <= 0) this.despawn();
+                    if (other.hp > 0) return;
+                    player.kills += 1;
+                    spawnDrops(other);
+                    other.despawn();
+                },
+            },
+            bulletTypes
+        );
+        registerEntity(
+            "Pickup",
+            {
+                lifespan: 60,
+                collisions: ["Player"],
+                pickup: function () {
+                    this.raise("onpickup");
+                },
+                oncollide: function (other) {
+                    this.pickup();
+                    this.despawn();
+                },
+                onupdate: function (delta) {
+                    if (this.y > game.height + this.size) this.despawn();
+                },
+            },
+            pickupTypes
+        );
+        registerEntity("Player", {
+            maxSpeed: 275,
+            acceleration: 7.5,
+            pickupRadius: 60,
+            hp: 3,
+            kills: 0,
+            score: 0,
+            bulletType: "normal",
+            onupdate: function (delta) {
+                const dir = getPlayerMovementDirection();
+                // Stop player if no keys are pressed otherwise change your direction.
+                if (dir == null) this.speed = 0;
+                else this.dir = dir;
+                player.x = clamp(player.x, player.size / 2, game.width - player.size / 2);
+                player.y = clamp(player.y, player.size / 2, game.height - player.size / 2);
+
+                forEveryPickupDo(vaccumEffect, 375, this.pickupRadius);
+            },
+            onlevelup: function () {
+                this.neededXP += this.level * 10;
+                const isMaxLevel = (o) => weaponTypes[o].currentLevel >= Object.keys(weaponTypes[o].levels).length;
+                let options = Object.keys(weaponTypes).filter((a) => !isMaxLevel(a));
+                if (!options.length) this.hp += 25;
+                else showLevelUp(options);
+            },
+        });
+        const player = spawnPlayer({
+            x: game.width / 2,
+            y: game.height - 50,
+            color: "blue",
+            size: 20,
+        });
     </script>
 </html>
