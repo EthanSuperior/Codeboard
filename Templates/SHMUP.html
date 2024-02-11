@@ -80,21 +80,26 @@
                 stroke: "black",
                 fill: "red",
                 buttonText: "Restart",
-                onaction: () => location.reload(),
+                onclick: () => location.reload(),
             }).show();
         }
         function addUI() {
-            const ui = UI.Base();
-            const healthUI = UI.Text(`HP: ${player.hp}`, 10, 30, { font: "24px monospace", color: "red" });
-            healthUI.onupdate = () => (healthUI.text = `HP: ${player.hp}`);
-            ui.add(healthUI);
-            const killsUI = UI.Text(`Score: ${player.score}`, 10, 60, {
-                font: "24px monospace",
-                color: "gold",
-            });
-            killsUI.onupdate = () => (killsUI.text = `Score: ${player.score}`);
-            ui.add(killsUI);
-            ui.show({ overlay: true });
+            const hud = UI.Base();
+            const healthUI = hud.add(
+                UI.Text(`HP: ${player.hp}`, 10, 30, {
+                    font: "24px monospace",
+                    color: "red",
+                    onupdate: () => (healthUI.text = `HP: ${player.hp}`),
+                })
+            );
+            const killsUI = hud.add(
+                UI.Text(`Score: ${player.score}`, 10, 60, {
+                    font: "24px monospace",
+                    color: "gold",
+                    onupdate: () => (killsUI.text = `Score: ${player.score}`),
+                })
+            );
+            hud.show({ overlay: true });
         }
 
         // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
