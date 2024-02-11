@@ -24,39 +24,6 @@ const keys = {};
 const mouse = { x: 0, y: 0 };
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// UI ELEMENTS
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// BASE IO -- Use EventNameEvents to add default events
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-function handleKeyDown(event) {
-    keys[event.code] = true;
-    if (typeof DownKeyEvents !== "undefined") for (let a in DownKeyEvents) if (event.code == a) DownKeyEvents[a]();
-}
-
-function handleKeyUp(event) {
-    keys[event.code] = false;
-    if (typeof UpKeyEvents !== "undefined") for (let a in UpKeyEvents) if (event.code == a) UpKeyEvents[a]();
-}
-
-function handleMouseDown(event) {
-    if (typeof MouseEvents !== "undefined" && MouseEvents.Down) MouseEvents.Down(event);
-}
-
-function handleMouseUp(event) {
-    if (typeof MouseEvents !== "undefined" && MouseEvents.Up) MouseEvents.Up(event);
-}
-
-function handleMouseMove(event) {
-    const rect = canvas.getBoundingClientRect();
-    mouse.x = event.clientX - rect.left;
-    mouse.y = event.clientY - rect.top;
-    if (typeof MouseEvents !== "undefined" && MouseEvents.Move) MouseEvents.Move(e);
-}
-
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // SOUND FUNCTIONS - https://sfxr.me/
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -180,6 +147,52 @@ function appendToFunction(obj, funcName, additionalFunc, { hasPriority } = {}) {
         if (!hasPriority) additionalFunc.call(this, ...args);
     };
 }
+function cloneMouseEvent(originalEvent) {
+    const {
+        type,
+        bubbles,
+        cancelable,
+        view,
+        detail,
+        screenX,
+        screenY,
+        clientX,
+        clientY,
+        mouseX,
+        mouseY,
+        canvasX,
+        canvasY,
+        ctrlKey,
+        altKey,
+        shiftKey,
+        metaKey,
+        button,
+        relatedTarget,
+    } = originalEvent;
+
+    const newEvent = new MouseEvent(type, {
+        bubbles,
+        cancelable,
+        view,
+        detail,
+        screenX,
+        screenY,
+        clientX,
+        clientY,
+        ctrlKey,
+        altKey,
+        shiftKey,
+        metaKey,
+        button,
+        relatedTarget,
+    });
+    return Object.assign(newEvent, {
+        mouseX,
+        mouseY,
+        canvasX,
+        canvasY,
+    });
+}
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // CLASS DEFINITIONS
@@ -190,6 +203,41 @@ class Identifiable {
         this.id = id || crypto.randomUUID();
     }
     raise = (call, ...args) => this[call] && this[call].call(this, ...args);
+}
+
+class IterableWeakRef {
+    #list = [];
+    [Symbol.iterator]() {
+        let index = this.#list.length;
+        return {
+            next: () => {
+                while (index > 0) {
+                    const value = this.#list[--index].deref();
+                    if (value === undefined) {
+                        this.#list.splice(index, 1);
+                        continue;
+                    }
+                    return { value, done: false };
+                }
+                return { done: true };
+            },
+        };
+    }
+    push = (value) => {
+        this.#list.push(new WeakRef(value));
+    };
+    forEach = (callback) => {
+        for (const value of this) {
+            callback(value);
+        }
+    };
+    remove(id) {
+        const indexToRemove = this.#list.findIndex((weakRef) => {
+            const value = weakRef.deref();
+            return value && value.id === id;
+        });
+        if (indexToRemove !== -1) this.#list.splice(indexToRemove, 1);
+    }
 }
 class LayerManager {
     static layers = [];
@@ -218,6 +266,7 @@ class LayerManager {
         registerListener("mousemove");
         registerListener("mousedown");
         registerListener("mouseup");
+        registerListener("click");
         registerListener("dblclick");
         registerListener("wheel");
     }
@@ -271,6 +320,7 @@ class LayerManager {
         } else LayerManager.layerAt(layer.layerNum).push(layer);
     }
     static unregisterLayer(layer) {
+        if (!LayerManager.layers[layer.layerNum]) return;
         const idx = LayerManager.layers[layer.layerNum].findIndex((e) => e.id === layer.id);
         if (idx !== -1) LayerManager.layers[layer.layerNum].splice(idx, 1)[0].pause();
         if (LayerManager.layers[layer.layerNum].length === 0) {
@@ -293,8 +343,8 @@ class Layer extends Identifiable {
         for (let key in calls) this[key] = calls[key];
     }
     // Base Methods
-    open = () => {};
-    close = () => {};
+    open = () => this.propigate("open");
+    close = () => this.propigate("close");
     // Timing Methods
     tasks = [];
     ispaused = false;
@@ -390,8 +440,63 @@ class Layer extends Identifiable {
     mousedown = (e) => this.propigate("mousedown", e);
     mouseup = (e) => this.propigate("mouseup", e);
     mousemove = (e) => this.propigate("mousemove", e);
+    click = (e) => this.propigate("click", e);
     dblclick = (e) => this.propigate("dblclick", e);
     wheel = (e) => this.propigate("wheel", e);
+}
+class GlobalLayer extends Layer {
+    constructor() {
+        super({ layerNum: null, id: "global" });
+    }
+    keydown = (e) => {
+        keys[e.code] = true;
+        if (typeof DownKeyEvents !== "undefined") for (let a in DownKeyEvents) if (e.code == a) DownKeyEvents[a]();
+        this.propigate("keydown", e);
+    };
+    keyup = (e) => {
+        keys[e.code] = false;
+        if (typeof UpKeyEvents !== "undefined") for (let a in UpKeyEvents) if (e.code == a) UpKeyEvents[a]();
+        this.propigate("keyup", e);
+    };
+    mousedown = (e) => {
+        this.setMousePos(e);
+        if (typeof MouseEvents !== "undefined" && MouseEvents.Down) MouseEvents.Down(e);
+        this.propigate("mousedown", e);
+    };
+    mouseup = (e) => {
+        this.setMousePos(e);
+        if (typeof MouseEvents !== "undefined" && MouseEvents.Up) MouseEvents.Up(e);
+        this.propigate("mouseup", e);
+    };
+    mousemove = (e) => {
+        this.setMousePos(e);
+        if (typeof MouseEvents !== "undefined" && MouseEvents.Move) MouseEvents.Move(e);
+        this.propigate("mousemove", e);
+    };
+    click = (e) => {
+        this.setMousePos(e);
+        if (typeof MouseEvents !== "undefined" && MouseEvents.Click) MouseEvents.Click(e);
+        this.propigate("click", e);
+    };
+    dblclick = (e) => {
+        this.setMousePos(e);
+        if (typeof MouseEvents !== "undefined" && MouseEvents.DblClick) MouseEvents.DblClick(e);
+        this.propigate("dblclick", e);
+    };
+    wheel = (e) => {
+        this.setMousePos(e);
+        if (typeof MouseEvents !== "undefined" && MouseEvents.Wheel) MouseEvents.Wheel(e);
+        this.propigate("wheel", e);
+    };
+    setMousePos = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        mouse.x = e.clientX - rect.left;
+        mouse.y = e.clientY - rect.top;
+        e.mouseX = mouse.x;
+        e.mouseY = mouse.y;
+        e.canvasX = mouse.x;
+        e.canvasY = mouse.y;
+    };
 }
 class Task extends Identifiable {
     constructor(func, { time, loop, id, immediate } = {}, ...args) {
@@ -449,9 +554,6 @@ class UI extends Layer {
     constructor({ id }) {
         super({ id });
         this.parentUI = true;
-        this.update = () => {
-            this.children.forEach((c) => c.onupdate && c.onupdate());
-        };
     }
     propigate = (call, ...args) => {
         this.raise("on" + call, ...args);
@@ -461,43 +563,34 @@ class UI extends Layer {
             this.entities[v].forEach((e) => e.raise(call, ...args));
         }
     };
+    mousedown = (e) => {
+        if (this.detect(e.mouseX, e.mouseY)) this.propigate("mousedown", e);
+    };
+    mousemove = (e) => {
+        if (this.options) this.options.hovered = this.detect(e.mouseX, e.mouseY);
+        this.propigate("mousemove", e);
+    };
+    click = (e) => {
+        if (this.detect(e.mouseX, e.mouseY)) this.propigate("click", e);
+    };
     show = ({ overlay } = {}) => {
         if (overlay) this.layerNum = LayerManager.activeLayer;
         if (this.parentUI) LayerManager.registerLayer(this);
 
         this.children.forEach((c) => c.show && c.show());
-
-        if (this.parentUI) this.mousedown = this._callAction;
-    };
-
-    _callAction = (e) => {
-        this.action(e, mouse.x, mouse.y);
-    };
-
-    action = (event, mX, mY) => {
-        this.raise("onaction", event, mX, mY);
-        if (this.parentUI) event.stopImmediatePropagation();
-        this.children.forEach((c) => c.action && c.detect(mX, mY) && c.action(event, mX, mY));
-    };
-
-    mousemove = (e) => {
-        if (this.options) this.options.hovered = this.detect(mouse.x, mouse.y);
-        this.propigate("mousemove", e);
     };
 
     detect = (mX, mY) => true;
 
     hide = () => {
         if (this.parentUI) LayerManager.unregisterLayer(this);
-        this.children.forEach((c) => c.hide && c.hide());
+        this.propigate("hide");
     };
 
     add = (ui) => {
-        ui.id = ui.id || crypto.randomUUID();
-        ui.detect = ui.detect || (() => true);
         ui.parentUI = false;
         this.children.push(ui);
-        return ui.id;
+        return ui;
     };
 
     get = (id) => this.children.find((e) => e.id === id);
@@ -531,12 +624,14 @@ class UI extends Layer {
     static Rect = (x, y, width, height, { cornerRadius, ...options } = {}) => {
         UI.Rect.classRef ??= class UIRect extends UI.Base.classRef {
             ondraw = () => UI.drawRect(this.x, this.y, this.width, this.height, this.options);
+            detect = (mX, mY) => detectRect(this.x, this.y, this.width, this.height, mX, mY);
         };
         return new UI.Rect.classRef(x, y, { width, height, cornerRadius, ...options });
     };
     static Circle = (x, y, radius, options = {}) => {
         UI.Circle.classRef ??= class UICircle extends UI.Base.classRef {
             ondraw = () => UI.drawCircle(this.x, this.y, this.radius, this.options);
+            detect = (mX, mY) => detectCircle(this.x, this.y, this.radius, mX, mY);
         };
         return new UI.Circle.classRef(x, y, { radius, ...options });
     };
@@ -552,12 +647,9 @@ class UI extends Layer {
         };
         return new UI.Image.classRef(x, y, { src, width, height, ...options });
     };
-    static Button = (onaction, x, y, width, height, { cornerRadius, ...options } = {}) => {
-        UI.Button.classRef ??= class UIButton extends UI.Base.classRef {
-            ondraw = () => UI.drawRect(this.x, this.y, this.width, this.height, this.options);
-            detect = (mX, mY) => detectRect(this.x, this.y, this.width, this.height, mX, mY);
-        };
-        return new UI.Button.classRef(x, y, { width, height, onaction, cornerRadius, ...options });
+    static Button = (onclick, x, y, width, height, { cornerRadius, ...options } = {}) => {
+        UI.Button.classRef ??= class UIButton extends UI.Rect.classRef {};
+        return new UI.Button.classRef(x, y, { width, height, onclick, cornerRadius, ...options });
     };
     static ProgressBar = (getprogress, x, y, width, height, { fill, background, ...options } = {}) => {
         UI.ProgressBar.classRef ??= class UIProgressBar extends UI.Base.classRef {
@@ -595,7 +687,7 @@ class UI extends Layer {
         title,
         message,
         scale,
-        { cornerRadius, color, buttonText = "Close", onaction, background, ...options } = {}
+        { cornerRadius, color, buttonText = "Close", onclick, background, ...options } = {}
     ) => {
         UI.Popup.classRef ??= class UIPopup extends UI.Base.classRef {
             detect = (mX, mY) =>
@@ -642,12 +734,180 @@ class UI extends Layer {
             cornerRadius,
             color,
             buttonText,
-            onaction,
+            onclick,
             background,
             ...options,
         });
-        popup.onaction ??= () => popup.hide();
+        popup.onclick ??= () => popup.hide();
         return popup;
+    };
+    static Scroll = (
+        x,
+        y,
+        width,
+        height,
+        {
+            scrollWidth = width,
+            scrollHeight = height,
+            scrollBarWidth = 10,
+            background = "#000",
+            hideScroll = false,
+            ...options
+        } = {}
+    ) => {
+        UI.Scroll.classRef ??= class UIScroll extends UI.Base.classRef {
+            content = { width: this.scrollWidth, height: this.scrollHeight };
+            scroll = { x: !!(this.width < this.scrollWidth), y: !!(this.height < this.scrollHeight) };
+            scrollPosition = { x: 0, y: 0 };
+            displayWidth = this.scrollWidth - this.width;
+            displayHeight = this.scrollHeight - this.height;
+            onwheel = (e) => {
+                this.scrollPosition.x = clamp(this.scrollPosition.x + e.deltaX, 0, this.displayWidth);
+                this.scrollPosition.y = clamp(this.scrollPosition.y + e.deltaY, 0, this.displayHeight);
+                this.mousemove(e);
+            };
+            onmousedown = (e) => {
+                this.scrolling = true;
+                this.jumpscroll();
+            };
+            onmouseup = (e) => {
+                this.jumpscroll();
+                this.scrolling = false;
+            };
+            onmousemove = (e) => {
+                this.jumpscroll();
+            };
+            jumpscroll = (e) => {
+                if (!this.scrolling) return;
+                const clickedX =
+                    this.scroll.x &&
+                    detectRect(
+                        x,
+                        y + this.height - this.scrollBarWidth,
+                        this.width,
+                        this.scrollBarWidth,
+                        mouse.x,
+                        mouse.y
+                    );
+                const clickedY =
+                    this.scroll.y &&
+                    detectRect(
+                        x + this.width - this.scrollBarWidth,
+                        y,
+                        this.scrollBarWidth,
+                        this.height,
+                        mouse.x,
+                        mouse.y
+                    );
+                if (clickedX == clickedY) return;
+                else if (clickedX) {
+                    const barHeight = this.width - (this.scroll.y ? this.scrollBarWidth : 0);
+                    const scrollBarHeight = (barHeight / this.content.width) * barHeight;
+                    const newScrollRatio = (mouse.x - this.x - scrollBarHeight / 2) / (barHeight - scrollBarHeight);
+                    this.scrollPosition.x = Math.max(
+                        0,
+                        Math.min(newScrollRatio * this.displayWidth, this.displayWidth)
+                    );
+                } else if (clickedY) {
+                    const barHeight = this.height - (this.scroll.x ? this.scrollBarWidth : 0);
+                    const scrollBarHeight = (barHeight / this.content.height) * barHeight;
+                    const newScrollRatio = (mouse.y - this.y - scrollBarHeight / 2) / (barHeight - scrollBarHeight);
+                    this.scrollPosition.y = Math.max(
+                        0,
+                        Math.min(newScrollRatio * this.displayHeight, this.displayHeight)
+                    );
+                }
+                if (e) e.stopImmediatePropagation();
+            };
+            drawScrollBarX = (forced = !this.hideScroll) => {
+                if (!this.scroll.x) return;
+                const barHeight = this.width - (this.scroll.y ? this.scrollBarWidth : 0);
+                const scrollBarHeight = (barHeight / this.content.width) * this.width;
+                const scrollBarTop = (this.scrollPosition.x / this.displayWidth) * (barHeight - scrollBarHeight);
+                const scrollOff = this.height - this.scrollBarWidth;
+                if (
+                    forced ||
+                    detectRect(this.x, this.y + scrollOff, this.width, this.scrollBarWidth, mouse.x, mouse.y)
+                ) {
+                    ctx.fillStyle = "#333";
+                    ctx.globalAlpha = 0.3;
+                    ctx.fillRect(this.x, this.y + scrollOff, this.width, this.scrollBarWidth);
+                    ctx.globalAlpha = 0.8;
+                    ctx.fillRect(this.x + scrollBarTop, this.y + scrollOff, scrollBarHeight, this.scrollBarWidth);
+                    ctx.globalAlpha = 1;
+                    if (!forced) this.drawScrollBarY(true);
+                }
+            };
+            drawScrollBarY = (forced = !this.hideScroll) => {
+                if (!this.scroll.y) return;
+                const barHeight = this.height - (this.scroll.x ? this.scrollBarWidth : 0);
+                const scrollBarHeight = (barHeight / this.content.height) * this.height;
+                const scrollBarTop = (this.scrollPosition.y / this.displayHeight) * (barHeight - scrollBarHeight);
+                const scrollOff = this.width - this.scrollBarWidth;
+                if (
+                    forced ||
+                    detectRect(
+                        this.x + scrollOff,
+                        this.y,
+                        this.scrollBarWidth,
+                        this.heightthis.height,
+                        mouse.x,
+                        mouse.y
+                    )
+                ) {
+                    ctx.fillStyle = "#333";
+                    ctx.globalAlpha = 0.3;
+                    ctx.fillRect(this.x + scrollOff, this.y, this.scrollBarWidth, this.height);
+                    ctx.globalAlpha = 0.8;
+                    ctx.fillRect(this.x + scrollOff, this.y + scrollBarTop, this.scrollBarWidth, scrollBarHeight);
+                    ctx.globalAlpha = 1;
+                    if (!forced) this.drawScrollBarX(true);
+                }
+            };
+            draw = () => {
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(this.x, this.y, this.width, this.height);
+                ctx.fillStyle = this.background;
+                ctx.fill();
+                ctx.clip();
+                ctx.translate(-this.scrollPosition.x, -this.scrollPosition.y);
+                this.propigate("draw");
+                ctx.restore();
+                this.drawScrollBarX();
+                this.drawScrollBarY();
+            };
+            mousedown = (e) => {
+                const newE = cloneMouseEvent(e);
+                newE.mouseX += this.scrollPosition.x;
+                newE.mouseY += this.scrollPosition.y;
+                if (this.detect(newE.mouseX, newE.mouseY)) this.propigate("mousedown", newE);
+            };
+            mousemove = (e) => {
+                const newE = cloneMouseEvent(e);
+                newE.mouseX += this.scrollPosition.x;
+                newE.mouseY += this.scrollPosition.y;
+                if (this.options) this.options.hovered = this.detect(newE.mouseX, newE.mouseY);
+                this.propigate("mousemove", newE);
+            };
+            click = (e) => {
+                const newE = cloneMouseEvent(e);
+                newE.mouseX += this.scrollPosition.x;
+                newE.mouseY += this.scrollPosition.y;
+                if (this.detect(newE.mouseX, newE.mouseY)) this.propigate("click", newE);
+            };
+            detect = (mX, mY) => detectRect(this.x, this.y, this.scrollWidth, this.scrollHeight, mX, mY);
+        };
+        return new UI.Scroll.classRef(x, y, {
+            width,
+            height,
+            scrollWidth,
+            scrollHeight,
+            scrollBarWidth,
+            background,
+            hideScroll,
+            ...options,
+        });
     };
     static colorPath = ({ hovered, fill, stroke, strokeWidth, hoverFill, hoverStroke, hoverWidth } = {}) => {
         ctx.fillStyle = (hovered && hoverFill) || fill;
@@ -785,14 +1045,13 @@ function UIScroll(x, y, w, h, { scrollWidth, scrollHeight, barWidth = 10, bkg = 
         document.removeEventListener("mousemove", this.scrolljump);
         defaultHide.call(this);
     }.bind(UI);
-    const defaultAction = UI.action;
-    UI.action = function (event, mX, mY) {
+    const defaultAction = UI.onclick;
+    UI.onclick = function (event, mX, mY) {
         defaultAction.call(this, event, mouse.x + this.scrollPosition.x, mouse.y + this.scrollPosition.y);
     }.bind(UI);
     UI.detect = (mX, mY) => detectRect(x, y, w, h, mX, mY);
     return UI;
 }
-
 class Entity extends Identifiable {
     static types = {};
     constructor({ layerNum } = {}) {
@@ -917,42 +1176,6 @@ class Entity extends Identifiable {
         return Math.sign(this.velocityY);
     }
 }
-
-class IterableWeakRef {
-    #list = [];
-    [Symbol.iterator]() {
-        let index = this.#list.length;
-        return {
-            next: () => {
-                while (index > 0) {
-                    const value = this.#list[--index].deref();
-                    if (value === undefined) {
-                        this.#list.splice(index, 1);
-                        continue;
-                    }
-                    return { value, done: false };
-                }
-                return { done: true };
-            },
-        };
-    }
-    push = (value) => {
-        this.#list.push(new WeakRef(value));
-    };
-    forEach = (callback) => {
-        for (const value of this) {
-            callback(value);
-        }
-    };
-    remove(id) {
-        const indexToRemove = this.#list.findIndex((weakRef) => {
-            const value = weakRef.deref();
-            return value && value.id === id;
-        });
-        if (indexToRemove !== -1) this.#list.splice(indexToRemove, 1);
-    }
-}
-
 function registerEntity(name, options, types) {
     const upperName = name[0].toUpperCase() + name.slice(1);
     const lowerName = name[0].toLowerCase() + name.slice(1);
@@ -999,7 +1222,6 @@ function registerEntity(name, options, types) {
     }
     Entity.types[name] = newSubclass;
 }
-
 function despawnEntity(entity) {
     if (!entity) return;
     entity.raise("ondespawn");
@@ -1010,16 +1232,7 @@ function despawnEntity(entity) {
     entity.layer.removeEntity(entity);
 }
 
-const global = (LayerManager.global = new Layer(
-    { layerNum: null, id: "global" },
-    {
-        onkeydown: handleKeyDown,
-        onkeyup: handleKeyUp,
-        onmousedown: handleMouseDown,
-        onmouseup: handleMouseUp,
-        onmousemove: handleMouseMove,
-    }
-));
+const global = (LayerManager.global = new GlobalLayer());
 
 const game = new Layer({ id: "game" });
 
