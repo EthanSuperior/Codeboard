@@ -59,76 +59,75 @@
         }
 
         function addUI() {
-            const UI = makeUI();
+            const hud = UI.Base();
 
-            const healthUI = UIText(`HP: ${player.hp}`, 10, 36, { font: "24px monospace", color: "red" });
+            const healthUI = hud.add(UI.Text(`HP: ${player.hp}`, 10, 36, { font: "24px monospace", color: "red" }));
             healthUI.onupdate = () => (healthUI.text = `HP: ${player.hp}`);
-            UI.add(healthUI);
 
-            const killsUI = UIText(`Kills: ${player.kills}`, 10, 66, {
-                font: "24px monospace",
-                color: "gold",
-            });
-            killsUI.onupdate = () => (killsUI.text = `Kills: ${player.kills}`);
-            UI.add(killsUI);
+            const killsUI = hud.add(
+                UI.Text(`Kills: ${player.kills}`, 10, 66, {
+                    font: "24px monospace",
+                    color: "gold",
+                    onupdate: () => (killsUI.text = `Kills: ${player.kills}`),
+                })
+            );
 
             const getProgress = () => player.xp / player.neededXP;
-            const playerXpBar = UIProgressBar(getProgress, 5, 5, canvas.width - 10, 12, {
-                background: "black",
-                fill: "#2165db",
-            });
-            UI.add(playerXpBar);
-
-            UI.show({ overlay: true });
+            const playerXpBar = hud.add(
+                UI.ProgressBar(getProgress, 5, 5, canvas.width - 10, 12, {
+                    background: "black",
+                    fill: "#2165db",
+                })
+            );
+            hud.show({ overlay: true });
         }
 
         function showLevelUp(options) {
-            const UILevelUp = makeUI();
+            const UILevelUp = UI.Base();
             UILevelUp.add(
-                UIRect(200, 75, 400, 450, { radius: 25, fill: "#4b4e74", stroke: "#cd9958", strokeWidth: 6 })
+                UI.Rect(200, 75, 400, 450, { cornerRadius: 25, fill: "#4b4e74", stroke: "#cd9958", strokeWidth: 6 })
             );
-            UILevelUp.add(UIText(`~ LEVEL UP! ~`, 230, 130, { font: "bold 48px monospace", color: "black" }));
-            const UILevelScroll = UIScroll(215, 130, 375, 380, {
+            UILevelUp.add(UI.Text(`~ LEVEL UP! ~`, 230, 130, { font: "bold 48px monospace", color: "black" }));
+            const UILevelScroll = UI.Scroll(215, 130, 375, 380, {
                 scrollHeight: 125 * options.length,
-                bkg: "#4b4e74",
+                background: "#4b4e74",
             });
             for (let i = 0; i < options.length; i++) {
-                const buttonPos = [225, 150 + i * 125, 350, 100];
-                const buttonAction = function (e, x, y) {
+                const buttonPos = [, 100];
+                const btnPress = function (e, x, y) {
                     getWeapon(options[i]);
                     UILevelUp.hide();
                 };
                 const buttonProps = {
-                    radius: 25,
+                    cornerRadius: 25,
                     fill: "#8c8c8c",
                     hoverFill: "#8b8b00",
                     hoverStroke: "#cd9958",
                     hoverWidth: 6,
                 };
-                UILevelScroll.add(UIButton(...buttonPos, buttonAction, buttonProps));
+                UILevelScroll.add(UI.Button(btnPress, 225, 150 + i * 125, 350, 100, buttonProps));
                 const weapon = weaponTypes[options[i]];
                 const nextLevel = (weapon.currentLevel ?? 0) + 1;
                 const text = nextLevel == 1 ? `UNLOCK ${options[i]}` : `${options[i]}  ~~  LEVEL ${nextLevel}`;
                 UILevelScroll.add(
-                    UIText(text.toUpperCase(), 290, 180 + i * 125, { font: "24px monospace", color: "black" })
+                    UI.Text(text.toUpperCase(), 290, 180 + i * 125, { font: "24px monospace", color: "black" })
                 );
-                UILevelScroll.add(UIText(weapon.levels[nextLevel].description, 235, 210 + i * 125, { width: 330 }));
+                UILevelScroll.add(UI.Text(weapon.levels[nextLevel].description, 235, 210 + i * 125, { width: 330 }));
             }
             UILevelUp.add(UILevelScroll);
             UILevelUp.show();
         }
 
         function showDeath() {
-            const popup = UIPopup(250, 200, 300, 200, "You Died", `Final Score: ${player.kills}`, 50, {
-                radius: 25,
+            const popup = UI.Popup(250, 200, 300, 200, "You Died", `Final Score: ${player.kills}`, 50, {
+                cornerRadius: 25,
                 background: "white",
-                textColor: "black",
-                strokeColor: "black",
-                buttonColor: "red",
+                color: "black",
+                stroke: "black",
+                fill: "red",
                 buttonText: "Restart",
-                buttonAction: () => location.reload(),
-            });
-            popup.show();
+                onclick: () => location.reload(),
+            }).show();
         }
 
         // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -137,7 +136,7 @@
 
         function spawnDrops(enemy) {
             // Spawn Pickups
-            function addDrop(x, y, value) {
+            function addDrop(x, y) {
                 if (Math.random() < this.rarity) {
                     const rand = Math.random() * this.size;
                     x = x + rand;
@@ -470,7 +469,7 @@
                 this.neededXP += this.level * 10;
                 const isMaxLevel = (o) => weaponTypes[o].currentLevel >= Object.keys(weaponTypes[o].levels).length;
                 let options = Object.keys(weaponTypes).filter((a) => !isMaxLevel(a));
-                if (!options.length) this.hp += 25;
+                if (!options.length) player.hp = Math.min(player.hp + 25, player.maxHP);
                 else showLevelUp(options);
             },
         });
