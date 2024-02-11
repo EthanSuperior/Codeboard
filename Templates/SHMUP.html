@@ -32,12 +32,12 @@
         };
 
         function stopShooting() {
-            clearTask("shoot");
+            game.clearTask("shoot");
         }
 
         function startShooting(type = player.bulletType) {
             player.bulletType = type;
-            scheduleTask(
+            game.scheduleTask(
                 (type) => {
                     for (let i = 0; i < (type.count ?? 1); i++) {
                         spawnBullet(type, { spawnOrder: i + 1, dir: -Math.PI / 2 });
@@ -56,7 +56,7 @@
             for (let time in waves) scheduleTask(spawnWave, { time: +time }, waves[time]);
             game.playMusic("theme.mp3");
             // Give points for time survived
-            scheduleTask(() => player.score++, { loop: 1, time: 2 });
+            game.scheduleTask(() => player.score++, { loop: 1, time: 2 });
             addUI();
         }
 
@@ -178,6 +178,8 @@
                 rate: 0.1,
                 count: 3,
                 onspawn: function () {
+                    this.x = player.x;
+                    this.y = player.y;
                     this.dir += 0.1 * (this.spawnOrder - 1 - (this.count - 1) / 2);
                 },
             },
