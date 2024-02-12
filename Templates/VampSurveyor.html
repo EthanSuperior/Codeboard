@@ -112,7 +112,12 @@
                 UILevelScroll.add(
                     UI.Text(text.toUpperCase(), 290, 180 + i * 125, { font: "24px monospace", color: "black" })
                 );
-                UILevelScroll.add(UI.Text(weapon.levels[nextLevel].description, 235, 210 + i * 125, { width: 330 }));
+                UILevelScroll.add(
+                    UI.Text(weapon.levels[nextLevel].description, 235, 210 + i * 125, {
+                        linewrap: true,
+                        width: 330,
+                    })
+                );
             }
             UILevelUp.add(UILevelScroll);
             UILevelUp.show();
