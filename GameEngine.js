@@ -1329,9 +1329,7 @@ LayerManager.registerLayer(game);
 
 // TODO LIST:
 // Move registration of layer to makeUI?
-// Make All UI extend class
 // Check if event.stopPropigation() is needed
-// Add text input UI
 // Add Icon to weapons
 // Add Animations and .frames and playAnimation()
 // Add comments && doc strings
