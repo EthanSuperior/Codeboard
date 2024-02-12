@@ -73,29 +73,33 @@
             ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
         function showDeath() {
-            const popup = UIPopup(150, 250, 300, 200, "You Died", `Final Score: ${player.score}`, 50, {
-                radius: 25,
+            UI.Popup(150, 250, 300, 200, "You Died", `Final Score: ${player.score}`, 50, {
+                cornerRadius: 25,
                 background: "white",
-                textColor: "black",
-                strokeColor: "black",
-                buttonColor: "red",
+                color: "black",
+                stroke: "black",
+                fill: "red",
                 buttonText: "Restart",
-                buttonAction: () => location.reload(),
-            });
-            popup.show();
+                onclick: () => location.reload(),
+            }).show();
         }
         function addUI() {
-            const UI = makeUI();
-            const healthUI = UIText(`HP: ${player.hp}`, 10, 30, { font: "24px monospace", color: "red" });
-            healthUI.onupdate = () => (healthUI.text = `HP: ${player.hp}`);
-            UI.add(healthUI);
-            const killsUI = UIText(`Score: ${player.score}`, 10, 60, {
-                font: "24px monospace",
-                color: "gold",
-            });
-            killsUI.onupdate = () => (killsUI.text = `Score: ${player.score}`);
-            UI.add(killsUI);
-            UI.show({ overlay: true });
+            const hud = UI.Base();
+            const healthUI = hud.add(
+                UI.Text(`HP: ${player.hp}`, 10, 30, {
+                    font: "24px monospace",
+                    color: "red",
+                    onupdate: () => (healthUI.text = `HP: ${player.hp}`),
+                })
+            );
+            const killsUI = hud.add(
+                UI.Text(`Score: ${player.score}`, 10, 60, {
+                    font: "24px monospace",
+                    color: "gold",
+                    onupdate: () => (killsUI.text = `Score: ${player.score}`),
+                })
+            );
+            hud.show({ overlay: true });
         }
 
         // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
