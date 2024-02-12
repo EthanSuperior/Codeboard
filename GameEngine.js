@@ -635,11 +635,11 @@ class UI extends Layer {
         };
         return new UI.Circle.classRef(x, y, { radius, ...options });
     };
-    static Text = (text, x, y, { width, font, color, center, ...options } = {}) => {
+    static Text = (text, x, y, { width, font, color, center, linewrap, ...options } = {}) => {
         UI.Text.classRef ??= class UIText extends UI.Base.classRef {
             ondraw = () => UI.drawText(this.text, this.x, this.y, this.options);
         };
-        return new UI.Text.classRef(x, y, { text, width, font, color, center, ...options });
+        return new UI.Text.classRef(x, y, { text, width, font, color, center, linewrap, ...options });
     };
     static Image = (src, x, y, { width, height, ...options } = {}) => {
         UI.Image.classRef ??= class UIImage extends UI.Base.classRef {
@@ -650,6 +650,51 @@ class UI extends Layer {
     static Button = (onclick, x, y, width, height, { cornerRadius, ...options } = {}) => {
         UI.Button.classRef ??= class UIButton extends UI.Rect.classRef {};
         return new UI.Button.classRef(x, y, { width, height, onclick, cornerRadius, ...options });
+    };
+    static TextInput = (x, y, { placeholder = "", width, oninput, onsubmit, autofocus, ...options } = {}) => {
+        UI.TextInput.classRef ??= class UITextInput extends UI.Base.classRef {
+            onkeydown = (e) => {
+                if (this.isFocused) {
+                    if (e.key === "Backspace") this.text = this.text.slice(0, -1);
+                    else if (e.key.length > 1 || e.ctrlKey || e.altKey || e.metaKey) return;
+                    else this.text += e.key;
+                    this.raise("oninput", this.text);
+                }
+            };
+            onkeyup = (e) => {
+                if (this.isFocused && e.key === "Enter") {
+                    this.isFocused = false;
+                    this.raise("onsubmit", this.text);
+                }
+            };
+            click = (e) => {
+                this.isFocused = this.detect(e.mouseX, e.mouseY);
+            };
+
+            ondraw = () => {
+                if (this.font) ctx.font = this.font;
+                const fontSize = parseInt(ctx.font);
+                // Draw the input box
+                ctx.clearRect(this.x, this.y, this.width, fontSize);
+                UI.drawRect(this.x, this.y, this.width, fontSize, { stroke: "black" });
+                // Draw the text inside the input box
+                ctx.textBaseline = "middle";
+                if (this.color) ctx.fillStyle = this.color;
+                ctx.textBaseline = "middle";
+                ctx.fillText(this.text, this.x, this.y + fontSize / 2, this.width);
+            };
+            detect = (mX, mY) =>
+                detectRect(this.x, this.y, this.width, parseInt(this.font ? this.font : ctx.font), mX, mY);
+        };
+        return new UI.TextInput.classRef(x, y, {
+            width,
+            text: "",
+            placeholder,
+            oninput,
+            onsubmit,
+            isFocused: !!autofocus,
+            ...options,
+        });
     };
     static ProgressBar = (getprogress, x, y, width, height, { fill, background, ...options } = {}) => {
         UI.ProgressBar.classRef ??= class UIProgressBar extends UI.Base.classRef {
@@ -928,12 +973,38 @@ class UI extends Layer {
         UI.colorPath(options);
         ctx.closePath();
     };
-    static drawText = (text, x, y, { width, font, color, center } = {}) => {
+    static drawText = (text, x, y, { width, font, color, center, linewrap } = {}) => {
         if (color) ctx.fillStyle = color;
         if (font) ctx.font = font;
         ctx.textBaseline = center ? "middle" : "alphabetic";
-        const centeredX = x - (center ? (ctx.measureText(text).width - width) / 2 : 0);
-        ctx.fillText(text, centeredX, y, width);
+
+        if (linewrap && width) {
+            const words = text.split(" ");
+            let currentLine = "";
+            let lines = [];
+
+            for (const word of words) {
+                const testLine = currentLine.length === 0 ? word : `${currentLine} ${word}`;
+                const testWidth = ctx.measureText(testLine).width;
+
+                if (testWidth > width) {
+                    lines.push(currentLine);
+                    currentLine = word;
+                } else currentLine = testLine;
+            }
+
+            lines.push(currentLine);
+
+            if (center) y -= (lines.length - 1) * parseInt(ctx.font);
+
+            lines.forEach((line, index) => {
+                const centeredX = x - (center ? (ctx.measureText(line).width - width) / 2 : 0);
+                ctx.fillText(line, centeredX, y + index * parseInt(ctx.font), width);
+            });
+        } else {
+            const centeredX = x - (center ? (ctx.measureText(text).width - width) / 2 : 0);
+            ctx.fillText(text, centeredX, y, width);
+        }
     };
     static drawImage = (src, x, y, { width, height } = {}) => {
         const image = new Image();
