@@ -9,6 +9,7 @@ or maybe a lizard
 -  Layer -> Tick Rate (copy lerp wait code?)
 -  Pixel Perfect -> Entity flag round x and y
 -  Player Class
+-  learn to spell "PROP A GATE"
 -  Save Player Class Data
 -  Level System?
 -  Add Animations and .frames =>not lerp and playAnimation() => lerp/task
