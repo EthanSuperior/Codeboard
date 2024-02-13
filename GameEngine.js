@@ -1429,13 +1429,13 @@ class GameLayer extends Layer {
         UI.fillScreen({ color: this.background });
     };
     get width() {
-        return canvas.width / this.scaleX;
+        return canvas.width / (this.scaleX ?? 1);
     }
     set width(value) {
         canvas.width = value;
     }
     get height() {
-        return canvas.height / this.scaleX;
+        return canvas.height / (this.scaleX ?? 1);
     }
     set height(value) {
         canvas.height = value;
