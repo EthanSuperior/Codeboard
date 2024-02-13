@@ -48,11 +48,7 @@
             );
         }
 
-        game.width = 600;
-        game.height = 800;
-
         function load() {
-            game.onupdate = updateGame;
             for (let time in waves) scheduleTask(spawnWave, { time: +time }, waves[time]);
             game.playMusic("theme.mp3");
             // Give points for time survived
@@ -64,14 +60,6 @@
         // GAME UPDATE FUNCTIONS | TOUCH AT YOUR OWN RISK
         // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-        function updateGame(delta) {
-            if (player.hp <= 0) {
-                return showDeath();
-            }
-            // Fill Background Black
-            ctx.fillStyle = "black";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-        }
         function showDeath() {
             UI.Popup(150, 250, 300, 200, "You Died", `Final Score: ${player.score}`, 50, {
                 cornerRadius: 25,
@@ -330,6 +318,7 @@
                 },
             },
         };
+
         registerEntity(
             "Enemy",
             {
@@ -404,6 +393,7 @@
             score: 0,
             bulletType: "normal",
             onupdate: function (delta) {
+                if (this.hp <= 0) showDeath();
                 const dir = getPlayerMovementDirection();
                 // Stop player if no keys are pressed otherwise change your direction.
                 if (dir == null) this.speed = 0;
@@ -421,6 +411,10 @@
                 else showLevelUp(options);
             },
         });
+
+        game.width = 600;
+        game.height = 800;
+        game.background = "black";
         const player = spawnPlayer({
             x: game.width / 2,
             y: game.height - 50,

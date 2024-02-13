@@ -66,16 +66,13 @@ const togglePause = () => (LayerManager.ispaused ? resume : pause)();
 function detectRect(x, y, w, h, ptX, ptY) {
     return ptX >= x && ptX <= x + w && ptY >= y && ptY <= y + h;
 }
-
 function detectCircle(x, y, r, ptX, ptY) {
     return Math.hypot(ptX - x, ptY - y) <= r;
 }
-
 function detectEntity(entityOne, entityTwo, radius) {
     radius ??= (entityOne.size + entityTwo.size) / 2;
     return distanceTo(entityOne, entityTwo) <= radius;
 }
-
 function outOfBounds(entity, { padding } = {}) {
     if (padding === undefined) padding = entity.size ?? 0;
     return (
@@ -85,15 +82,12 @@ function outOfBounds(entity, { padding } = {}) {
         entity.x > canvas.width + padding
     );
 }
-
 function distanceTo(from, to) {
     return Math.hypot(from.x - to.x, from.y - to.y);
 }
-
 function angleTo(from, to) {
     return Math.atan2(to.y - from.y, to.x - from.x);
 }
-
 function getPlayerMovementDirection({ useCardinal } = {}) {
     let dir = null;
 
@@ -129,16 +123,9 @@ function getPlayerMovementDirection({ useCardinal } = {}) {
 
     return dir;
 }
-
-function getYSign(entity) {
-    let dir = entity?.dir ?? entity;
-    return Math.sin(dir) > 0 ? 1 : Math.sin(dir) < 0 ? -1 : 0;
-}
-
 function clamp(val, min, max) {
     return Math.min(Math.max(val, min), max);
 }
-
 function appendToFunction(obj, funcName, additionalFunc, { hasPriority } = {}) {
     const baseFunc = obj[funcName];
     obj[funcName] = function (...args) {
@@ -193,6 +180,57 @@ function cloneMouseEvent(originalEvent) {
         canvasY,
     });
 }
+function hexToRgb(hex) {
+    // Remove the hash if it's included
+    hex = hex.replace(/^#/, "");
+
+    // Parse the hex values
+    const bigint = parseInt(hex, 16);
+
+    // Extract RGB components
+    const r = (bigint >> 16) & 255;
+    const g = (bigint >> 8) & 255;
+    const b = bigint & 255;
+
+    return { r, g, b };
+}
+function rgbToHex(rgb) {
+    return `#${((1 << 24) | (rgb.r << 16) | (rgb.g << 8) | rgb.b).toString(16).slice(1)}`;
+}
+const lerp = (start, end, progress) => start + progress * (end - start);
+function startLerp(obj, lerpFunc, duration, { layer } = {}) {
+    Entity.types["Lerp"] ??= { group: [] };
+    const lerpEntity = new Entity();
+    lerpEntity.currentTime = 0;
+    lerpEntity.groupName = "Lerp";
+    lerpEntity.onupdate = (delta) => {
+        lerpEntity.currentTime += delta;
+        progress = clamp(lerpEntity.currentTime / duration, 0, 1);
+        lerpFunc.call(obj, progress);
+        if (progress == 1) lerpEntity.despawn();
+    };
+    layer ??= LayerManager.currentLayer;
+    lerpEntity.layer = layer;
+    layer.addEntity(lerpEntity);
+    Entity.types["Lerp"].group.push(lerpEntity);
+}
+function propertyLerp(obj, prop, start, end, duration) {
+    startLerp(obj, (t) => (obj[prop] = lerp(start, end, t)), duration);
+}
+function colorLerp(obj, lerpFunc, startColorHex, endColorHex, duration) {
+    const startColor = hexToRgb(startColorHex);
+    const endColor = hexToRgb(endColorHex);
+    startLerp(
+        obj,
+        (progress) => {
+            const r = Math.round(lerp(startColor.r, endColor.r, progress));
+            const g = Math.round(lerp(startColor.g, endColor.g, progress));
+            const b = Math.round(lerp(startColor.b, endColor.b, progress));
+            lerpFunc.call(obj, rgbToHex({ r, g, b }));
+        },
+        duration
+    );
+}
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // CLASS DEFINITIONS
@@ -204,7 +242,43 @@ class Identifiable {
     }
     raise = (call, ...args) => this[call] && this[call].call(this, ...args);
 }
-
+class Interactable extends Identifiable {
+    children = [];
+    parent = null;
+    get root() {
+        let root = this;
+        while (root.parent !== null) root = root.parent;
+        return root;
+    }
+    get = (id) => this.children.find((e) => e.id === id);
+    add = (child) => {
+        child.parent = this;
+        this.raise("onadd", child);
+        this.children.push(child);
+        return child;
+    };
+    remove = (child) => {
+        const id = typeof child === "string" ? child : child && typeof child.id === "string" ? child.id : null;
+        const idx = this.children.findIndex((e) => e.id === id);
+        if (idx !== -1) this.children.splice(idx, 1);
+    };
+    propigate = (call, ...args) => {
+        this.raise("on" + call, ...args);
+        this.children.forEach((c) => c.raise(call, ...args));
+    };
+    update = (delta) => this.propigate("update", delta);
+    interact = () => this.propigate("interact");
+    // IO Events
+    keydown = (e) => this.propigate("keydown", e);
+    keyup = (e) => this.propigate("keyup", e);
+    // Mouse IO Events
+    mousedown = (e) => this.propigate("mousedown", e);
+    mouseup = (e) => this.propigate("mouseup", e);
+    mousemove = (e) => this.propigate("mousemove", e);
+    click = (e) => this.propigate("click", e);
+    dblclick = (e) => this.propigate("dblclick", e);
+    wheel = (e) => this.propigate("wheel", e);
+}
 class IterableWeakRef {
     #list = [];
     [Symbol.iterator]() {
@@ -239,18 +313,24 @@ class IterableWeakRef {
         if (indexToRemove !== -1) this.#list.splice(indexToRemove, 1);
     }
 }
-class LayerManager {
-    static layers = [];
-    static activeLayer = -1;
+class LayerManager extends Interactable {
+    static instance = new LayerManager("LayerManager");
     static lastTimestamp;
     static global;
     static ispaused = true;
+    propigate = (call, ...args) => {
+        if (!LayerManager.global.ispaused) LayerManager.global.raise(call, ...args);
+        if (!LayerManager.currentLayer.ispaused) LayerManager.currentLayer.raise(call, ...args);
+    };
+    static get children() {
+        return LayerManager.instance.children;
+    }
+    static get propigate() {
+        return LayerManager.instance.propigate;
+    }
     static {
         function registerListener(eventName) {
-            document.addEventListener(eventName, function (event) {
-                if (!LayerManager.global.ispaused) LayerManager.global[eventName](event);
-                LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l[eventName](event));
-            });
+            document.addEventListener(eventName, LayerManager.instance[eventName]);
         }
         window.onblur = LayerManager.pause;
         window.onfocus = LayerManager.resume;
@@ -258,8 +338,8 @@ class LayerManager {
             if (typeof load !== "undefined") load();
             LayerManager.resume();
         };
-        document.addEventListener("mousedown", this.oninteract, { once: true });
-        document.addEventListener("keydown", this.oninteract, { once: true });
+        document.addEventListener("mousedown", LayerManager.oninteract, { once: true });
+        document.addEventListener("keydown", LayerManager.oninteract, { once: true });
         // document.addEventListener("contextmenu", (e) => e.preventDefault());
         registerListener("keydown");
         registerListener("keyup");
@@ -270,38 +350,28 @@ class LayerManager {
         registerListener("dblclick");
         registerListener("wheel");
     }
-    static get currentLayerStack() {
-        return LayerManager.layers[LayerManager.activeLayer];
-    }
     static get currentLayer() {
-        return LayerManager.currentLayerStack[0];
-    }
-    static layerAt(num) {
-        LayerManager.layers[num] ??= [];
-        return LayerManager.layers[num];
+        return LayerManager.children[LayerManager.children.length - 1];
     }
     static update = (timestamp) => {
         // Fraction of a second since last update.
         const delta = (timestamp - LayerManager.lastTimestamp) / 1000;
         LayerManager.lastTimestamp = timestamp;
-        if (!LayerManager.global.ispaused) LayerManager.global.update(delta);
-        LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l.update(delta));
-        if (!LayerManager.global.ispaused) LayerManager.global.predraw();
-        LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l.predraw());
+        LayerManager.propigate("update", delta);
+        LayerManager.propigate("draw");
         LayerManager.updateframe = requestAnimationFrame(LayerManager.update);
     };
     static oninteract() {
-        document.removeEventListener("mousedown", this.oninteract, { once: true });
-        document.removeEventListener("keydown", this.oninteract, { once: true });
+        document.removeEventListener("mousedown", LayerManager.oninteract, { once: true });
+        document.removeEventListener("keydown", LayerManager.oninteract, { once: true });
         LayerManager.interacted = true;
-        if (!LayerManager.global.ispaused) LayerManager.global.interact();
-        LayerManager.currentLayerStack.forEach((l) => !l.ispaused && l.interact());
+        LayerManager.propigate("interact");
     }
     static pause() {
         LayerManager.ispaused = true;
         cancelAnimationFrame(LayerManager.updateframe);
         LayerManager.global.pause();
-        LayerManager.currentLayerStack.forEach((l) => l.pause());
+        LayerManager.children.forEach((l) => l.pause());
     }
     static resume() {
         LayerManager.ispaused = false;
@@ -309,32 +379,20 @@ class LayerManager {
         LayerManager.lastTimestamp = document.timeline.currentTime;
         LayerManager.updateframe = requestAnimationFrame(LayerManager.update);
         LayerManager.global.resume();
-        LayerManager.currentLayerStack.forEach((l) => l.resume());
+        LayerManager.currentLayer?.resume();
     }
     static registerLayer(layer) {
-        if (layer.layerNum === undefined) {
-            LayerManager.changeLayer(LayerManager.activeLayer + 1);
-            LayerManager.layers[LayerManager.activeLayer] ??= [];
-            LayerManager.layers[LayerManager.activeLayer].push(layer);
-            layer.layerNum = LayerManager.activeLayer;
-        } else LayerManager.layerAt(layer.layerNum).push(layer);
+        LayerManager.currentLayer?.pause();
+        LayerManager.instance.add(layer);
+        layer.resume();
     }
     static unregisterLayer(layer) {
-        if (!LayerManager.layers[layer.layerNum]) return;
-        const idx = LayerManager.layers[layer.layerNum].findIndex((e) => e.id === layer.id);
-        if (idx !== -1) LayerManager.layers[layer.layerNum].splice(idx, 1)[0].pause();
-        if (LayerManager.layers[layer.layerNum].length === 0) {
-            LayerManager.layers.splice(layer.layerNum, 1);
-            LayerManager.changeLayer(LayerManager.activeLayer - 1);
-        }
-    }
-    static changeLayer(layerNum) {
-        LayerManager.currentLayerStack?.forEach((l) => l.pause());
-        LayerManager.activeLayer = layerNum;
-        LayerManager.currentLayerStack?.forEach((l) => l.resume());
+        layer.pause();
+        LayerManager.instance.remove(layer.id);
+        LayerManager.currentLayer?.resume();
     }
 }
-class Layer extends Identifiable {
+class Layer extends Interactable {
     constructor({ id, layerNum } = {}, calls = {}) {
         super(id);
         this.entities = { Entity: new IterableWeakRef() };
@@ -355,10 +413,14 @@ class Layer extends Identifiable {
     };
     resume = () => {
         this.tasks.forEach((t) => t.resume());
-        this.sounds.forEach((s) => s.play());
-        this.music?.play();
+        if (LayerManager.interacted) this.sounds.forEach((s) => s.play());
+        if (LayerManager.interacted) this.music?.play();
     };
     scheduleTask = (func, options = {}, ...args) => {
+        if (options.delay) {
+            const { delay, ...newOp } = options;
+            return this.scheduleTask(this.scheduleTask, { time: delay }, newOp);
+        }
         let task = options.id && this.findTask(options.id);
         if (task) {
             task.func = func;
@@ -369,6 +431,7 @@ class Layer extends Identifiable {
             task = new Task(func, options, ...args);
             task.manager = this;
             this.tasks.push(task);
+            if (options.expires) this.scheduleTask(() => clearTask(task.id), { time: options.expires });
         }
         task.refresh();
         return task.id;
@@ -407,6 +470,8 @@ class Layer extends Identifiable {
     // Gameplay Methods
     cameraX;
     cameraY;
+    scaleX;
+    scaleY;
     updateRate = 0;
     addEntity = (entity) => {
         this.entities[entity.groupName] ??= new IterableWeakRef();
@@ -417,32 +482,26 @@ class Layer extends Identifiable {
     };
     propigate = (call, ...args) => {
         this.raise("on" + call, ...args);
+        this.children.forEach((c) => c.raise(call, ...args));
         for (let v in Entity.types) {
             this.entities[v] ??= new IterableWeakRef();
             this.entities[v].forEach((e) => e.raise(call, ...args));
         }
     };
     // Game Update Events
-    update = (delta) => this.propigate("update", delta);
-    predraw = () => {
+    draw = () => {
+        this.raise("ondraw");
+        this.children.forEach((c) => c.raise("draw"));
         ctx.save();
         if (this.cameraX !== undefined && this.cameraY !== undefined)
             ctx.translate(canvas.width / 2 - this.cameraX, canvas.height / 2 - this.cameraY);
-        this.draw();
+        if (this.scaleX && this.scaleY) ctx.scale(this.scaleX, this.scaleY);
+        for (let v in Entity.types) {
+            this.entities[v] ??= new IterableWeakRef();
+            this.entities[v].forEach((e) => e.raise("draw"));
+        }
         ctx.restore();
     };
-    draw = () => this.propigate("draw");
-    interact = () => this.propigate("interact");
-    // IO Events
-    keydown = (e) => this.propigate("keydown", e);
-    keyup = (e) => this.propigate("keyup", e);
-    // Mouse IO Events
-    mousedown = (e) => this.propigate("mousedown", e);
-    mouseup = (e) => this.propigate("mouseup", e);
-    mousemove = (e) => this.propigate("mousemove", e);
-    click = (e) => this.propigate("click", e);
-    dblclick = (e) => this.propigate("dblclick", e);
-    wheel = (e) => this.propigate("wheel", e);
 }
 class GlobalLayer extends Layer {
     constructor() {
@@ -549,20 +608,24 @@ class Task extends Identifiable {
         this.resume();
     };
 }
-class UI extends Layer {
+class UIElement extends Interactable {
     children = [];
-    constructor({ id }) {
-        super({ id });
-        this.parentUI = true;
+    constructor(x, y, options) {
+        super(options.id);
+        this.x = x;
+        this.y = y;
+        this.options = options;
+        for (let v in options)
+            Object.defineProperty(this, v, {
+                set(val) {
+                    this.options[v] = val;
+                },
+                get() {
+                    return this.options[v];
+                },
+            });
     }
-    propigate = (call, ...args) => {
-        this.raise("on" + call, ...args);
-        this.children.forEach((c) => c[call] && c[call].call(this, ...args));
-        for (let v in Entity.types) {
-            this.entities[v] ??= new IterableWeakRef();
-            this.entities[v].forEach((e) => e.raise(call, ...args));
-        }
-    };
+    draw = () => this.propigate("draw");
     mousedown = (e) => {
         if (this.detect(e.mouseX, e.mouseY)) this.propigate("mousedown", e);
     };
@@ -575,74 +638,54 @@ class UI extends Layer {
     };
     show = ({ overlay } = {}) => {
         if (overlay) this.layerNum = LayerManager.activeLayer;
-        if (this.parentUI) LayerManager.registerLayer(this);
-
-        this.children.forEach((c) => c.show && c.show());
+        else LayerManager.registerLayer(new Layer());
+        LayerManager.currentLayer.add(this);
+        this.layer = this.parent;
+        this.parent = null;
     };
-
     detect = (mX, mY) => true;
-
     hide = () => {
-        if (this.parentUI) LayerManager.unregisterLayer(this);
+        if (!this.parent) LayerManager.unregisterLayer(this.layer);
         this.propigate("hide");
     };
-
-    add = (ui) => {
-        ui.parentUI = false;
-        this.children.push(ui);
-        return ui;
+    onadd = (ui) => {
+        ui.shift(this.x, this.y);
     };
-
-    get = (id) => this.children.find((e) => e.id === id);
-
-    remove = (id) => {
-        const idx = this.children.findIndex((e) => e.id === id);
-        if (idx !== -1) this.children.splice(idx, 1);
+    shift = (x, y) => {
+        this.x += x;
+        this.y += y;
+        this.propigate("shift", x, y);
     };
+}
+class UI {
     static Base = (x = 0, y = 0, options = {}) => {
-        return new UI.Base.classRef(x, y, options);
+        return new UIElement(x, y, options);
     };
-    static {
-        UI.Base.classRef = class UIElement extends UI {
-            constructor(x, y, options) {
-                super({ id: options.id });
-                this.x = x;
-                this.y = y;
-                this.options = options;
-                for (let v in options)
-                    Object.defineProperty(this, v, {
-                        set(val) {
-                            this.options[v] = val;
-                        },
-                        get() {
-                            return this.options[v];
-                        },
-                    });
-            }
-        };
-    }
+    static Blank = (options) => {
+        return new UIElement(0, 0, options);
+    };
     static Rect = (x, y, width, height, { cornerRadius, ...options } = {}) => {
-        UI.Rect.classRef ??= class UIRect extends UI.Base.classRef {
+        UI.Rect.classRef ??= class UIRect extends UIElement {
             ondraw = () => UI.drawRect(this.x, this.y, this.width, this.height, this.options);
             detect = (mX, mY) => detectRect(this.x, this.y, this.width, this.height, mX, mY);
         };
         return new UI.Rect.classRef(x, y, { width, height, cornerRadius, ...options });
     };
     static Circle = (x, y, radius, options = {}) => {
-        UI.Circle.classRef ??= class UICircle extends UI.Base.classRef {
+        UI.Circle.classRef ??= class UICircle extends UIElement {
             ondraw = () => UI.drawCircle(this.x, this.y, this.radius, this.options);
             detect = (mX, mY) => detectCircle(this.x, this.y, this.radius, mX, mY);
         };
         return new UI.Circle.classRef(x, y, { radius, ...options });
     };
     static Text = (text, x, y, { width, font, color, center, linewrap, ...options } = {}) => {
-        UI.Text.classRef ??= class UIText extends UI.Base.classRef {
+        UI.Text.classRef ??= class UIText extends UIElement {
             ondraw = () => UI.drawText(this.text, this.x, this.y, this.options);
         };
         return new UI.Text.classRef(x, y, { text, width, font, color, center, linewrap, ...options });
     };
     static Image = (src, x, y, { width, height, ...options } = {}) => {
-        UI.Image.classRef ??= class UIImage extends UI.Base.classRef {
+        UI.Image.classRef ??= class UIImage extends UIElement {
             ondraw = () => UI.drawImage(this.src, this.x, this.y, this.options);
         };
         return new UI.Image.classRef(x, y, { src, width, height, ...options });
@@ -652,7 +695,7 @@ class UI extends Layer {
         return new UI.Button.classRef(x, y, { width, height, onclick, cornerRadius, ...options });
     };
     static TextInput = (x, y, { placeholder = "", width, oninput, onsubmit, autofocus, ...options } = {}) => {
-        UI.TextInput.classRef ??= class UITextInput extends UI.Base.classRef {
+        UI.TextInput.classRef ??= class UITextInput extends UIElement {
             onkeydown = (e) => {
                 if (this.isFocused) {
                     if (e.key === "Backspace") this.text = this.text.slice(0, -1);
@@ -697,7 +740,7 @@ class UI extends Layer {
         });
     };
     static ProgressBar = (getprogress, x, y, width, height, { fill, background, ...options } = {}) => {
-        UI.ProgressBar.classRef ??= class UIProgressBar extends UI.Base.classRef {
+        UI.ProgressBar.classRef ??= class UIProgressBar extends UIElement {
             get progress() {
                 return this.getprogress();
             }
@@ -734,7 +777,7 @@ class UI extends Layer {
         scale,
         { cornerRadius, color, buttonText = "Close", onclick, background, ...options } = {}
     ) => {
-        UI.Popup.classRef ??= class UIPopup extends UI.Base.classRef {
+        UI.Popup.classRef ??= class UIPopup extends UIElement {
             detect = (mX, mY) =>
                 detectRect(
                     this.x + this.scale / 2,
@@ -800,7 +843,7 @@ class UI extends Layer {
             ...options
         } = {}
     ) => {
-        UI.Scroll.classRef ??= class UIScroll extends UI.Base.classRef {
+        UI.Scroll.classRef ??= class UIScroll extends UIElement {
             content = { width: this.scrollWidth, height: this.scrollHeight };
             scroll = { x: !!(this.width < this.scrollWidth), y: !!(this.height < this.scrollHeight) };
             scrollPosition = { x: 0, y: 0 };
@@ -822,7 +865,7 @@ class UI extends Layer {
             onmousemove = (e) => {
                 this.jumpscroll();
             };
-            jumpscroll = (e) => {
+            jumpscroll = () => {
                 if (!this.scrolling) return;
                 const clickedX =
                     this.scroll.x &&
@@ -862,7 +905,6 @@ class UI extends Layer {
                         Math.min(newScrollRatio * this.displayHeight, this.displayHeight)
                     );
                 }
-                if (e) e.stopImmediatePropagation();
             };
             drawScrollBarX = (forced = !this.hideScroll) => {
                 if (!this.scroll.x) return;
@@ -910,13 +952,18 @@ class UI extends Layer {
                 }
             };
             draw = () => {
+                this.scrollPosition.x = clamp(this.scrollPosition.x, 0, this.displayWidth);
+                this.scrollPosition.y = clamp(this.scrollPosition.y, 0, this.displayHeight);
                 ctx.save();
                 ctx.beginPath();
                 ctx.rect(this.x, this.y, this.width, this.height);
                 ctx.fillStyle = this.background;
                 ctx.fill();
                 ctx.clip();
-                ctx.translate(-this.scrollPosition.x, -this.scrollPosition.y);
+                ctx.translate(
+                    -this.scrollPosition.x - Math.max(0, this.width - this.scrollWidth),
+                    -this.scrollPosition.y - Math.max(0, this.height - this.scrollHeight)
+                );
                 this.propigate("draw");
                 ctx.restore();
                 this.drawScrollBarX();
@@ -953,6 +1000,54 @@ class UI extends Layer {
             hideScroll,
             ...options,
         });
+    };
+    static List = (list, createListItem, x, y, width, height, verticalPadding, { ...options } = {}) => {
+        const listItems = [];
+        let scrollHeight = 0;
+        for (let i = 0; i < list.length; i++) {
+            const UIListItem = createListItem(i, list[i]);
+            UIListItem.shift(0, scrollHeight + verticalPadding);
+            listItems.push(UIListItem);
+            scrollHeight += UIListItem.height + verticalPadding;
+        }
+        const UIList = UI.Scroll(x, y, width, height, { ...options, scrollHeight });
+        listItems.forEach((c) => UIList.add(c));
+        return UIList;
+    };
+    static Grid = (
+        list,
+        createGridItem,
+        x,
+        y,
+        width,
+        height,
+        horizontalPadding,
+        verticalPadding,
+        { gridWidth, ...options } = {}
+    ) => {
+        const gridItems = [];
+        let currentWidth = horizontalPadding;
+        let scrollHeight = verticalPadding;
+        let scrollWidth = width;
+
+        for (let i = 0; i < list.length; i++) {
+            const UIGridItem = createGridItem(i, list[i]);
+            UIGridItem.shift(currentWidth, scrollHeight);
+            gridItems.push(UIGridItem);
+            scrollWidth = Math.max(scrollWidth, currentWidth);
+            currentWidth += UIGridItem.width + horizontalPadding;
+            if ((gridWidth && i % gridWidth === 0 && i !== 0) || (!gridWidth && currentWidth > x + width)) {
+                UIGridItem.shift(-currentWidth, 0);
+                currentWidth = horizontalPadding + UIGridItem.width + horizontalPadding;
+                scrollHeight += UIGridItem.height + verticalPadding;
+                UIGridItem.shift(currentWidth, UIGridItem.height + verticalPadding);
+            }
+            if (i == list.length - 1) scrollHeight += UIGridItem.height + verticalPadding;
+        }
+        const UIGrid = UI.Scroll(x, y, width, height, { ...options, scrollWidth, scrollHeight });
+        gridItems.forEach((item) => UIGrid.add(item));
+
+        return UIGrid;
     };
     static colorPath = ({ hovered, fill, stroke, strokeWidth, hoverFill, hoverStroke, hoverWidth } = {}) => {
         ctx.fillStyle = (hovered && hoverFill) || fill;
@@ -1007,121 +1102,24 @@ class UI extends Layer {
         }
     };
     static drawImage = (src, x, y, { width, height } = {}) => {
+        UI.drawImage.cache ??= {};
+        if (UI.drawImage.cache[src]) return ctx.drawImage(UI.drawImage.cache[src], x, y, width, height);
         const image = new Image();
         image.src = src;
         image.onload = () => {
             ctx.drawImage(image, x, y, width, height);
+            UI.drawImage.cache[src] = image;
         };
     };
-}
-function UIScroll(x, y, w, h, { scrollWidth, scrollHeight, barWidth = 10, bkg = "#000", hideScroll = false } = {}) {
-    const UI = UI.Base(x, y);
-    UI.scrollBarWidth = barWidth;
-    UI.content = { width: scrollWidth ?? w, height: scrollHeight ?? h };
-    UI.scroll = { x: !!(w < UI.content.width), y: !!(h < UI.content.height) };
-    UI.scrollPosition = { x: 0, y: 0 };
-    UI.displayWidth = UI.content.width - w;
-    UI.displayHeight = UI.content.height - h;
-    UI.onscroll = function (e) {
-        this.scrollPosition.x = clamp(this.scrollPosition.x + e.deltaX, 0, this.displayWidth);
-        this.scrollPosition.y = clamp(this.scrollPosition.y + e.deltaY, 0, this.displayHeight);
-        this.ondraw();
-    }.bind(UI);
-    UI.scrolljump = function (e) {
-        const clickedX =
-            this.scroll.x && detectRect(x, y + h - this.scrollBarWidth, w, this.scrollBarWidth, mouse.x, mouse.y);
-        const clickedY =
-            this.scroll.y && detectRect(x + w - this.scrollBarWidth, y, this.scrollBarWidth, h, mouse.x, mouse.y);
-        if (clickedX == clickedY) return;
-        else if (clickedX) {
-            const barHeight = w - (this.scroll.y ? this.scrollBarWidth : 0);
-            const scrollBarHeight = (barHeight / this.content.width) * barHeight;
-            const newScrollRatio = (mouse.x - x - scrollBarHeight / 2) / (barHeight - scrollBarHeight);
-            this.scrollPosition.x = Math.max(0, Math.min(newScrollRatio * this.displayWidth, this.displayWidth));
-        } else if (clickedY) {
-            const barHeight = h - (this.scroll.x ? this.scrollBarWidth : 0);
-            const scrollBarHeight = (barHeight / this.content.height) * barHeight;
-            const newScrollRatio = (mouse.y - y - scrollBarHeight / 2) / (barHeight - scrollBarHeight);
-            this.scrollPosition.y = Math.max(0, Math.min(newScrollRatio * this.displayHeight, this.displayHeight));
-        }
-        if (e) e.stopImmediatePropagation();
-        this.ondraw();
-    }.bind(UI);
-    UI.startScroll = function () {
-        this.scrolljump();
-        document.addEventListener("mousemove", this.scrolljump);
-    }.bind(UI);
-    UI.stopScroll = function () {
-        document.removeEventListener("mousemove", this.scrolljump);
-    }.bind(UI);
-    UI.drawScrollBarX = function (forced = !hideScroll) {
-        if (!this.scroll.x) return;
-        const barHeight = w - (this.scroll.y ? this.scrollBarWidth : 0);
-        const scrollBarHeight = (barHeight / this.content.width) * w;
-        const scrollBarTop = (this.scrollPosition.x / this.displayWidth) * (barHeight - scrollBarHeight);
-        const scrollOff = h - this.scrollBarWidth;
-        if (forced || detectRect(x, y + scrollOff, w, this.scrollBarWidth, mouse.x, mouse.y)) {
-            ctx.fillStyle = "#333";
-            ctx.globalAlpha = 0.3;
-            ctx.fillRect(x, y + scrollOff, w, this.scrollBarWidth);
-            ctx.globalAlpha = 0.8;
-            ctx.fillRect(x + scrollBarTop, y + scrollOff, scrollBarHeight, this.scrollBarWidth);
-            ctx.globalAlpha = 1;
-            if (!forced) this.drawScrollBarY(true);
-        }
-    }.bind(UI);
-    UI.drawScrollBarY = function (forced = !hideScroll) {
-        if (!this.scroll.y) return;
-        const barHeight = h - (this.scroll.x ? this.scrollBarWidth : 0);
-        const scrollBarHeight = (barHeight / this.content.height) * h;
-        const scrollBarTop = (this.scrollPosition.y / this.displayHeight) * (barHeight - scrollBarHeight);
-        const scrollOff = w - this.scrollBarWidth;
-        if (forced || detectRect(x + scrollOff, y, this.scrollBarWidth, h, mouse.x, mouse.y)) {
-            ctx.fillStyle = "#333";
-            ctx.globalAlpha = 0.3;
-            ctx.fillRect(x + scrollOff, y, this.scrollBarWidth, h);
-            ctx.globalAlpha = 0.8;
-            ctx.fillRect(x + scrollOff, y + scrollBarTop, this.scrollBarWidth, scrollBarHeight);
-            ctx.globalAlpha = 1;
-            if (!forced) this.drawScrollBarX(true);
-        }
-    }.bind(UI);
-    const defaultDraw = UI.draw;
-    UI.draw = function () {
+    static fillScreen = ({ color }) => {
         ctx.save();
-        ctx.beginPath();
-        ctx.rect(x, y, w, h);
-        ctx.fillStyle = bkg;
-        ctx.fill();
-        ctx.clip();
-        ctx.translate(-this.scrollPosition.x, -this.scrollPosition.y);
-        defaultDraw.call(this);
+        ctx.resetTransform();
+        if (color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(0, 0, game.width, game.height);
+        } else ctx.clearRect(0, 0, game.width, game.height);
         ctx.restore();
-        this.drawScrollBarX();
-        this.drawScrollBarY();
-    }.bind(UI);
-    const defaultShow = UI.show;
-    UI.show = function () {
-        document.addEventListener("wheel", this.onscroll);
-        document.addEventListener("mousedown", this.startScroll);
-        document.addEventListener("mouseup", this.stopScroll);
-        defaultShow.call(this);
-    }.bind(UI);
-    const defaultHide = UI.hide;
-    UI.hide = function () {
-        this.stopScroll();
-        document.removeEventListener("wheel", this.onscroll);
-        document.removeEventListener("mousedown", this.startScroll);
-        document.removeEventListener("mouseup", this.stopScroll);
-        document.removeEventListener("mousemove", this.scrolljump);
-        defaultHide.call(this);
-    }.bind(UI);
-    const defaultAction = UI.onclick;
-    UI.onclick = function (event, mX, mY) {
-        defaultAction.call(this, event, mouse.x + this.scrollPosition.x, mouse.y + this.scrollPosition.y);
-    }.bind(UI);
-    UI.detect = (mX, mY) => detectRect(x, y, w, h, mX, mY);
-    return UI;
+    };
 }
 class Entity extends Identifiable {
     static types = {};
@@ -1143,7 +1141,7 @@ class Entity extends Identifiable {
     update = (delta) => {
         if (this.acceleration) this.speed = clamp(this.speed + this.acceleration, 0, this.maxSpeed);
         this.raise("onupdate", delta);
-        if (this.speed) {
+        if (this.speed && this.dir !== null && this.dir !== undefined) {
             if (!this.staticX) this.x += Math.cos(this.dir) * this.speed * delta;
             if (!this.staticY) this.y += Math.sin(this.dir) * this.speed * delta;
         }
@@ -1170,11 +1168,9 @@ class Entity extends Identifiable {
         if (this.rotate) ctx.rotate(this.dir + Math.PI / 2 + (this.rotationalOffset ?? 0));
         const halfSize = this.size / 2;
         if (this.img) {
-            const i = new Image();
-            i.src = this.img;
             ctx.save();
             ctx.scale(this.flipX ? -1 : 1, this.flipY ? -1 : 1);
-            ctx.drawImage(i, -halfSize, -halfSize, this.size, this.size);
+            UI.drawImage(this.img, -halfSize, -halfSize, { width: this.size, height: this.size });
             ctx.restore();
             //TODO: ONLOAD ANIMATION CODE
         } else {
@@ -1226,25 +1222,45 @@ class Entity extends Identifiable {
     }
     set velocityX(value) {
         const velY = this.velocityY;
-        this.speed = Math.hypot(value, velY);
-        this.dir = Math.atan2(vecY, value);
+        if (this.acceleration) this.speed = Math.hypot(value, velY);
+        this.dir = Math.atan2(velY, value);
     }
     get velocityX() {
         return this.speed * Math.cos(this.dir);
     }
     get velocityXSign() {
-        return Math.sign(this.velocityX);
+        return Math.abs(this.velocityX) < 1e-10 ? 0 : Math.sign(this.velocityX);
     }
     set velocityY(value) {
         const velX = this.velocityX;
-        this.speed = Math.hypot(velX, value);
+        if (this.acceleration) this.speed = Math.hypot(velX, value);
         this.dir = Math.atan2(value, velX);
     }
     get velocityY() {
         return this.speed * Math.sin(this.dir);
     }
     get velocityYSign() {
-        return Math.sign(this.velocityY);
+        return Math.abs(this.velocityY) < 1e-10 ? 0 : Math.sign(this.velocityY);
+    }
+}
+class GameLayer extends Layer {
+    constructor() {
+        super({ id: "game" });
+    }
+    ondraw = () => {
+        UI.fillScreen({ color: this.background });
+    };
+    get width() {
+        return canvas.width;
+    }
+    set width(value) {
+        canvas.width = value;
+    }
+    get height() {
+        return canvas.height;
+    }
+    set height(value) {
+        canvas.height = value;
     }
 }
 function registerEntity(name, options, types) {
@@ -1260,7 +1276,6 @@ function registerEntity(name, options, types) {
         }
         groupName = name;
     };
-    Object.assign(newSubclass.prototype, options);
     newSubclass.prototype.groupName = name;
     Object.defineProperty(globalThis, lowerName + "Group", {
         get() {
@@ -1272,8 +1287,20 @@ function registerEntity(name, options, types) {
     });
     globalThis["spawn" + upperName] = (subType, additional) => {
         const newEntity = new newSubclass();
+        Object.assign(newEntity, options);
         Object.assign(newEntity, subType);
         Object.assign(newEntity, additional);
+
+        Object.keys(newEntity).forEach((key) => {
+            if (key.startsWith("on")) {
+                const eventName = key.substring(2); // Remove "on" prefix
+                if (!newEntity[eventName])
+                    newEntity[eventName] = function (...args) {
+                        this.raise(key, ...args);
+                    }.bind(newEntity);
+            }
+        });
+
         globalThis[lowerName + "Group"].push(newEntity);
         newEntity.layer = LayerManager.currentLayer;
         newEntity.layer.addEntity(newEntity);
@@ -1287,6 +1314,7 @@ function registerEntity(name, options, types) {
     };
     if (types) {
         for (let type in types) types[type].type = type;
+        globalThis[lowerName + "Types"] = types;
         globalThis["forEvery" + upperName + "TypeDo"] = (func, ...args) => {
             for (let type in newSubclass.subtypes) func.call(newSubclass.subtypes[type], ...args);
         };
@@ -1302,36 +1330,57 @@ function despawnEntity(entity) {
     Entity.types[entity.groupName].group.splice(idx, 1);
     entity.layer.removeEntity(entity);
 }
+function onboxcollide(other) {
+    const thisLeft = this.x - this.size / 2;
+    const thisRight = this.x + this.size / 2;
+    const thisTop = this.y - this.size / 2;
+    const thisBottom = this.y + this.size / 2;
+
+    const otherLeft = other.x - other.size / 2;
+    const otherRight = other.x + other.size / 2;
+    const otherTop = other.y - other.size / 2;
+    const otherBottom = other.y + other.size / 2;
+
+    const xOverlap = thisRight > otherLeft && thisLeft < otherRight;
+    const yOverlap = thisBottom > otherTop && thisTop < otherBottom;
+    if (xOverlap) {
+        // Handle the collision based on the relative velocities
+        if (other.velocityXSign === 1) {
+            other.x = thisLeft - other.size / 2;
+            other.velocityX = 0;
+        } else if (other.velocityXSign === -1) {
+            other.x = thisRight + other.size / 2;
+            other.velocityX = 0;
+        }
+    }
+    if (yOverlap) {
+        if (other.velocityYSign === 1) {
+            other.y = thisTop - other.size / 2;
+            other.velocityY = 0;
+        } else if (other.velocityYSign === -1) {
+            other.y = thisBottom + other.size / 2;
+            other.velocityY = 0;
+        }
+    }
+}
 
 const global = (LayerManager.global = new GlobalLayer());
 
-const game = new Layer({ id: "game" });
-
-Object.defineProperty(game, "width", {
-    get() {
-        return canvas.width;
-    },
-    set(value) {
-        canvas.width = value;
-    },
-});
-
-Object.defineProperty(game, "height", {
-    get() {
-        return canvas.height;
-    },
-    set(value) {
-        canvas.height = value;
-    },
-});
+const game = new GameLayer();
 
 LayerManager.registerLayer(game);
 
 // TODO LIST:
-// Move registration of layer to makeUI?
-// Check if event.stopPropigation() is needed
-// Add Icon to weapons
-// Add Animations and .frames and playAnimation()
+// Finish onboxcollide and make oncirclecollide
+// Check how to make events not bubble down all UI layers, but be consumed by things like btns etc. (double scroll etc)
+//   Check with console.log to see what onX's are actually being called, maybe a break or something in propigate for those?
+// Make Vector class?
+// Layer -> Tick Rate (copy lerp wait code?)
+// Pixel Perfect -> Entity flag round x and y
+// Player Class
+// Save Player Class Data
+// Level System?
+// Add Animations and .frames =>not lerp and playAnimation() => lerp/task
 // Add comments && doc strings
 // Add Example Template
 // Add Platformer and Tile Template
