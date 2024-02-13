@@ -85,16 +85,17 @@
                 strokeWidth: 6,
             });
             UILevelUp.add(UI.Text(`~ LEVEL UP! ~`, 30, 55, { font: "bold 48px monospace", color: "black" }));
-            const UILevelScroll = UI.List(options, makeListUIButton, 15, 55, 375, 365, 20, {
-                background: "#4b4e74",
-            });
-            UILevelUp.add(UILevelScroll);
+            UILevelUp.add(
+                UI.List(options, makeListUIButton, 15, 55, 375, 365, 20, {
+                    background: "#4b4e74",
+                })
+            );
             UILevelUp.show();
         }
         function makeListUIButton(num, option) {
             const btnPress = function (e) {
                 getWeapon(option);
-                this.root.hide(); // parent should hide; way to do such... hideRoot() and hideParent()?
+                this.root.hide();
             };
             const buttonProps = {
                 cornerRadius: 25,
@@ -435,9 +436,6 @@
             {
                 lifespan: 60,
                 collisions: ["Player"],
-                pickup: function () {
-                    this.raise("onpickup");
-                },
                 oncollide: function (other) {
                     this.pickup();
                     this.despawn();
