@@ -15,7 +15,7 @@ or maybe a lizard
 -  Add comments && doc strings
 -  Add Example Template
 -  Add Platformer and Tile Template
-  - https://www.freecodecamp.org/news/learning-javascript-by-making-a-game-4aca51ad9030/
-  - https://jobtalle.com/2d_platformer_physics.html
-  - https://www.educative.io/answers/how-to-make-a-simple-platformer-using-javascript
-  - https://eloquentjavascript.net/15_event.html
+    - https://www.freecodecamp.org/news/learning-javascript-by-making-a-game-4aca51ad9030/
+    - https://jobtalle.com/2d_platformer_physics.html
+    - https://www.educative.io/answers/how-to-make-a-simple-platformer-using-javascript
+    - https://eloquentjavascript.net/15_event.html
