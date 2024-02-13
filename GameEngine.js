@@ -1,9 +1,23 @@
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// This Engine was made by Evan Chase with help from Brandon Graham
-// For the BYU Game Dev Club.
-// For fair use under the CC0 lincense which states that this is
-// under public domain
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/**
+ * This Engine was created by Evan Chase with valuable assistance from Brandon Graham,
+ * designed specifically for the BYU Game Dev Club.
+ *
+ * The aim of this engine is to provide a user-friendly environment with minimal coding requirements,
+ * catering to individuals with little to no coding experience. It serves as a tool to facilitate
+ * game development within the BYU Game Dev Club community.
+ *
+ * This code is released under the Creative Commons Zero (CC0) license, allowing users to freely
+ * copy, modify, and distribute the work for any purpose without seeking permission.
+ * The contributors have waived all copyright and related rights to the extent possible under law.
+ *
+ * For more details, view the full legal text at:
+ * {@link https://creativecommons.org/publicdomain/zero/1.0/}
+ *
+ * @author Evan Chase
+ * @contributor Brandon Graham
+ * @license CC0
+ * @see {@link https://creativecommons.org/publicdomain/zero/1.0/}
+ */
 
 // CONTRACTED OBJECTS
 // MouseEvents = {Up:Function,Move:Function,Down:Function}
@@ -27,12 +41,12 @@ const mouse = { x: 0, y: 0 };
 // SOUND FUNCTIONS - https://sfxr.me/
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-playSoundEffect = (source, options) => {
+const playSoundEffect = (source, options) => {
     if (options?.global) return LayerManager.global.playSoundEffect(source, options);
     else return LayerManager.currentLayer.playSoundEffect(source, options);
 };
 
-playMusic = (source, options) => {
+const playMusic = (source, options) => {
     if (options?.global) return LayerManager.global.playMusic(source, options);
     else return LayerManager.currentLayer.playMusic(source, options);
 };
@@ -77,9 +91,9 @@ function outOfBounds(entity, { padding } = {}) {
     if (padding === undefined) padding = entity.size ?? 0;
     return (
         entity.y < -padding ||
-        entity.y > canvas.height + padding ||
+        entity.y > game.height + padding ||
         entity.x < -padding ||
-        entity.x > canvas.width + padding
+        entity.x > game.width + padding
     );
 }
 function distanceTo(from, to) {
@@ -262,22 +276,22 @@ class Interactable extends Identifiable {
         const idx = this.children.findIndex((e) => e.id === id);
         if (idx !== -1) this.children.splice(idx, 1);
     };
-    propigate = (call, ...args) => {
+    propagate = (call, ...args) => {
         this.raise("on" + call, ...args);
         this.children.forEach((c) => c.raise(call, ...args));
     };
-    update = (delta) => this.propigate("update", delta);
-    interact = () => this.propigate("interact");
+    update = (delta) => this.propagate("update", delta);
+    interact = () => this.propagate("interact");
     // IO Events
-    keydown = (e) => this.propigate("keydown", e);
-    keyup = (e) => this.propigate("keyup", e);
+    keydown = (e) => this.propagate("keydown", e);
+    keyup = (e) => this.propagate("keyup", e);
     // Mouse IO Events
-    mousedown = (e) => this.propigate("mousedown", e);
-    mouseup = (e) => this.propigate("mouseup", e);
-    mousemove = (e) => this.propigate("mousemove", e);
-    click = (e) => this.propigate("click", e);
-    dblclick = (e) => this.propigate("dblclick", e);
-    wheel = (e) => this.propigate("wheel", e);
+    mousedown = (e) => this.propagate("mousedown", e);
+    mouseup = (e) => this.propagate("mouseup", e);
+    mousemove = (e) => this.propagate("mousemove", e);
+    click = (e) => this.propagate("click", e);
+    dblclick = (e) => this.propagate("dblclick", e);
+    wheel = (e) => this.propagate("wheel", e);
 }
 class IterableWeakRef {
     #list = [];
@@ -318,15 +332,15 @@ class LayerManager extends Interactable {
     static lastTimestamp;
     static global;
     static ispaused = true;
-    propigate = (call, ...args) => {
+    propagate = (call, ...args) => {
         if (!LayerManager.global.ispaused) LayerManager.global.raise(call, ...args);
         if (!LayerManager.currentLayer.ispaused) LayerManager.currentLayer.raise(call, ...args);
     };
     static get children() {
         return LayerManager.instance.children;
     }
-    static get propigate() {
-        return LayerManager.instance.propigate;
+    static get propagate() {
+        return LayerManager.instance.propagate;
     }
     static {
         function registerListener(eventName) {
@@ -357,15 +371,15 @@ class LayerManager extends Interactable {
         // Fraction of a second since last update.
         const delta = (timestamp - LayerManager.lastTimestamp) / 1000;
         LayerManager.lastTimestamp = timestamp;
-        LayerManager.propigate("update", delta);
-        LayerManager.propigate("draw");
+        LayerManager.propagate("update", delta);
+        LayerManager.propagate("draw");
         LayerManager.updateframe = requestAnimationFrame(LayerManager.update);
     };
     static oninteract() {
         document.removeEventListener("mousedown", LayerManager.oninteract, { once: true });
         document.removeEventListener("keydown", LayerManager.oninteract, { once: true });
         LayerManager.interacted = true;
-        LayerManager.propigate("interact");
+        LayerManager.propagate("interact");
     }
     static pause() {
         LayerManager.ispaused = true;
@@ -401,8 +415,8 @@ class Layer extends Interactable {
         for (let key in calls) this[key] = calls[key];
     }
     // Base Methods
-    open = () => this.propigate("open");
-    close = () => this.propigate("close");
+    open = () => this.propagate("open");
+    close = () => this.propagate("close");
     // Timing Methods
     tasks = [];
     ispaused = false;
@@ -476,11 +490,12 @@ class Layer extends Interactable {
     addEntity = (entity) => {
         this.entities[entity.groupName] ??= new IterableWeakRef();
         this.entities[entity.groupName].push(entity);
+        if (this.pixelPerfect) entity.pixelPerfect = true;
     };
     removeEntity = (entity) => {
         this.entities[entity.groupName]?.remove(entity.id);
     };
-    propigate = (call, ...args) => {
+    propagate = (call, ...args) => {
         this.raise("on" + call, ...args);
         this.children.forEach((c) => c.raise(call, ...args));
         for (let v in Entity.types) {
@@ -489,12 +504,28 @@ class Layer extends Interactable {
         }
     };
     // Game Update Events
+    update = (delta) => {
+        if (!this.tickRate) this.propagate("update", delta);
+        else {
+            this.update.accumulatedTime ??= 0;
+            this.update.accumulatedTime += delta;
+            while (this.update.accumulatedTime >= this.tickRate) {
+                this.update.accumulatedTime -= this.tickRate;
+                this.propagate("update", this.tickRate);
+            }
+        }
+    };
     draw = () => {
         this.raise("ondraw");
         this.children.forEach((c) => c.raise("draw"));
         ctx.save();
-        if (this.cameraX !== undefined && this.cameraY !== undefined)
-            ctx.translate(canvas.width / 2 - this.cameraX, canvas.height / 2 - this.cameraY);
+        if (this.cameraX !== undefined && this.cameraY !== undefined) {
+            if (this.pixelPerfect) {
+                this.cameraX = Math.round(this.cameraX);
+                this.cameraY = Math.round(this.cameraY);
+            }
+            ctx.translate(game.width / 2 - this.cameraX, game.height / 2 - this.cameraY);
+        }
         if (this.scaleX && this.scaleY) ctx.scale(this.scaleX, this.scaleY);
         for (let v in Entity.types) {
             this.entities[v] ??= new IterableWeakRef();
@@ -510,42 +541,42 @@ class GlobalLayer extends Layer {
     keydown = (e) => {
         keys[e.code] = true;
         if (typeof DownKeyEvents !== "undefined") for (let a in DownKeyEvents) if (e.code == a) DownKeyEvents[a]();
-        this.propigate("keydown", e);
+        this.propagate("keydown", e);
     };
     keyup = (e) => {
         keys[e.code] = false;
         if (typeof UpKeyEvents !== "undefined") for (let a in UpKeyEvents) if (e.code == a) UpKeyEvents[a]();
-        this.propigate("keyup", e);
+        this.propagate("keyup", e);
     };
     mousedown = (e) => {
         this.setMousePos(e);
         if (typeof MouseEvents !== "undefined" && MouseEvents.Down) MouseEvents.Down(e);
-        this.propigate("mousedown", e);
+        this.propagate("mousedown", e);
     };
     mouseup = (e) => {
         this.setMousePos(e);
         if (typeof MouseEvents !== "undefined" && MouseEvents.Up) MouseEvents.Up(e);
-        this.propigate("mouseup", e);
+        this.propagate("mouseup", e);
     };
     mousemove = (e) => {
         this.setMousePos(e);
         if (typeof MouseEvents !== "undefined" && MouseEvents.Move) MouseEvents.Move(e);
-        this.propigate("mousemove", e);
+        this.propagate("mousemove", e);
     };
     click = (e) => {
         this.setMousePos(e);
         if (typeof MouseEvents !== "undefined" && MouseEvents.Click) MouseEvents.Click(e);
-        this.propigate("click", e);
+        this.propagate("click", e);
     };
     dblclick = (e) => {
         this.setMousePos(e);
         if (typeof MouseEvents !== "undefined" && MouseEvents.DblClick) MouseEvents.DblClick(e);
-        this.propigate("dblclick", e);
+        this.propagate("dblclick", e);
     };
     wheel = (e) => {
         this.setMousePos(e);
         if (typeof MouseEvents !== "undefined" && MouseEvents.Wheel) MouseEvents.Wheel(e);
-        this.propigate("wheel", e);
+        this.propagate("wheel", e);
     };
     setMousePos = (e) => {
         const rect = canvas.getBoundingClientRect();
@@ -610,7 +641,7 @@ class Task extends Identifiable {
 }
 class UIElement extends Interactable {
     children = [];
-    constructor(x, y, options) {
+    constructor(x, y, options = {}) {
         super(options.id);
         this.x = x;
         this.y = y;
@@ -625,16 +656,16 @@ class UIElement extends Interactable {
                 },
             });
     }
-    draw = () => this.propigate("draw");
+    draw = () => this.propagate("draw");
     mousedown = (e) => {
-        if (this.detect(e.mouseX, e.mouseY)) this.propigate("mousedown", e);
+        if (this.detect(e.mouseX, e.mouseY)) this.propagate("mousedown", e);
     };
     mousemove = (e) => {
         if (this.options) this.options.hovered = this.detect(e.mouseX, e.mouseY);
-        this.propigate("mousemove", e);
+        this.propagate("mousemove", e);
     };
     click = (e) => {
-        if (this.detect(e.mouseX, e.mouseY)) this.propigate("click", e);
+        if (this.detect(e.mouseX, e.mouseY)) this.propagate("click", e);
     };
     show = ({ overlay } = {}) => {
         if (overlay) this.layerNum = LayerManager.activeLayer;
@@ -646,7 +677,7 @@ class UIElement extends Interactable {
     detect = (mX, mY) => true;
     hide = () => {
         if (!this.parent) LayerManager.unregisterLayer(this.layer);
-        this.propigate("hide");
+        else this.layer.remove(this);
     };
     onadd = (ui) => {
         ui.shift(this.x, this.y);
@@ -654,46 +685,159 @@ class UIElement extends Interactable {
     shift = (x, y) => {
         this.x += x;
         this.y += y;
-        this.propigate("shift", x, y);
+        this.propagate("shift", x, y);
     };
 }
 class UI {
-    static Base = (x = 0, y = 0, options = {}) => {
+    /**
+     * Options for configuring UI elements and their event callbacks.
+     * @typedef {object} UIOptions
+     * @property {function(number)} [onupdate] - Callback for the update event.
+     * @property {function()} [oninteract] - Callback for the interact event.
+     * @property {function(Event)} [onkeydown] - Callback for the keydown event.
+     * @property {function(Event)} [onkeyup] - Callback for the keyup event.
+     * @property {function(MouseEvent)} [onmousedown] - Callback for the mousedown event.
+     * @property {function(MouseEvent)} [onmouseup] - Callback for the mouseup event.
+     * @property {function(MouseEvent)} [onmousemove] - Callback for the mousemove event.
+     * @property {function(MouseEvent)} [onclick] - Callback for the click event.
+     * @property {function(MouseEvent)} [ondblclick] - Callback for the dblclick event.
+     * @property {function(WheelEvent)} [onwheel] - Callback for the wheel event.
+     */
+
+    /**
+     * Options for styling a shape with hover effects.
+     * @typedef {UIOptions} ColorOptions
+     * @property {string} fill - Fill color of the element.
+     * @property {string} stroke - Stroke color of the element.
+     * @property {number} strokeWidth - Stroke width of the element.
+     * @property {string} hoverFill - Fill color when hovered.
+     * @property {string} hoverStroke - Stroke color when hovered.
+     * @property {number} hoverWidth - Stroke width when hovered.
+     */
+
+    /**
+     * Options for configuring a rectangular UI element.
+     * @typedef {UIOptions} RectOptions
+     * @property {number} [cornerRadius=0] - Radius of the rounded corners.
+     */
+
+    /**
+     * Options for styling text within a UI element.
+     * @typedef {UIOptions} TextOptions
+     * @property {number} [width] - The width of the text container.
+     * @property {string} [font] - The font style for the text.
+     * @property {string} [color] - The color of the text.
+     * @property {boolean} [center] - Whether to center the text horizontally.
+     * @property {boolean} [linewrap] - Whether to enable line wrapping for the text.
+     */
+
+    /**
+     * Options for configuring a text input UI element.
+     * @typedef {TextOptions} TextInputOptions
+     * @property {string} [placeholder] - The placeholder text for the input.
+     * @property {function(string)} [oninput] - Callback for the input event.
+     * @property {function(string)} [onsubmit] - Callback for the submit event.
+     * @param {boolean} [options.autofocus] - Whether the text input should autofocus.
+     */
+
+    /**
+     * Create a UIElement to be rendered.
+     * @param {number} x - The x-coordinate of the text.
+     * @param {number} y - The y-coordinate of the text.
+     * @param {UIOptions} [options] - Additional options
+     * @returns {UIElement} - A base UIElement object.
+     */
+    static Base = (x = 0, y = 0, options) => {
         return new UIElement(x, y, options);
     };
+
+    /**
+     * Create a Blank UIElement to be used as the base for GUIs.
+     * @param {UIOptions} [options] - Additional options
+     * @returns {UIElement} - A base UIElement object.
+     */
     static Blank = (options) => {
         return new UIElement(0, 0, options);
     };
-    static Rect = (x, y, width, height, { cornerRadius, ...options } = {}) => {
+
+    /**
+     * Create a Rect to be used in UIs.
+     * @param {number} x - The x-coordinate of the text.
+     * @param {number} y - The y-coordinate of the text.
+     * @param {number} width - The width of the rectangle.
+     * @param {number} height - The height of the rectangle.
+     * @param {RectOptions} [options] - Additional options
+     * @returns {UIRect} - A base UIElement object.
+     */
+    static Rect = (x, y, width, height, options) => {
         UI.Rect.classRef ??= class UIRect extends UIElement {
             ondraw = () => UI.drawRect(this.x, this.y, this.width, this.height, this.options);
             detect = (mX, mY) => detectRect(this.x, this.y, this.width, this.height, mX, mY);
         };
-        return new UI.Rect.classRef(x, y, { width, height, cornerRadius, ...options });
+        return new UI.Rect.classRef(x, y, { width, height, ...options });
     };
-    static Circle = (x, y, radius, options = {}) => {
+    static Circle = (x, y, radius, options) => {
         UI.Circle.classRef ??= class UICircle extends UIElement {
             ondraw = () => UI.drawCircle(this.x, this.y, this.radius, this.options);
             detect = (mX, mY) => detectCircle(this.x, this.y, this.radius, mX, mY);
         };
         return new UI.Circle.classRef(x, y, { radius, ...options });
     };
-    static Text = (text, x, y, { width, font, color, center, linewrap, ...options } = {}) => {
+
+    /**
+     * Create a UI Text element to be rendered.
+     *
+     * @param {string} text - The text to be displayed.
+     * @param {number} x - The x-coordinate of the text.
+     * @param {number} y - The y-coordinate of the text.
+     * @param {TextOptions} [options] - Additional options for Text styling
+     * @returns {UIElement} - A text element object.
+     */
+    static Text = (text, x, y, options = {}) => {
         UI.Text.classRef ??= class UIText extends UIElement {
             ondraw = () => UI.drawText(this.text, this.x, this.y, this.options);
         };
-        return new UI.Text.classRef(x, y, { text, width, font, color, center, linewrap, ...options });
+        return new UI.Text.classRef(x, y, options);
     };
+    /**
+     * Create an Image UIElement to be rendered.
+     * @param {string} src - The source URL of the image.
+     * @param {number} x - The x-coordinate of the image.
+     * @param {number} y - The y-coordinate of the image.
+     * @param {UIOptions} [options] - Additional options for configuring the UI element.
+     * @property {number} [width] - The width of the image.
+     * @property {number} [height] - The height of the image.
+     * @returns {UIImage} - An Image UIElement object.
+     */
     static Image = (src, x, y, { width, height, ...options } = {}) => {
         UI.Image.classRef ??= class UIImage extends UIElement {
             ondraw = () => UI.drawImage(this.src, this.x, this.y, this.options);
         };
         return new UI.Image.classRef(x, y, { src, width, height, ...options });
     };
-    static Button = (onclick, x, y, width, height, { cornerRadius, ...options } = {}) => {
+    /**
+     * Create a Button UIElement to be rendered.
+     *
+     * @param {function} onclick - The callback function to be executed when the button is clicked.
+     * @param {number} x - The x-coordinate of the button.
+     * @param {number} y - The y-coordinate of the button.
+     * @param {number} width - The width of the button.
+     * @param {number} height - The height of the button.
+     * @param {RectOptions} [options] - Additional options for configuring the button.
+     * @returns {UIButton} - A Button UIElement object.
+     */
+    static Button = (onclick, x, y, width, height, options) => {
         UI.Button.classRef ??= class UIButton extends UI.Rect.classRef {};
-        return new UI.Button.classRef(x, y, { width, height, onclick, cornerRadius, ...options });
+        return new UI.Button.classRef(x, y, { width, height, onclick, ...options });
     };
+    /**
+     * Create a text input UI element to be rendered.
+     *
+     * @param {number} x - The x-coordinate of the text input.
+     * @param {number} y - The y-coordinate of the text input.
+     * @param {TextInputOptions} [options] - Additional options for configuring the text input.
+     * @returns {UITextInput} - A text input UI element object.
+     */
     static TextInput = (x, y, { placeholder = "", width, oninput, onsubmit, autofocus, ...options } = {}) => {
         UI.TextInput.classRef ??= class UITextInput extends UIElement {
             onkeydown = (e) => {
@@ -746,10 +890,10 @@ class UI {
             }
             ondraw = () => {
                 // Draw the background
-                if (this.background) {
-                    ctx.fillStyle = this.background;
-                    ctx.fillRect(this.x, this.y, this.width, this.height);
-                }
+                UI.drawRect(this.x, this.y, this.width, this.height, {
+                    ...this.options,
+                    fill: this.background,
+                });
 
                 // Draw the progress bar
                 if (this.fill) {
@@ -964,7 +1108,7 @@ class UI {
                     -this.scrollPosition.x - Math.max(0, this.width - this.scrollWidth),
                     -this.scrollPosition.y - Math.max(0, this.height - this.scrollHeight)
                 );
-                this.propigate("draw");
+                this.propagate("draw");
                 ctx.restore();
                 this.drawScrollBarX();
                 this.drawScrollBarY();
@@ -973,20 +1117,20 @@ class UI {
                 const newE = cloneMouseEvent(e);
                 newE.mouseX += this.scrollPosition.x;
                 newE.mouseY += this.scrollPosition.y;
-                if (this.detect(newE.mouseX, newE.mouseY)) this.propigate("mousedown", newE);
+                if (this.detect(newE.mouseX, newE.mouseY)) this.propagate("mousedown", newE);
             };
             mousemove = (e) => {
                 const newE = cloneMouseEvent(e);
                 newE.mouseX += this.scrollPosition.x;
                 newE.mouseY += this.scrollPosition.y;
                 if (this.options) this.options.hovered = this.detect(newE.mouseX, newE.mouseY);
-                this.propigate("mousemove", newE);
+                this.propagate("mousemove", newE);
             };
             click = (e) => {
                 const newE = cloneMouseEvent(e);
                 newE.mouseX += this.scrollPosition.x;
                 newE.mouseY += this.scrollPosition.y;
-                if (this.detect(newE.mouseX, newE.mouseY)) this.propigate("click", newE);
+                if (this.detect(newE.mouseX, newE.mouseY)) this.propagate("click", newE);
             };
             detect = (mX, mY) => detectRect(this.x, this.y, this.scrollWidth, this.scrollHeight, mX, mY);
         };
@@ -1001,7 +1145,21 @@ class UI {
             ...options,
         });
     };
-    static List = (list, createListItem, x, y, width, height, verticalPadding, { ...options } = {}) => {
+
+    /**
+     * Create a Grid UI element.
+     *
+     * @param {Array} list - The array of items to display in the list.
+     * @param {function(number, any)} createGridItem - Function to create each item in the list.
+     * @param {number} x - The x-coordinate of the list.
+     * @param {number} y - The y-coordinate of the list.
+     * @param {number} width - The width of the list.
+     * @param {number} height - The height of the list.
+     * @param {ScrollOptions} [options] - Additional options for styling the list
+     * @param {number} [verticalPadding] - Vertical padding between list items.
+     * @returns {UIScroll} - A UI element object containing all the list items.
+     */
+    static List = (list, createListItem, x, y, width, height, { verticalPadding = 0, ...options } = {}) => {
         const listItems = [];
         let scrollHeight = 0;
         for (let i = 0; i < list.length; i++) {
@@ -1014,6 +1172,22 @@ class UI {
         listItems.forEach((c) => UIList.add(c));
         return UIList;
     };
+
+    /**
+     * Creates a Grid UI element.
+     *
+     * @param {Array} list - The array of items to display in the grid.
+     * @param {function(number, any)} createGridItem - Function to create each item in the grid.
+     * @param {number} x - The x-coordinate of the grid.
+     * @param {number} y - The y-coordinate of the grid.
+     * @param {number} width - The width of the grid.
+     * @param {number} height - The height of the grid.
+     * @param {ScrollOptions} [options] - Additional options for styling the list
+     * @param {number} [horizontalPadding] - Horizontal padding between grid items.
+     * @param {number} [verticalPadding] - Vertical padding between grid items.
+     * @param {number} [gridWidth] - Number of items in each row of the grid.
+     * @returns {UIScroll} - A UI element object containing all the grid items.
+     */
     static Grid = (
         list,
         createGridItem,
@@ -1021,9 +1195,7 @@ class UI {
         y,
         width,
         height,
-        horizontalPadding,
-        verticalPadding,
-        { gridWidth, ...options } = {}
+        { horizontalPadding = 0, verticalPadding = 0, gridWidth, ...options } = {}
     ) => {
         const gridItems = [];
         let currentWidth = horizontalPadding;
@@ -1116,8 +1288,8 @@ class UI {
         ctx.resetTransform();
         if (color) {
             ctx.fillStyle = color;
-            ctx.fillRect(0, 0, game.width, game.height);
-        } else ctx.clearRect(0, 0, game.width, game.height);
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        } else ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.restore();
     };
 }
@@ -1128,7 +1300,7 @@ class Entity extends Identifiable {
         this.x = 0;
         this.y = 0;
         this.size = 0;
-        this.dir = 0;
+        this.dir = null;
         this.speed = 0;
         this.exp = 0;
         this.neededXP = 0;
@@ -1139,11 +1311,17 @@ class Entity extends Identifiable {
         if (layerNum) LayerManager.get(layerNum);
     }
     update = (delta) => {
+        if (this.groupName === "Player") debugger;
+
         if (this.acceleration) this.speed = clamp(this.speed + this.acceleration, 0, this.maxSpeed);
         this.raise("onupdate", delta);
         if (this.speed && this.dir !== null && this.dir !== undefined) {
             if (!this.staticX) this.x += Math.cos(this.dir) * this.speed * delta;
             if (!this.staticY) this.y += Math.sin(this.dir) * this.speed * delta;
+        }
+        if (this.pixelPerfect) {
+            this.x = Math.round(this.x - 0.5) + 0.5;
+            this.y = Math.round(this.y - 0.5) + 0.5;
         }
         if (this.collisions) this.checkCollision();
     };
@@ -1251,13 +1429,13 @@ class GameLayer extends Layer {
         UI.fillScreen({ color: this.background });
     };
     get width() {
-        return canvas.width;
+        return canvas.width / this.scaleX;
     }
     set width(value) {
         canvas.width = value;
     }
     get height() {
-        return canvas.height;
+        return canvas.height / this.scaleX;
     }
     set height(value) {
         canvas.height = value;
@@ -1373,10 +1551,8 @@ LayerManager.registerLayer(game);
 // TODO LIST:
 // Finish onboxcollide and make oncirclecollide
 // Check how to make events not bubble down all UI layers, but be consumed by things like btns etc. (double scroll etc)
-//   Check with console.log to see what onX's are actually being called, maybe a break or something in propigate for those?
+//   Check with console.log to see what onX's are actually being called, maybe a break or something in propagate for those?
 // Make Vector class?
-// Layer -> Tick Rate (copy lerp wait code?)
-// Pixel Perfect -> Entity flag round x and y
 // Player Class
 // Save Player Class Data
 // Level System?
