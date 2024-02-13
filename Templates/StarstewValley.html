@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>Your Game Name Goes Here</title>
+    </head>
+    <body></body>
+    <script src="GameEngine.js"></script>
+    <script>
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // CORE GAMEPLAY FUNCTIONS | TOUCH AT YOUR OWN RISK
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        game.width = 400;
+        game.height = 400;
+        game.scaleX = 40;
+        game.scaleY = 40;
+        game.tickRate = 1;
+        game.pixelPerfect = true;
+        function load() {
+            game.background = "black";
+            drawTiles("rgbrgbrgbw\nbwwwwwcccr\ngrbgrbgrbc\n");
+        }
+
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // GAME UPDATE FUNCTIONS | TOUCH AT YOUR OWN RISK
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        function drawTiles(str) {
+            let x = 0.5;
+            let y = 0.5;
+            for (let i = 0; i < str.length; i++) {
+                const char = str[i];
+                // Check if the character is a newline, update y and reset x
+                if (char === "\n") {
+                    y++;
+                    x = 0.5;
+                } else {
+                    // Output the coordinates and character
+                    spawnTile(tileTypes[char], { x, y });
+                    x++;
+                }
+            }
+        }
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // GAME DATA | ADD TO AND CUSTOMIZE FREELY
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        const tileTypes = {
+            c: {
+                color: "cyan",
+                size: 1,
+            },
+            r: {
+                color: "red",
+                size: 1,
+                collisions: ["Player"],
+                oncollide: onboxcollide,
+            },
+            b: {
+                color: "blue",
+                size: 1,
+            },
+            g: {
+                color: "green",
+                size: 1,
+            },
+            w: {
+                color: "white",
+                size: 1,
+            },
+        };
+
+        registerEntity(
+            "Tile",
+            {
+                oncollide: function (other) {},
+            },
+            tileTypes
+        );
+        registerEntity("Player", {
+            onupdate: function (delta) {
+                this.dir = getPlayerMovementDirection({ useCardinal: true });
+                //     // Stop player if no keys are pressed otherwise change your direction.
+                player.x = clamp(player.x, player.size / 2, game.width - player.size / 2);
+                player.y = clamp(player.y, player.size / 2, game.height - player.size / 2);
+            },
+        });
+        const player = spawnPlayer({
+            x: 4.5,
+            y: 5.5,
+            color: "blue",
+            size: 1,
+            speed: 1,
+        });
+    </script>
+</html>
