@@ -4,13 +4,13 @@
         <title>Your Game Name Goes Here</title>
     </head>
     <body>
-        <!-- <style>
+        <style>
             * {
                 background-color: black;
                 color: white;
                 font-family: monospace;
             }
-        </style> -->
+        </style>
 
         <div id="game-display">
             <textarea id="output" rows="15" cols="50" readonly></textarea>
@@ -25,7 +25,16 @@
             <button onclick="processInput()">Enter</button>
         </div>
     </body>
-    <script src="../Engine/CodeboardEngine.js"></script>
+    <!-- <script src="../Engine/CodeboardEngine.js"></script> -->
+
+    <script src="../Engine/EngineCore.js"></script>
+    <script src="../Engine/EngineUtilities.js"></script>
+    <script src="../Engine/EnginePhysics.js"></script>
+    <script src="../Engine/EngineAsync.js"></script>
+    <script src="../Engine/EngineEntity.js"></script>
+    <script src="../Engine/EngineUI.js"></script>
+    <script src="../Engine/EngineLayers.js"></script>
+
     <script lang="javascript">
         function load(){
             game.width = 300

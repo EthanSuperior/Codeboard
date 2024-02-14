@@ -4,7 +4,16 @@
         <title>Your Game Name Goes Here</title>
     </head>
     <body></body>
-    <script src="../Engine/CodeboardEngine.js"></script>
+    <!-- <script src="../Engine/CodeboardEngine.js"></script> -->
+
+    <script src="../Engine/EngineCore.js"></script>
+    <script src="../Engine/EngineUtilities.js"></script>
+    <script src="../Engine/EnginePhysics.js"></script>
+    <script src="../Engine/EngineAsync.js"></script>
+    <script src="../Engine/EngineEntity.js"></script>
+    <script src="../Engine/EngineUI.js"></script>
+    <script src="../Engine/EngineLayers.js"></script>
+
     <script>
         // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         // CORE GAMEPLAY FUNCTIONS | TOUCH AT YOUR OWN RISK
@@ -16,6 +25,59 @@
         game.cameraY = 0;
         game.background = "#2a4720";
         function load() {
+            registerEntity(
+                "Enemy",
+                {
+                    collisions: ["Player"],
+                    onspawn: function () {
+                        this.dir = Math.random() * Math.PI * 2;
+                        const radius = (Math.hypot(game.width, game.height) + this.size) / 2;
+                        this.x = player.x + Math.cos(this.dir) * radius;
+                        this.y = player.y + Math.sin(this.dir) * radius;
+                    },
+                    onupdate: function () {
+                        this.angleTowards(player);
+                    },
+                    oncollide: function (other) {
+                        this.x -= (this.velocityX * this.size) / 20;
+                        this.y -= (this.velocityY * this.size) / 20;
+                        other.hp -= this.dmg;
+                    },
+                },
+                enemyTypes
+            );
+            registerEntity(
+                "Projectile",
+                {
+                    hit: [],
+                    pierce: 1,
+                    collisions: ["Enemy"],
+                    oncollide: function (other) {
+                        if (this.hit.includes(other.id)) return;
+                        this.hit.push(other.id);
+                        other.hp -= this.dmg;
+                        this.pierce--;
+                        if (this.pierce <= 0) this.despawn();
+                        if (other.hp > 0) return;
+                        player.kills += 1;
+                        spawnDrops(other);
+                        other.despawn();
+                    },
+                },
+                weaponTypes
+            );
+            registerEntity(
+                "Pickup",
+                {
+                    lifespan: 60,
+                    collisions: ["Player"],
+                    oncollide: function (other) {
+                        this.pickup();
+                        this.despawn();
+                    },
+                },
+                pickupTypes
+            );
             for (let time in waves) scheduleTask(spawnWave, { time: +time }, waves[time]);
             addUI();
             game.draw();
@@ -86,7 +148,8 @@
             });
             UILevelUp.add(UI.Text(`~ LEVEL UP! ~`, 30, 55, { font: "bold 48px monospace", color: "black" }));
             UILevelUp.add(
-                UI.List(options, makeListUIButton, 15, 55, 375, 365, 20, {
+                UI.List(options, makeListUIButton, 15, 55, 375, 365, {
+                    verticalPadding: 20,
                     background: "#4b4e74",
                 })
             );
@@ -390,59 +453,6 @@
             },
         };
 
-        registerEntity(
-            "Enemy",
-            {
-                collisions: ["Player"],
-                onspawn: function () {
-                    this.dir = Math.random() * Math.PI * 2;
-                    const radius = (Math.hypot(game.width, game.height) + this.size) / 2;
-                    this.x = player.x + Math.cos(this.dir) * radius;
-                    this.y = player.y + Math.sin(this.dir) * radius;
-                },
-                onupdate: function () {
-                    this.angleTowards(player);
-                },
-                oncollide: function (other) {
-                    this.x -= (this.velocityX * this.size) / 20;
-                    this.y -= (this.velocityY * this.size) / 20;
-                    other.hp -= this.dmg;
-                },
-            },
-            enemyTypes
-        );
-        registerEntity(
-            "Projectile",
-            {
-                hit: [],
-                pierce: 1,
-                collisions: ["Enemy"],
-                oncollide: function (other) {
-                    if (this.hit.includes(other.id)) return;
-                    this.hit.push(other.id);
-                    other.hp -= this.dmg;
-                    this.pierce--;
-                    if (this.pierce <= 0) this.despawn();
-                    if (other.hp > 0) return;
-                    player.kills += 1;
-                    spawnDrops(other);
-                    other.despawn();
-                },
-            },
-            weaponTypes
-        );
-        registerEntity(
-            "Pickup",
-            {
-                lifespan: 60,
-                collisions: ["Player"],
-                oncollide: function (other) {
-                    this.pickup();
-                    this.despawn();
-                },
-            },
-            pickupTypes
-        );
         registerEntity("Player", {
             maxSpeed: 225,
             acceleration: 7.5,
