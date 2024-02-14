@@ -1,186 +1,202 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <title>Your Game Name Goes Here</title>
-</head>
-<body>
-    <style>
-        * {
-            background-color: black;
-            color: white;
-            font-family: monospace;
+    <head>
+        <title>Your Game Name Goes Here</title>
+    </head>
+    <body>
+        <!-- <style>
+            * {
+                background-color: black;
+                color: white;
+                font-family: monospace;
+            }
+        </style> -->
+
+        <div id="game-display">
+            <textarea id="output" rows="15" cols="50" readonly></textarea>
+            <br />
+            <input
+                type="text"
+                id="input"
+                autofocus
+                placeholder="Enter a command"
+                onkeydown="if(event.keyCode==13) processInput()"
+            />
+            <button onclick="processInput()">Enter</button>
+        </div>
+    </body>
+    <script src="GameEngine.js"></script>
+    <script lang="javascript">
+        function load(){
+            game.width = 300
+            game.height = 100;
+            UI.TextInput(
+                10, 10, { placeholder: "TypeHere", width:100, font: "24px monospace",
+                onsubmit:(text)=>console.log(text)
+            }
+                // font, color, oninput, onsubmit,
+            ).show();
         }
-    </style>
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // CORE GAMEPLAY FUNCTIONS TOUCH AT YOUR OWN RISK
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    <div id="game-display">
-        <textarea id="output" rows="15" cols="50" readonly></textarea>
-        <br>
-        <input type="text" id="input" autofocus
-            placeholder="Enter a command"  onkeydown="if(event.keyCode==13) processInput()"/>
-        <button onclick="processInput()">Enter</button>
-    </div>
-</body>
-<script lang="javascript">
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    // CORE GAMEPLAY FUNCTIONS TOUCH AT YOUR OWN RISK
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    // Function to update the game display
-    function display(message) {
-        const outputTextArea = document.getElementById("output");
-        outputTextArea.value += message + "\n";
-        outputTextArea.scrollTop = outputTextArea.scrollHeight;
-    }
-
-    // Function to handle player input
-    function processInput() {
-        const inputField = document.getElementById("input");
-        const input = inputField.value.trim();
-
-        if (input == "") return; // Don't process empty input
-
-        display("> " + input); // Display user input
-        handleInput(input);
-        inputField.value = ""; // Clear input field
-    }
-
-    // Function to handle player input
-    function handleInput(input) {
-        const command = input.split(" ")[0];
-        const argument = input.split(" ")[1];
-
-        if (command == "look") {
-            look();
-        } else if (command == "go") {
-            if (argument) go(argument);
-            else display("Enter 'go <direction>' ex: go north");
-        } else if (command == "take") {
-            if (argument) take(argument);
-            else display("Enter 'take <item>' ex: take key");
-        } else if (command == "use") {
-            if (argument) use(argument);
-            else display("Enter 'use <item>' ex: use key");
-        } else if (command == "help") {
-            display("Commands: go, look, take, use");
-        } else {
-            display("Invalid command. Try again.");
-            display("Commands: go, look, take, use");
+        // Function to update the game display
+        function display(message) {
+            const outputTextArea = document.getElementById("output");
+            outputTextArea.value += message + "\n";
+            outputTextArea.scrollTop = outputTextArea.scrollHeight;
         }
-    }
 
-    // Function to handle "go" command
-    function go(direction) {
-        const nextLocation = gameMap[playerLocation][direction];
-        if (nextLocation) {
-            playerLocation = nextLocation;
-            look();
-        } else {
-            display("You can't go that way.");
+        // Function to handle player input
+        function processInput() {
+            const inputField = document.getElementById("input");
+            const input = inputField.value.trim();
+
+            if (input == "") return; // Don't process empty input
+
+            display("> " + input); // Display user input
+            handleInput(input);
+            inputField.value = ""; // Clear input field
         }
-    }
 
-    // Function to handle "look" command
-    function look() {
-        display(gameMap[playerLocation].description);
-    }
+        // Function to handle player input
+        function handleInput(input) {
+            const command = input.split(" ")[0];
+            const argument = input.split(" ")[1];
 
-    // Function to handle "take" command
-    function take(item) {
-        if (gameMap[playerLocation].take && gameMap[playerLocation].take.includes(item)) {
-            playerInventory.push(item);
-            gameMap[playerLocation].take.pop(item);
-            display(`You took the ${item}.`);
-        } else {
-            display(`There is no ${item} here.`);
+            if (command == "look") {
+                look();
+            } else if (command == "go") {
+                if (argument) go(argument);
+                else display("Enter 'go <direction>' ex: go north");
+            } else if (command == "take") {
+                if (argument) take(argument);
+                else display("Enter 'take <item>' ex: take key");
+            } else if (command == "use") {
+                if (argument) use(argument);
+                else display("Enter 'use <item>' ex: use key");
+            } else if (command == "help") {
+                display("Commands: go, look, take, use");
+            } else {
+                display("Invalid command. Try again.");
+                display("Commands: go, look, take, use");
+            }
         }
-    }
 
-    // Function to handle "use" command
-    function use(item) {
-        if (!playerInventory.includes(item)) {
-            display(`You do not have ${item}.`);
-        } else if (gameMap[playerLocation].use){
-            const action = gameMap[playerLocation].use[item];
-            if (action) action();
-            else display("You can't use that here.");
-        } else {
-            display("You can't use that here.");
+        // Function to handle "go" command
+        function go(direction) {
+            const nextLocation = gameMap[playerLocation][direction];
+            if (nextLocation) {
+                playerLocation = nextLocation;
+                look();
+            } else {
+                display("You can't go that way.");
+            }
         }
-    }
 
-    // Function to restart the game
-    function restartGame() {
-        location.reload();
-    }
+        // Function to handle "look" command
+        function look() {
+            display(gameMap[playerLocation].description);
+        }
 
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    // START MODIFYING THE CODE HERE
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // Function to handle "take" command
+        function take(item) {
+            if (gameMap[playerLocation].take && gameMap[playerLocation].take.includes(item)) {
+                playerInventory.push(item);
+                gameMap[playerLocation].take.pop(item);
+                display(`You took the ${item}.`);
+            } else {
+                display(`There is no ${item} here.`);
+            }
+        }
 
-    // Define the game's map and player's initial location
-    const gameMap = {
-        start: {
-            description: "You are in a dark room. There is a door to the north.",
-            north: "hallway",
-            use:  { "flask": useFlask },
-        },
-        hallway: {
-            description: "You are in a long hallway. There are doors to the east and west.",
-            east: "kitchen",
-            west: "bedroom",
-            south: "start",
-            take: ["flask"],
-        },
-        kitchen: {
-            description: "You are in a kitchen. There is a key on the table.",
-            west: "hallway",
-            take: ["key"],
-        },
-        bedroom: {
-            description: "You are in a bedroom. There is a locked chest.",
-            east: "hallway",
-            use:  { "key": openChest },
-        },
-        TEMPLATE_ROOM_NANE: {
-            description: "You are in a bedroom. There is a locked chest.",
-            DIRECTION: "NEXT_ROOM_NAME",
-            use:  {
-                    ITEM_1_NAME: ActionFunction,
-                    ITEM_2_NAME: ActionFunction
-                },
-            take: ["ITEM_1_NAME", "ITEM_2_NAME"],
-        },
-    };
+        // Function to handle "use" command
+        function use(item) {
+            if (!playerInventory.includes(item)) {
+                display(`You do not have ${item}.`);
+            } else if (gameMap[playerLocation].use){
+                const action = gameMap[playerLocation].use[item];
+                if (action) action();
+                else display("You can't use that here.");
+            } else {
+                display("You can't use that here.");
+            }
+        }
 
-    // Player's initial state
-    let playerLocation = "start";
-    let playerInventory = [];
+        // Function to restart the game
+        function restartGame() {
+            location.reload();
+        }
 
-    // Code for opening the chest
-    function openChest(item) {
-        display("Congratulations! You unlocked the chest and won the game.");
-        // Wait 3 seconds then restart the game
-        setTimeout(restartGame, 3000);
-    }
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // START MODIFYING THE CODE HERE
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    // Code for 'using' the flask
-    function useFlask() {
-        display("You can't get ye flask!");
-    }
-    
-    // Template code for using an item
-    function ActionFunction() {
-        // Add logic for using an item
-    }
+        // Define the game's map and player's initial location
+        const gameMap = {
+            start: {
+                description: "You are in a dark room. There is a door to the north.",
+                north: "hallway",
+                use:  { "flask": useFlask },
+            },
+            hallway: {
+                description: "You are in a long hallway. There are doors to the east and west.",
+                east: "kitchen",
+                west: "bedroom",
+                south: "start",
+                take: ["flask"],
+            },
+            kitchen: {
+                description: "You are in a kitchen. There is a key on the table.",
+                west: "hallway",
+                take: ["key"],
+            },
+            bedroom: {
+                description: "You are in a bedroom. There is a locked chest.",
+                east: "hallway",
+                use:  { "key": openChest },
+            },
+            TEMPLATE_ROOM_NANE: {
+                description: "You are in a bedroom. There is a locked chest.",
+                DIRECTION: "NEXT_ROOM_NAME",
+                use:  {
+                        ITEM_1_NAME: ActionFunction,
+                        ITEM_2_NAME: ActionFunction
+                    },
+                take: ["ITEM_1_NAME", "ITEM_2_NAME"],
+            },
+        };
 
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    // START THE GAME HERE
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // Player's initial state
+        let playerLocation = "start";
+        let playerInventory = [];
 
-    // Display game introduction and instructions
-    display("Welcome to YOUR Text Adventure Game!");
-    display("Enter commands to explore and interact with the game world. Type 'help' for a list of commands.");
-    display("   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   ");
-    look();
-</script>
+        // Code for opening the chest
+        function openChest(item) {
+            display("Congratulations! You unlocked the chest and won the game.");
+            // Wait 3 seconds then restart the game
+            setTimeout(restartGame, 3000);
+        }
+
+        // Code for 'using' the flask
+        function useFlask() {
+            display("You can't get ye flask!");
+        }
+
+        // Template code for using an item
+        function ActionFunction() {
+            // Add logic for using an item
+        }
+
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // START THE GAME HERE
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        // Display game introduction and instructions
+        // display("Welcome to YOUR Text Adventure Game!");
+        // display("Enter commands to explore and interact with the game world. Type 'help' for a list of commands.");
+        // display("   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   ");
+        // look();
+    </script>
 </html>
