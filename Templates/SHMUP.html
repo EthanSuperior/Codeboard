@@ -61,7 +61,7 @@
         // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         function showDeath() {
-            UI.Popup(150, 250, 300, 200, "You Died", `Final Score: ${player.score}`, 50, {
+            UI.Dialogue(150, 250, 300, 200, "You Died", `Final Score: ${player.score}`, 50, {
                 cornerRadius: 25,
                 background: "white",
                 color: "black",
@@ -72,7 +72,7 @@
             }).show();
         }
         function addUI() {
-            const hud = UI.Base();
+            const hud = UI.Blank({ overlay: true });
             const healthUI = hud.add(
                 UI.Text(`HP: ${player.hp}`, 10, 30, {
                     font: "24px monospace",
@@ -87,7 +87,7 @@
                     onupdate: () => (killsUI.text = `Score: ${player.score}`),
                 })
             );
-            hud.show({ overlay: true });
+            hud.show();
         }
 
         // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -272,13 +272,13 @@
 
         const waves = {
             0: {
-                zombie: {
-                    quantity: 2,
-                    interval: 2,
+                brute: {
+                    quantity: 1,
+                    interval: 10,
                 },
             },
             15: {
-                zombie: {
+                brute: {
                     quantity: 3,
                     interval: 2,
                 },
@@ -348,6 +348,7 @@
                     this.x = player.x;
                     this.y = player.y;
                     playSoundEffect("shoot.wav", { volume: 0.3 });
+                    // UI.Popup("PEW", this.x - 20, this.y - 10, { color: "white" });
                 },
                 onupdate: function (delta) {
                     if (outOfBounds(this, 20)) this.despawn();
