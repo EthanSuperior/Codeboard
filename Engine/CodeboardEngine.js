@@ -330,12 +330,18 @@ class IterableWeakRef {
 class LayerManager extends Interactable {
     static instance = new LayerManager("LayerManager");
     static lastTimestamp;
-    static global;
     static ispaused = true;
     propagate = (call, ...args) => {
         if (!LayerManager.global.ispaused) LayerManager.global.raise(call, ...args);
-        if (!LayerManager.currentLayer.ispaused) LayerManager.currentLayer.raise(call, ...args);
+        if (!!LayerManager.children.length && !LayerManager.currentLayer.ispaused)
+            LayerManager.currentLayer.raise(call, ...args);
     };
+    static get global() {
+        return LayerManager.children[-1];
+    }
+    static set global(val) {
+        LayerManager.children[-1] = val;
+    }
     static get children() {
         return LayerManager.instance.children;
     }
@@ -395,23 +401,25 @@ class LayerManager extends Interactable {
         LayerManager.global.resume();
         LayerManager.currentLayer?.resume();
     }
-    static registerLayer(layer) {
+    static add(layer) {
         LayerManager.currentLayer?.pause();
         LayerManager.instance.add(layer);
+        Object.values(Entity.types).forEach((t) => t.group.push([]));
         layer.resume();
+        layer.position = LayerManager.children.length - 1;
     }
-    static unregisterLayer(layer) {
+    static remove(layer) {
         layer.pause();
         LayerManager.instance.remove(layer.id);
+        Object.values(Entity.types).forEach((t) => t.group.pop());
         LayerManager.currentLayer?.resume();
     }
 }
 class Layer extends Interactable {
-    constructor({ id, layerNum } = {}, calls = {}) {
+    constructor({ id } = {}, calls = {}) {
         super(id);
         this.entities = { Entity: new IterableWeakRef() };
         for (let v in Entity.types) this.entities[v] = new IterableWeakRef();
-        this.layerNum = layerNum;
         for (let key in calls) this[key] = calls[key];
     }
     // Base Methods
@@ -487,21 +495,10 @@ class Layer extends Interactable {
     scaleX;
     scaleY;
     updateRate = 0;
-    addEntity = (entity) => {
-        this.entities[entity.groupName] ??= new IterableWeakRef();
-        this.entities[entity.groupName].push(entity);
-        if (this.pixelPerfect) entity.pixelPerfect = true;
-    };
-    removeEntity = (entity) => {
-        this.entities[entity.groupName]?.remove(entity.id);
-    };
     propagate = (call, ...args) => {
         this.raise("on" + call, ...args);
         this.children.forEach((c) => c.raise(call, ...args));
-        for (let v in Entity.types) {
-            this.entities[v] ??= new IterableWeakRef();
-            this.entities[v].forEach((e) => e.raise(call, ...args));
-        }
+        this.getEntities().forEach((c) => c.raise(call, ...args));
     };
     // Game Update Events
     update = (delta) => {
@@ -527,16 +524,28 @@ class Layer extends Interactable {
             ctx.translate(game.width / 2 - this.cameraX, game.height / 2 - this.cameraY);
         }
         if (this.scaleX && this.scaleY) ctx.scale(this.scaleX, this.scaleY);
-        for (let v in Entity.types) {
-            this.entities[v] ??= new IterableWeakRef();
-            this.entities[v].forEach((e) => e.raise("draw"));
-        }
+        this.getEntities().forEach((c) => c.raise("draw"));
         ctx.restore();
     };
+    getEntities = (groupName) => {
+        if (!groupName) {
+            return Object.values(Entity.types)
+                .map((t) => t.group[this.position])
+                .flat();
+        } else {
+            return Entity.types[groupName].group[this.position];
+        }
+    };
+    removeEntity(entity) {
+        const idx = entity.layer.getEntities(entity.groupName).findIndex((e) => e.id === entity.id);
+        if (idx == -1) return;
+        entity.layer.getEntities(entity.groupName).splice(idx, 1);
+    }
 }
 class GlobalLayer extends Layer {
+    settings = {};
     constructor() {
-        super({ layerNum: null, id: "global" });
+        super({ layerNum: -1, id: "global" });
     }
     keydown = (e) => {
         keys[e.code] = true;
@@ -641,10 +650,11 @@ class Task extends Identifiable {
 }
 class UIElement extends Interactable {
     children = [];
-    constructor(x, y, options = {}) {
+    constructor(x, y, { layer, ...options } = {}) {
         super(options.id);
         this.x = x;
         this.y = y;
+        this.layer = layer;
         this.options = options;
         for (let v in options)
             Object.defineProperty(this, v, {
@@ -667,17 +677,18 @@ class UIElement extends Interactable {
     click = (e) => {
         if (this.detect(e.mouseX, e.mouseY)) this.propagate("click", e);
     };
-    show = ({ overlay } = {}) => {
-        if (overlay) this.layerNum = LayerManager.activeLayer;
-        else LayerManager.registerLayer(new Layer());
-        LayerManager.currentLayer.add(this);
-        this.layer = this.parent;
-        this.parent = null;
+    show = () => {
+        this.raise("onshow");
+        this.children.forEach((c) => c.raise("onshow"));
+        if (!this.layer) {
+            if (this.options.overlay) this.layer = LayerManager.currentLayer;
+            else this.layer = LayerManager.add(new Layer());
+        }
+        this.layer.add(this);
     };
     detect = (mX, mY) => true;
     hide = () => {
-        if (!this.parent) LayerManager.unregisterLayer(this.layer);
-        else this.layer.remove(this);
+        this.parent.remove(this);
     };
     onadd = (ui) => {
         ui.shift(this.x, this.y);
@@ -692,6 +703,7 @@ class UI {
     /**
      * Options for configuring UI elements and their event callbacks.
      * @typedef {object} UIOptions
+     * @property {boolean} [overlay] - Render to current layer or not
      * @property {function(number)} [onupdate] - Callback for the update event.
      * @property {function()} [oninteract] - Callback for the interact event.
      * @property {function(Event)} [onkeydown] - Callback for the keydown event.
@@ -911,7 +923,7 @@ class UI {
             ...options,
         });
     };
-    static Popup = (
+    static Dialogue = (
         x,
         y,
         width,
@@ -921,7 +933,7 @@ class UI {
         scale,
         { cornerRadius, color, buttonText = "Close", onclick, background, ...options } = {}
     ) => {
-        UI.Popup.classRef ??= class UIPopup extends UIElement {
+        UI.Dialogue.classRef ??= class UIDialogue extends UIElement {
             detect = (mX, mY) =>
                 detectRect(
                     this.x + this.scale / 2,
@@ -957,7 +969,7 @@ class UI {
                 });
             };
         };
-        const popup = new UI.Popup.classRef(x, y, {
+        const dialogue = new UI.Dialogue.classRef(x, y, {
             width,
             height,
             title,
@@ -970,8 +982,8 @@ class UI {
             background,
             ...options,
         });
-        popup.onclick ??= () => popup.hide();
-        return popup;
+        dialogue.onclick ??= () => dialogue.hide();
+        return dialogue;
     };
     static Scroll = (
         x,
@@ -1145,7 +1157,6 @@ class UI {
             ...options,
         });
     };
-
     /**
      * Create a Grid UI element.
      *
@@ -1172,7 +1183,6 @@ class UI {
         listItems.forEach((c) => UIList.add(c));
         return UIList;
     };
-
     /**
      * Creates a Grid UI element.
      *
@@ -1221,6 +1231,22 @@ class UI {
 
         return UIGrid;
     };
+    static Toast = (text, x, y, { duration = 3, ...options } = {}) => {
+        UI.Toast.classRef ??= class UIToast extends UI.Text.classRef {
+            onshow = () => scheduleTask(() => this.hide(), { time: this.duration });
+        };
+        new UI.Toast.classRef(x, y, { text, duration, ...options, overlay: true });
+    };
+    static Popup = (text, x, y, { lerpMovement, duration = 0.4, ...options } = {}) => {
+        lerpMovement ??= function (t) {
+            this.y -= Math.sin(t * Math.PI);
+        };
+        UI.Popup.classRef ??= class UIPopup extends UI.Toast.classRef {};
+        const popup = new UI.Popup.classRef(x, y, { text, duration, ...options, overlay: true });
+        startLerp(popup, lerpMovement, duration);
+        popup.show();
+    };
+
     static colorPath = ({ hovered, fill, stroke, strokeWidth, hoverFill, hoverStroke, hoverWidth } = {}) => {
         ctx.fillStyle = (hovered && hoverFill) || fill;
         if (fill || (hovered && hoverFill)) ctx.fill();
@@ -1295,24 +1321,18 @@ class UI {
 }
 class Entity extends Identifiable {
     static types = {};
-    constructor({ layerNum } = {}) {
-        super();
-        this.x = 0;
-        this.y = 0;
-        this.size = 0;
-        this.dir = null;
-        this.speed = 0;
-        this.exp = 0;
-        this.neededXP = 0;
-        this.level = 0;
-        this.staticX = false;
-        this.staticY = false;
-        this.groupName = "Entity";
-        if (layerNum) LayerManager.get(layerNum);
-    }
+    x = 0;
+    y = 0;
+    size = 0;
+    dir = null;
+    speed = 0;
+    exp = 0;
+    neededXP = 0;
+    level = 0;
+    staticX = false;
+    staticY = false;
+    groupName = "Entity";
     update = (delta) => {
-        if (this.groupName === "Player") debugger;
-
         if (this.acceleration) this.speed = clamp(this.speed + this.acceleration, 0, this.maxSpeed);
         this.raise("onupdate", delta);
         if (this.speed && this.dir !== null && this.dir !== undefined) {
@@ -1327,9 +1347,18 @@ class Entity extends Identifiable {
     };
     checkCollision = () => {
         for (let group of this.collisions) {
-            for (let e of Entity.types[group].group) {
+            for (let e of this.layer.getEntities(group)) {
                 if (group === this.groupName && e.id === this.id) continue;
-                if (this.distanceTo(e) <= (this.size + e.size) / 2) this.raise("collide", e);
+                if (this.groupName === "Bullet")
+                    console.log(
+                        this.distanceTo(e),
+                        (this.size + e.size) / 2,
+                        this.distanceTo(e) <= (this.size + e.size) / 2
+                    );
+                if (this.distanceTo(e) <= (this.size + e.size) / 2) {
+                    game.background = "red";
+                    this.raise("collide", e);
+                } else game.background = "black";
             }
         }
     };
@@ -1337,7 +1366,9 @@ class Entity extends Identifiable {
     spawn = () => {
         if (this.acceleration) this.maxSpeed ??= this.speed;
         if (this.hp) this.maxHP ??= this.hp;
+        Entity.types[this.groupName].group[this.layer.position].push(this);
         this.raise("onspawn");
+        if (this.lifespan) this.lifeTimer = scheduleTask(() => this.despawn(), { time: this.lifespan });
     };
     do = (func, ...args) => func.call(this, ...args);
     draw = () => {
@@ -1421,31 +1452,59 @@ class Entity extends Identifiable {
         return Math.abs(this.velocityY) < 1e-10 ? 0 : Math.sign(this.velocityY);
     }
 }
+/**
+ * Represents the main game layer in the application.
+ * @extends Layer
+ * @class
+ */
 class GameLayer extends Layer {
+    /**
+     * Constructs a new instance of the GameLayer class.
+     */
     constructor() {
         super({ id: "game" });
     }
+    /**
+     * Clears the screen and fills it with the specified background color.
+     * @type {function}
+     */
     ondraw = () => {
         UI.fillScreen({ color: this.background });
     };
+    /**
+     * Get the width of the game.
+     * @type {number}
+     */
     get width() {
         return canvas.width / (this.scaleX ?? 1);
     }
+    /**
+     * Set the width of the game.
+     * @type {number}
+     */
     set width(value) {
-        canvas.width = value;
+        canvas.width = value * (this.scaleX ?? 1);
     }
+    /**
+     * Get the height of the game.
+     * @type {number}
+     */
     get height() {
-        return canvas.height / (this.scaleX ?? 1);
+        return canvas.height / (this.scaleY ?? 1);
     }
+    /**
+     * Set the height of the game.
+     * @type {number}
+     */
     set height(value) {
-        canvas.height = value;
+        canvas.height = value * (this.scaleY ?? 1);
     }
 }
 function registerEntity(name, options, types) {
     const upperName = name[0].toUpperCase() + name.slice(1);
     const lowerName = name[0].toLowerCase() + name.slice(1);
     const newSubclass = class extends Entity {
-        static group = [];
+        static group;
         static get subtypes() {
             return types;
         }
@@ -1454,6 +1513,8 @@ function registerEntity(name, options, types) {
         }
         groupName = name;
     };
+    newSubclass.group = Array.from({ length: LayerManager.children.length }, () => []);
+    newSubclass.group[-1] = [];
     newSubclass.prototype.groupName = name;
     Object.defineProperty(globalThis, lowerName + "Group", {
         get() {
@@ -1465,30 +1526,27 @@ function registerEntity(name, options, types) {
     });
     globalThis["spawn" + upperName] = (subType, additional) => {
         const newEntity = new newSubclass();
+        Object.assign(newEntity, game.settings);
         Object.assign(newEntity, options);
         Object.assign(newEntity, subType);
         Object.assign(newEntity, additional);
 
         Object.keys(newEntity).forEach((key) => {
             if (key.startsWith("on")) {
-                const eventName = key.substring(2); // Remove "on" prefix
-                if (!newEntity[eventName])
-                    newEntity[eventName] = function (...args) {
-                        this.raise(key, ...args);
-                    }.bind(newEntity);
+                const eventName = key.substring(2);
+                if (!newEntity[eventName]) newEntity[eventName] = (...args) => newEntity.raise(key, ...args);
             }
         });
-
-        globalThis[lowerName + "Group"].push(newEntity);
         newEntity.layer = LayerManager.currentLayer;
-        newEntity.layer.addEntity(newEntity);
         newEntity.raise("spawn");
-        if (newEntity.lifespan)
-            newEntity.lifeTimer = scheduleTask(() => newEntity.despawn(), { time: newEntity.lifespan });
         return newEntity;
     };
     globalThis["forEvery" + upperName + "Do"] = (func, ...args) => {
-        for (let i = newSubclass.group.length - 1; i >= 0; i--) newSubclass.group[i]?.do(func, ...args);
+        for (let i = newSubclass.group[-1].length - 1; i >= 0; i--) newSubclass.group[i]?.do(func, ...args);
+        if (LayerManager.children.length != 0) {
+            const entities = LayerManager.currentLayer.getEntities(name);
+            for (let i = entities.length - 1; i >= 0; i--) entities[i]?.do(func, ...args);
+        }
     };
     if (types) {
         for (let type in types) types[type].type = type;
@@ -1503,9 +1561,6 @@ function despawnEntity(entity) {
     if (!entity) return;
     entity.raise("ondespawn");
     if (entity.lifeTimer) clearTask(entity.lifeTimer);
-    const idx = Entity.types[entity.groupName].group.findIndex((e) => e.id === entity.id);
-    if (idx == -1) return;
-    Entity.types[entity.groupName].group.splice(idx, 1);
     entity.layer.removeEntity(entity);
 }
 function onboxcollide(other) {
@@ -1543,12 +1598,12 @@ function onboxcollide(other) {
 }
 
 const global = (LayerManager.global = new GlobalLayer());
-
+global.position = -1;
 const game = new GameLayer();
 
-LayerManager.registerLayer(game);
+LayerManager.add(game);
 
-// TODO LIST:
+// TODO
 // Finish onboxcollide and make oncirclecollide
 // Check how to make events not bubble down all UI layers, but be consumed by things like btns etc. (double scroll etc)
 //   Check with console.log to see what onX's are actually being called, maybe a break or something in propagate for those?
@@ -1559,6 +1614,12 @@ LayerManager.registerLayer(game);
 // Add Animations and .frames =>not lerp and playAnimation() => lerp/task
 // Add comments && doc strings
 // Add Example Template
+// Make layer an arg of UI and Entity
+// Make Tile Layer
+// Spacial Partitioning
+// Nav Mesh
+// Pathfinding
+// Particle System
 // Add Platformer and Tile Template
 //   https://www.freecodecamp.org/news/learning-javascript-by-making-a-game-4aca51ad9030/
 //   https://jobtalle.com/2d_platformer_physics.html
