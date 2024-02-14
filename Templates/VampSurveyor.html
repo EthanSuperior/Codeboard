@@ -54,7 +54,7 @@
         // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         function addUI() {
-            const hud = UI.Base();
+            const hud = UI.Blank({ overlay: true });
 
             const healthUI = hud.add(UI.Text(`HP: ${player.hp}`, 10, 36, { font: "24px monospace", color: "red" }));
             healthUI.onupdate = () => (healthUI.text = `HP: ${player.hp}`);
@@ -74,7 +74,7 @@
                     fill: "#2165db",
                 })
             );
-            hud.show({ overlay: true });
+            hud.show();
         }
 
         function showLevelUp(options) {
@@ -117,7 +117,7 @@
         }
 
         function showDeath() {
-            const popup = UI.Popup(250, 200, 300, 200, "You Died", `Final Score: ${player.kills}`, 50, {
+            UI.Dialogue(250, 200, 300, 200, "You Died", `Final Score: ${player.kills}`, 50, {
                 cornerRadius: 25,
                 background: "white",
                 color: "black",
