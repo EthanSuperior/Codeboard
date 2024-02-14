@@ -42,3 +42,21 @@ For more details, view the full legal text at: [CC0 License](https://creativecom
     -   https://jobtalle.com/2d_platformer_physics.html
     -   https://www.educative.io/answers/how-to-make-a-simple-platformer-using-javascript
     -   https://eloquentjavascript.net/15_event.html
+
+## Code Structure
+
+```
+Manager
+│   ┌───GlobalLayer
+│   ├───GameLayer
+└───Layer
+    ├───RootUI  ┌───UIElements
+    │    └───UI─┼───UIElement
+    │           └───UIElement
+    ├───SpacialGrid
+    │   └───Entity
+    │       └───Register/Spawn<X>
+    └───Async
+        ├───Task
+        └───Lerp
+```
