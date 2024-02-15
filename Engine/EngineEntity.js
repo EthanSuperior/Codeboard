@@ -159,17 +159,10 @@ function registerEntity(name, options, types) {
     });
     globalThis["spawn" + upperName] = (subType, additional) => {
         const newEntity = new newSubclass();
-        Object.assign(newEntity, game.settings);
-        Object.assign(newEntity, options);
-        Object.assign(newEntity, subType);
-        Object.assign(newEntity, additional);
-
-        Object.keys(newEntity).forEach((key) => {
-            if (key.startsWith("on")) {
-                const eventName = key.substring(2);
-                if (!newEntity[eventName]) newEntity[eventName] = (...args) => newEntity.raise(key, ...args);
-            }
-        });
+        MergeOntoObject(newEntity, game.settings);
+        MergeOntoObject(newEntity, options);
+        MergeOntoObject(newEntity, subType);
+        MergeOntoObject(newEntity, additional);
         newEntity.layer = LayerManager.currentLayer;
         newEntity.raise("spawn");
         return newEntity;
@@ -182,10 +175,15 @@ function registerEntity(name, options, types) {
         }
     };
     if (types) {
-        for (let type in types) types[type].type = type;
+        const typeKeys = Object.keys(types);
+        for (let i = 0; i < typeKeys.length; i++) {
+            const type = typeKeys[i];
+            types[type].type = type;
+        }
         globalThis[lowerName + "Types"] = types;
         globalThis["forEvery" + upperName + "TypeDo"] = (func, ...args) => {
-            for (let type in newSubclass.subtypes) func.call(newSubclass.subtypes[type], ...args);
+            const keys = Object.keys(newSubclass.subtypes);
+            for (let i = 0; i < keys.length; i++) func.call(newSubclass.subtypes[keys[i]], ...args);
         };
     }
     Entity.types[name] = newSubclass;

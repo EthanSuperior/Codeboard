@@ -24,6 +24,7 @@
         game.cameraX = 0;
         game.cameraY = 0;
         game.background = "#2a4720";
+
         function load() {
             registerEntity(
                 "Enemy",
@@ -72,7 +73,7 @@
                     lifespan: 60,
                     collisions: ["Player"],
                     oncollide: function (other) {
-                        this.pickup();
+                        this.pickup(other);
                         this.despawn();
                     },
                 },
@@ -398,7 +399,7 @@
                 size: 12,
                 value: 1,
                 rarity: 1,
-                onpickup: function () {
+                onpickup: function (other) {
                     player.xp += this.value;
                 },
             },

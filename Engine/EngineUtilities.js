@@ -86,3 +86,22 @@ const playMusic = (source, options) => {
     if (options?.global) return LayerManager.global.playMusic(source, options);
     else return LayerManager.currentLayer.playMusic(source, options);
 };
+
+const MergeOntoObject = (target, source) => {
+    const sourceKeys = Object.keys(source);
+    for (let i = 0; i < sourceKeys.length; i++) {
+        const key = sourceKeys[i];
+        if (key.startsWith("on")) {
+            if (typeof source[key] === "function" && typeof target[key] === "function") {
+                // If the key already exists and is a function in the target, append the function
+                const func = target[key];
+                target[key] = (...args) => {
+                    func(...args);
+                    source[key].call(target, ...args);
+                };
+            }
+            if (!target[key.split(2)]) target[key.split(2)] = (...args) => target.raise(key, ...args);
+        } else target[key] = source[key];
+    }
+    return target;
+};

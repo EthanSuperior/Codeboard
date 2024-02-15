@@ -47,14 +47,14 @@ For more details, view the full legal text at: [CC0 License](https://creativecom
 ## Code Structure
 
 ```
-Manager
-│   ┌───GlobalLayer
-│   ├───GameLayer
-└───Layer
-    ├───RootUI  ┌───UIElements
+Manager                     Layer => LayerManager
+│   ┌───GlobalLayer         ├─[IO]── UI => UIRoot
+│   ├───GameLayer           ├─[dT]── Entities => SpacialMap
+└───Layer                   └─[dT]── Tasks => AsyncManager
+    ├───RootUI  ┌───UIElement        └─── w/ onUpdate
     │    └───UI─┼───UIElement
     │           └───UIElement
-    ├───SpacialGrid
+    ├───SpacialMap
     │   └───Entity
     │       └───Register/Spawn<X>
     └───Async

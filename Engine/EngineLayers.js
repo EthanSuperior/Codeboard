@@ -2,8 +2,10 @@ class Layer extends Interactable {
     constructor({ id } = {}, calls = {}) {
         super(id);
         this.entities = { Entity: new IterableWeakRef() };
-        for (let v in Entity.types) this.entities[v] = new IterableWeakRef();
-        for (let key in calls) this[key] = calls[key];
+
+        const keys = Object.keys(Entity.types);
+        for (let i = 0; i < keys.length; i++) this.entities[keys[i]] = new IterableWeakRef();
+        MergeOntoObject(this, calls);
     }
     // Base Methods
     open = () => this.propagate("open");

@@ -21,7 +21,9 @@ class UIElement extends Interactable {
         this.y = y;
         this.layer = layer;
         this.options = options;
-        for (let v in options)
+        const keys = Object.keys(options);
+        for (let i = 0; i < keys.length; i++) {
+            const v = keys[i];
             Object.defineProperty(this, v, {
                 set(val) {
                     this.options[v] = val;
@@ -30,6 +32,7 @@ class UIElement extends Interactable {
                     return this.options[v];
                 },
             });
+        }
     }
     draw = () => this.propagate("draw");
     mousedown = (e) => {
