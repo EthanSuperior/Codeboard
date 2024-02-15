@@ -28,16 +28,17 @@ class Entity extends Identifiable {
         for (let group of this.collisions) {
             for (let e of this.layer.getEntities(group)) {
                 if (group === this.groupName && e.id === this.id) continue;
-                if (this.groupName === "Bullet")
-                    console.log(
-                        this.distanceTo(e),
-                        (this.size + e.size) / 2,
-                        this.distanceTo(e) <= (this.size + e.size) / 2
-                    );
+                // if (this.groupName === "Bullet")
                 if (this.distanceTo(e) <= (this.size + e.size) / 2) {
-                    game.background = "red";
+                    // console.log(
+                    //     this.distanceTo(e),
+                    //     (this.size + e.size) / 2,
+                    //     this.distanceTo(e) <= (this.size + e.size) / 2
+                    // );
+                    // game.background = "red";
                     this.raise("collide", e);
-                } else game.background = "black";
+                }
+                //  else game.background = "black";
             }
         }
     };

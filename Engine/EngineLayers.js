@@ -321,8 +321,8 @@ class LayerManager extends Interactable {
     }
 }
 
-const global = (LayerManager.global = new GlobalLayer());
-global.position = -1;
-const game = new GameLayer();
-
-LayerManager.add(game);
+LayerManager.global = new GlobalLayer();
+LayerManager.global.position = -1;
+globalThis.global = LayerManager.global;
+globalThis.game = new GameLayer();
+LayerManager.add(globalThis.game);
