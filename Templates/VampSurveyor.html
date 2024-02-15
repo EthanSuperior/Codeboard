@@ -64,6 +64,10 @@
                         spawnDrops(other);
                         other.despawn();
                     },
+                    onspawn: function () {
+                        this.x = player.x;
+                        this.y = player.y;
+                    },
                 },
                 weaponTypes
             );
@@ -265,8 +269,6 @@
                 rate: 0.8,
                 lifespan: 4,
                 onspawn: function () {
-                    this.x = player.x;
-                    this.y = player.y;
                     const spread = 45 * (Math.PI / 180);
                     this.dir = Math.random() * spread - spread / 2 - Math.PI / 2;
                     this.speed += -25 + Math.random() * 50;
@@ -298,8 +300,6 @@
                 rate: 0.4,
                 lifespan: 50,
                 onspawn: function () {
-                    this.x = player.x;
-                    this.y = player.y;
                     const offset = (this.spawnOrder - (this.count - 1) / 2) * 0.1;
                     this.dir = player.dir;
                     // TODO CLEAN UP
@@ -334,8 +334,6 @@
                 staticY: true,
                 lifespan: 0.1,
                 onspawn: function () {
-                    this.x = player.x;
-                    this.y = player.y;
                     const isFirst = !(this.spawnOrder % 2);
                     if (Math.cos(player.dir) > 0) this.dir = isFirst ? 0 : Math.PI;
                     else this.dir = isFirst ? Math.PI : 0;
@@ -483,6 +481,7 @@
         const player = spawnPlayer({
             color: "olive",
             size: 20,
+            dir: 0,
         });
     </script>
 </html>

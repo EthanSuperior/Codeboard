@@ -88,6 +88,7 @@ const playMusic = (source, options) => {
 };
 
 const MergeOntoObject = (target, source) => {
+    if (!source) return target;
     const sourceKeys = Object.keys(source);
     for (let i = 0; i < sourceKeys.length; i++) {
         const key = sourceKeys[i];
@@ -99,8 +100,9 @@ const MergeOntoObject = (target, source) => {
                     func(...args);
                     source[key].call(target, ...args);
                 };
-            }
-            if (!target[key.split(2)]) target[key.split(2)] = (...args) => target.raise(key, ...args);
+            } else target[key] = source[key];
+            const event = key.slice(2);
+            if (!target[event] && !source[event]) target[event] = (...args) => target.raise(key, ...args);
         } else target[key] = source[key];
     }
     return target;

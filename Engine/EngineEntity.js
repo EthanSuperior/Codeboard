@@ -1,16 +1,19 @@
 class Entity extends Identifiable {
     static types = {};
-    x = 0;
-    y = 0;
-    size = 0;
-    dir = null;
-    speed = 0;
-    exp = 0;
-    neededXP = 0;
-    level = 0;
-    staticX = false;
-    staticY = false;
-    groupName = "Entity";
+    constructor() {
+        super();
+        this.x = 0;
+        this.y = 0;
+        this.size = 0;
+        this.dir = null;
+        this.speed = 0;
+        this.exp = 0;
+        this.neededXP = 0;
+        this.level = 0;
+        this.staticX = false;
+        this.staticY = false;
+        this.groupName = "Entity";
+    }
     update = (delta) => {
         if (this.acceleration) this.speed = clamp(this.speed + this.acceleration, 0, this.maxSpeed);
         this.raise("onupdate", delta);
@@ -137,18 +140,20 @@ function registerEntity(name, options, types) {
     const upperName = name[0].toUpperCase() + name.slice(1);
     const lowerName = name[0].toLowerCase() + name.slice(1);
     const newSubclass = class extends Entity {
-        static group;
-        static get subtypes() {
-            return types;
-        }
-        static set subtypes(value) {
-            types = value;
-        }
         groupName = name;
     };
-    newSubclass.group = Array.from({ length: LayerManager.children.length }, () => []);
-    newSubclass.group[-1] = [];
-    newSubclass.prototype.groupName = name;
+    Object.defineProperty(newSubclass, "subtypes", {
+        set(value) {
+            types = value;
+        },
+        get() {
+            return types;
+        },
+    });
+    Object.defineProperty(newSubclass, "group", {
+        value: Array.from({ length: LayerManager.children.length }, () => []),
+    });
+    newSubclass.group = newSubclass.group[-1] = [];
     Object.defineProperty(globalThis, lowerName + "Group", {
         get() {
             return newSubclass.group;

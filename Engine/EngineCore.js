@@ -2,7 +2,9 @@ class Identifiable {
     constructor(id) {
         this.id = id || crypto.randomUUID();
     }
-    raise = (call, ...args) => this[call] && this[call].call(this, ...args);
+    raise = (call, ...args) => {
+        if (this.hasOwnProperty(call)) this[call].call(this, ...args);
+    };
 }
 class Interactable extends Identifiable {
     children = [];
