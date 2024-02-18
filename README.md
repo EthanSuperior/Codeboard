@@ -60,4 +60,10 @@ Manager                     Layer => LayerManager
     └───Async
         ├───Task
         └───Lerp
+
+
+Global Observer
+=== Quests and Things like kill all enemies
+= Spawn Wave part of Timing Scheduler
+= 
 ```
