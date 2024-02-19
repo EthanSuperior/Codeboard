@@ -59,6 +59,13 @@ Manager                 Layer => LayerManager
         ├───Task            └───Register/Spawn<X>
         └───Lerp
 FUTURE
+├───Tile System
+│   └───Default Entity Type?
+├───Collision Layer
+│   ├───NavMesh
+│   └───Pathfinding
+├───Entity Drops
+│   └───Spread/Jitter Utils
 ├───Additonal Events
 │   └───OnDamage etc.
 ├───Particle System
