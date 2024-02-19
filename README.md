@@ -47,23 +47,31 @@ For more details, view the full legal text at: [CC0 License](https://creativecom
 ## Code Structure
 
 ```
-Manager                     Layer => LayerManager
-│   ┌───GlobalLayer         ├─[IO]── UI => UIRoot
-│   ├───GameLayer           ├─[dT]── Entities => SpacialMap
-└───Layer                   └─[dT]── Tasks => AsyncManager
-    ├───RootUI  ┌───UIElement        └─── w/ onUpdate
-    │    └───UI─┼───UIElement
-    │           └───UIElement
-    ├───SpacialMap
-    │   └───Entity
-    │       └───Register/Spawn<X>
-    └───Async
-        ├───Task
+Manager                 Layer => LayerManager
+│   ┌───GlobalLayer     ├─[IO]──UI => UIRoot
+│   ├───GameLayer       ├─[dT]──Entities => SpacialMap
+└───Layer               └─[dT]──Tasks => AsyncManager
+    ├───RootUI                  └─── w/ onUpdate
+    │   └───UIElements      GlobalObserver
+    ├───SpacialMap          ├───Quest System
+    │   └───Entity          └───Event Scheduler
+    └───AsyncManager        Entity
+        ├───Task            └───Register/Spawn<X>
         └───Lerp
-
-
-Global Observer
-=== Quests and Things like kill all enemies
-= Spawn Wave part of Timing Scheduler
-= 
+FUTURE
+├───Additonal Events
+│   └───OnDamage etc.
+├───Particle System
+│   └───Entities?
+├───Stats
+│   └───Modifiers
+├───Inventory
+│   ├───UIDragDrop?
+│   ├───Items
+│   ├───Gear
+│   └───Consumables
+├───Abilities
+│   ├───Attacking
+│   └───Spells
+└───Conditions
 ```
