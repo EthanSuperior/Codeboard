@@ -13,8 +13,7 @@
  * @property {function(MouseEvent)} [ondblclick] - Callback for the dblclick event.
  * @property {function(WheelEvent)} [onwheel] - Callback for the wheel event.
  */
-class UIElement extends Interactable {
-    children = [];
+class UIElement extends InteractableTree {
     constructor(x, y, { layer, ...options } = {}) {
         super(options.id);
         this.x = x;
@@ -50,15 +49,14 @@ class UIElement extends Interactable {
         this.children.forEach((c) => c.raise("onshow"));
         if (!this.layer) {
             if (this.options.overlay) this.layer = LayerManager.currentLayer;
-            else this.layer = LayerManager.add(new Layer());
+            else this.layer = LayerManager.push(new Layer());
         }
-        this.layer.add(this);
-        this.parent = null;
+        this.layer.addUI(this);
     };
     detect = (mX, mY) => true;
     hide = () => {
         if (!this.parent) {
-            this.layer.remove(this);
+            this.layer.removeUI(this);
             if (this.layer.children == 0) LayerManager.remove(this.layer);
         } else this.parent.remove(this);
     };

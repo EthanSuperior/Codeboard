@@ -139,6 +139,9 @@
                 UI.ProgressBar(getProgress, 5, 5, canvas.width - 10, 12, {
                     background: "black",
                     fill: "#2165db",
+                    stroke: "#cd9958",
+                    strokeWidth: 3,
+                    cornerRadius: 30,
                 })
             );
             hud.show();
@@ -230,13 +233,6 @@
                     }
                 }
             }
-        }
-
-        function vaccumEffect(speed, maxDist) {
-            if (this.type == "vaccum" || this.type == "chest") return;
-            if (this.distanceTo(player) > maxDist) return;
-            this.speed = speed;
-            this.onupdate = () => this.angleTowards(player);
         }
 
         // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -418,7 +414,11 @@
                 value: 1,
                 rarity: 0.02,
                 onpickup: function () {
-                    forEveryPickupDo(vaccumEffect, 500);
+                    forEveryPickupDo(function () {
+                        if (this.type == "vaccum" || this.type == "chest") return;
+                        this.speed = 500 + this.distanceTo(player);
+                        this.onupdate = () => this.angleTowards(player);
+                    });
                 },
             },
         };
@@ -468,7 +468,11 @@
                 this.flipX = this.velocityXSign < 0;
                 game.cameraX = this.x;
                 game.cameraY = this.y;
-                forEveryPickupDo(vaccumEffect, 375, this.pickupRadius);
+                forEveryPickupDo(function () {
+                    if (this.distanceTo(player) > 100) return;
+                    this.speed = 375;
+                    this.onupdate = () => this.angleTowards(player);
+                });
             },
             onlevelup: function () {
                 this.neededXP += this.level * 10;

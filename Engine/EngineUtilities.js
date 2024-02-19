@@ -97,7 +97,7 @@ const MergeOntoObject = (target, source) => {
                 // If the key already exists and is a function in the target, append the function
                 const func = target[key];
                 target[key] = (...args) => {
-                    func(...args);
+                    func.call(target, ...args);
                     source[key].call(target, ...args);
                 };
             } else target[key] = source[key];

@@ -7,6 +7,21 @@ class Identifiable {
     };
 }
 class Interactable extends Identifiable {
+    propagate = (call, ...args) => this.raise("on" + call, ...args);
+    update = (delta) => this.propagate("update", delta);
+    interact = () => this.propagate("interact");
+    // IO Events
+    keydown = (e) => this.propagate("keydown", e);
+    keyup = (e) => this.propagate("keyup", e);
+    // Mouse IO Events
+    mousedown = (e) => this.propagate("mousedown", e);
+    mouseup = (e) => this.propagate("mouseup", e);
+    mousemove = (e) => this.propagate("mousemove", e);
+    click = (e) => this.propagate("click", e);
+    dblclick = (e) => this.propagate("dblclick", e);
+    wheel = (e) => this.propagate("wheel", e);
+}
+class InteractableTree extends Interactable {
     children = [];
     parent = null;
     get root() {
@@ -30,18 +45,6 @@ class Interactable extends Identifiable {
         this.raise("on" + call, ...args);
         this.children.forEach((c) => c?.raise(call, ...args));
     };
-    update = (delta) => this.propagate("update", delta);
-    interact = () => this.propagate("interact");
-    // IO Events
-    keydown = (e) => this.propagate("keydown", e);
-    keyup = (e) => this.propagate("keyup", e);
-    // Mouse IO Events
-    mousedown = (e) => this.propagate("mousedown", e);
-    mouseup = (e) => this.propagate("mouseup", e);
-    mousemove = (e) => this.propagate("mousemove", e);
-    click = (e) => this.propagate("click", e);
-    dblclick = (e) => this.propagate("dblclick", e);
-    wheel = (e) => this.propagate("wheel", e);
 }
 class IterableWeakRef {
     #list = [];
