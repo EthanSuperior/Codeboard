@@ -65,7 +65,6 @@ const LayerManager = new (class LayerManager extends InteractableTree {
     push = (layer) => {
         this.currentLayer?.pause();
         layer.position = this.children.length;
-        console.log(layer);
         layer.parent = this;
         this.children.push(layer);
         Object.values(Entity.types).forEach((t) => t.group.push([]));

@@ -1,4 +1,4 @@
-class Entity extends Identifiable {
+class Entity extends Interactable {
     static types = {};
     constructor() {
         super();

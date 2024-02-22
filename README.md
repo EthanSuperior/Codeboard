@@ -48,9 +48,9 @@ For more details, view the full legal text at: [CC0 License](https://creativecom
 
 ```
 Manager                 Layer => LayerManager
-│   ┌───GlobalLayer     ├─[IO]──UI => UIRoot
-│   ├───GameLayer       ├─[dT]──Entities => SpacialMap
-└───Layer               └─[dT]──Tasks => AsyncManager
+│   ┌───GlobalLayer     ├─{IO}──UI => UIRoot
+│   ├───GameLayer       ├─{dT}──Entities => SpacialMap
+└───Layer               └─{dT}──Tasks => AsyncManager
     ├───RootUI                  └─── w/ onUpdate
     │   └───UIElements      PlayerTracker
     ├───SpacialMap          ├───Quest System
@@ -61,26 +61,29 @@ Manager                 Layer => LayerManager
 FUTURE
 ├───Entity
 │   ├───Events OnDamage etc.
-│   ├───AI
-│   └───IO Events? onClick?
+│   ├───IO Events? onClick? [✓]
+│   ├───Controller
+│   │   ├───AI/Player change dir
+│   │   └───lateUpdate for Abilities?
+│   ├───Conditions [All Entities]
+│   ├───Stats
+│   │   └───Modifiers [Conditions]
+│   ├───Abilities
+│   │   ├───Props
+│   │   │   ├───TriggerConditions[KeyA etc] are player.
+│   │   │   ├───Hold/Channel/Charge/Loop/etc
+│   │   │   ├───CD/Rate
+│   │   │   └───Callback
+│   │   ├───Levels?Teirs?Ranks?
+│   │   ├───Attacking
+│   │   ├───Passives
+│       └───Spells->AssignOwnership
 ├───Particle System
 │   ├───onUpdate&onDraw
 │   └───Entities?
-├───Stats
-│   └───Modifiers
 ├───Inventory
 │   ├───UIDragDrop?
 │   ├───Items
 │   ├───Gear
 │   └───Consumables
-├───Abilities
-│   ├───Props
-│   │   ├───TriggerConditions[KeyA etc] are player.
-│   │   ├───Hold/Channel/Charge/Loop/etc
-│   │   ├───CD/Rate
-│   │   └───Callback
-│   ├───Attacking
-│   ├───Levels?Teirs?Ranks?
-│   └───Spells->AssignOwnership
-└───Conditions [All Entities]
 ```
