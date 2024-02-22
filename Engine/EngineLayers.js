@@ -1,3 +1,88 @@
+const LayerManager = new (class LayerManager extends InteractableTree {
+    lastTimestamp;
+    ispaused = true;
+    propagate = (call, ...args) => {
+        if (!this.global.ispaused) this.global.raise(call, ...args);
+        if (!!this.children.length && !this.currentLayer.ispaused) this.currentLayer.raise(call, ...args);
+    };
+    get global() {
+        return this.children[-1];
+    }
+    set global(val) {
+        this.children[-1] = val;
+    }
+    constructor() {
+        super();
+        globalThis.onblur = this.pause;
+        globalThis.onfocus = this.resume;
+        globalThis.onload = () => {
+            if (typeof load !== "undefined") load();
+            this.resume();
+        };
+        document.addEventListener("mousedown", this.interact, { once: true });
+        document.addEventListener("keydown", this.interact, { once: true });
+        // document.addEventListener("contextmenu", (e) => e.preventDefault());
+        document.addEventListener("keydown", this.keydown);
+        document.addEventListener("keyup", this.keyup);
+        document.addEventListener("mousemove", this.mousemove);
+        document.addEventListener("mousedown", this.mousedown);
+        document.addEventListener("mouseup", this.mouseup);
+        document.addEventListener("click", this.click);
+        document.addEventListener("dblclick", this.dblclick);
+        document.addEventListener("wheel", this.wheel);
+    }
+    get currentLayer() {
+        return this.children[this.children.length - 1];
+    }
+    update = (timestamp) => {
+        // Fraction of a second since last update.
+        const delta = (timestamp - this.lastTimestamp) / 1000;
+        this.lastTimestamp = timestamp;
+        this.propagate("update", delta);
+        this.propagate("draw");
+        this.updateframe = requestAnimationFrame(this.update);
+    };
+    interact = () => {
+        document.removeEventListener("mousedown", this.interact, { once: true });
+        document.removeEventListener("keydown", this.interact, { once: true });
+        this.interacted = true;
+        this.propagate("interact");
+    };
+    pause = () => {
+        this.ispaused = true;
+        cancelAnimationFrame(this.updateframe);
+        this.global.pause();
+        this.children.forEach((l) => l.pause());
+    };
+    resume = () => {
+        this.ispaused = false;
+        cancelAnimationFrame(this.updateframe);
+        this.lastTimestamp = document.timeline.currentTime;
+        this.updateframe = requestAnimationFrame(this.update);
+        this.global.resume();
+        this.currentLayer?.resume();
+    };
+    push = (layer) => {
+        this.currentLayer?.pause();
+        layer.position = this.children.length;
+        console.log(layer);
+        layer.parent = this;
+        this.children.push(layer);
+        Object.values(Entity.types).forEach((t) => t.group.push([]));
+        this.raise("onadd", layer);
+        layer.resume();
+        return layer;
+    };
+    pop = () => {
+        const layer = this.children.pop();
+        layer?.pause();
+        Object.values(Entity.types).forEach((t) => t.group.pop());
+        this.currentLayer?.resume();
+        this.raise("onremove", layer);
+        return layer;
+    };
+})();
+
 class Layer extends Interactable {
     UIRoot = new UIElement(0, 0, { layer: this });
     addUI = (child) => {
@@ -8,8 +93,6 @@ class Layer extends Interactable {
     };
     removeUI = (child) => {
         this.UIRoot.remove(child);
-        //IF Empty REMOVE
-        if (this.UIRoot.children.length === 0) this.parent.pop();
     };
     constructor({ id } = {}, calls = {}) {
         super(id);
@@ -18,6 +101,7 @@ class Layer extends Interactable {
         const keys = Object.keys(Entity.types);
         for (let i = 0; i < keys.length; i++) this.entities[keys[i]] = new IterableWeakRef();
         MergeOntoObject(this, calls);
+        LayerManager.push(this);
     }
     // Base Methods
     open = () => this.propagate("open");
@@ -139,96 +223,13 @@ class Layer extends Interactable {
     }
 }
 
-const LayerManager = new (class LayerManager extends InteractableTree {
-    lastTimestamp;
-    ispaused = true;
-    propagate = (call, ...args) => {
-        if (!this.global.ispaused) this.global.raise(call, ...args);
-        if (!!this.children.length && !this.currentLayer.ispaused) this.currentLayer.raise(call, ...args);
-    };
-    get global() {
-        return this.children[-1];
-    }
-    set global(val) {
-        this.children[-1] = val;
-    }
-    constructor() {
-        super();
-        globalThis.onblur = this.pause;
-        globalThis.onfocus = this.resume;
-        globalThis.onload = () => {
-            if (typeof load !== "undefined") load();
-            this.resume();
-        };
-        document.addEventListener("mousedown", this.interact, { once: true });
-        document.addEventListener("keydown", this.interact, { once: true });
-        // document.addEventListener("contextmenu", (e) => e.preventDefault());
-        document.addEventListener("keydown", this.keydown);
-        document.addEventListener("keyup", this.keyup);
-        document.addEventListener("mousemove", this.mousemove);
-        document.addEventListener("mousedown", this.mousedown);
-        document.addEventListener("mouseup", this.mouseup);
-        document.addEventListener("click", this.click);
-        document.addEventListener("dblclick", this.dblclick);
-        document.addEventListener("wheel", this.wheel);
-    }
-    get currentLayer() {
-        return this.children[this.children.length - 1];
-    }
-    update = (timestamp) => {
-        // Fraction of a second since last update.
-        const delta = (timestamp - this.lastTimestamp) / 1000;
-        this.lastTimestamp = timestamp;
-        this.propagate("update", delta);
-        this.propagate("draw");
-        this.updateframe = requestAnimationFrame(this.update);
-    };
-    interact = () => {
-        document.removeEventListener("mousedown", this.interact, { once: true });
-        document.removeEventListener("keydown", this.interact, { once: true });
-        this.interacted = true;
-        this.propagate("interact");
-    };
-    pause = () => {
-        this.ispaused = true;
-        cancelAnimationFrame(this.updateframe);
-        this.global.pause();
-        this.children.forEach((l) => l.pause());
-    };
-    resume = () => {
-        this.ispaused = false;
-        cancelAnimationFrame(this.updateframe);
-        this.lastTimestamp = document.timeline.currentTime;
-        this.updateframe = requestAnimationFrame(this.update);
-        this.global.resume();
-        this.currentLayer?.resume();
-    };
-    push = (layer) => {
-        this.currentLayer?.pause();
-        layer.position = this.children.length;
-        console.log(layer);
-        layer.parent = this;
-        this.children.push(layer);
-        Object.values(Entity.types).forEach((t) => t.group.push([]));
-        this.raise("onadd", layer);
-        layer.resume();
-        return layer;
-    };
-    pop = () => {
-        const layer = this.children.pop();
-        layer?.pause();
-        Object.values(Entity.types).forEach((t) => t.group.pop());
-        this.currentLayer?.resume();
-        this.raise("onremove", layer);
-        return layer;
-    };
-})();
 const global = (LayerManager.global = new (class GlobalLayer extends Layer {
     settings = {};
     constructor() {
         super({ layerNum: -1, id: "global" });
         this.position = -1;
         this.parent = LayerManager;
+        this.parent.pop();
     }
     keydown = (e) => {
         keys[e.code] = true;
@@ -286,48 +287,46 @@ const global = (LayerManager.global = new (class GlobalLayer extends Layer {
  * @extends Layer
  * @class
  */
-const game = LayerManager.push(
-    new (class GameLayer extends Layer {
-        /**
-         * Constructs a new instance of the GameLayer class.
-         */
-        constructor() {
-            super({ id: "game" });
-        }
-        /**
-         * Clears the screen and fills it with the specified background color.
-         * @type {function}
-         */
-        ondraw = () => {
-            UI.fillScreen({ color: this.background });
-        };
-        /**
-         * Get the width of the game.
-         * @type {number}
-         */
-        get width() {
-            return canvas.width / (this.scaleX ?? 1);
-        }
-        /**
-         * Set the width of the game.
-         * @type {number}
-         */
-        set width(value) {
-            canvas.width = value * (this.scaleX ?? 1);
-        }
-        /**
-         * Get the height of the game.
-         * @type {number}
-         */
-        get height() {
-            return canvas.height / (this.scaleY ?? 1);
-        }
-        /**
-         * Set the height of the game.
-         * @type {number}
-         */
-        set height(value) {
-            canvas.height = value * (this.scaleY ?? 1);
-        }
-    })()
-);
+const game = new (class GameLayer extends Layer {
+    /**
+     * Constructs a new instance of the GameLayer class.
+     */
+    constructor() {
+        super({ id: "game" });
+    }
+    /**
+     * Clears the screen and fills it with the specified background color.
+     * @type {function}
+     */
+    ondraw = () => {
+        UI.fillScreen({ color: this.background });
+    };
+    /**
+     * Get the width of the game.
+     * @type {number}
+     */
+    get width() {
+        return canvas.width / (this.scaleX ?? 1);
+    }
+    /**
+     * Set the width of the game.
+     * @type {number}
+     */
+    set width(value) {
+        canvas.width = value * (this.scaleX ?? 1);
+    }
+    /**
+     * Get the height of the game.
+     * @type {number}
+     */
+    get height() {
+        return canvas.height / (this.scaleY ?? 1);
+    }
+    /**
+     * Set the height of the game.
+     * @type {number}
+     */
+    set height(value) {
+        canvas.height = value * (this.scaleY ?? 1);
+    }
+})();

@@ -52,16 +52,19 @@ Manager                 Layer => LayerManager
 │   ├───GameLayer       ├─[dT]──Entities => SpacialMap
 └───Layer               └─[dT]──Tasks => AsyncManager
     ├───RootUI                  └─── w/ onUpdate
-    │   └───UIElements      GlobalObserver
+    │   └───UIElements      PlayerTracker
     ├───SpacialMap          ├───Quest System
-    │   └───Entity          └───Event Scheduler
-    └───AsyncManager        Entity
-        ├───Task            └───Register/Spawn<X>
-        └───Lerp
+    │   └───Entity          ├───Inventory
+    └───AsyncManager        └───Event Scheduler
+        ├───Task            Entity
+        └───Lerp            └───Register/Spawn<X>
 FUTURE
-├───Additonal Events
-│   └───OnDamage etc.
+├───Entity
+│   ├───Events OnDamage etc.
+│   ├───AI
+│   └───IO Events? onClick?
 ├───Particle System
+│   ├───onUpdate&onDraw
 │   └───Entities?
 ├───Stats
 │   └───Modifiers
@@ -71,7 +74,13 @@ FUTURE
 │   ├───Gear
 │   └───Consumables
 ├───Abilities
+│   ├───Props
+│   │   ├───TriggerConditions[KeyA etc] are player.
+│   │   ├───Hold/Channel/Charge/Loop/etc
+│   │   ├───CD/Rate
+│   │   └───Callback
 │   ├───Attacking
-│   └───Spells
-└───Conditions
+│   ├───Levels?Teirs?Ranks?
+│   └───Spells->AssignOwnership
+└───Conditions [All Entities]
 ```

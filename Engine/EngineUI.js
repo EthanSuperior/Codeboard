@@ -14,6 +14,7 @@
  * @property {function(WheelEvent)} [onwheel] - Callback for the wheel event.
  */
 class UIElement extends InteractableTree {
+    // Get callback assigned on adding to get the layer and manager.
     constructor(x, y, { layer, ...options } = {}) {
         super(options.id);
         this.x = x;
@@ -48,17 +49,20 @@ class UIElement extends InteractableTree {
         this.raise("onshow");
         this.children.forEach((c) => c.raise("onshow"));
         if (!this.layer) {
-            if (this.options.overlay) this.layer = LayerManager.currentLayer;
-            else this.layer = LayerManager.push(new Layer());
-        }
+            if (this.options.overlay) {
+                this.layer = LayerManager.currentLayer;
+                this.close = this.layer.removeUI.bind(this.layer, this);
+            } else {
+                this.layer = new Layer();
+                this.close = LayerManager.pop.bind(LayerManager);
+            }
+        } else this.close = this.layer.removeUI.bind(this.layer, this);
         this.layer.addUI(this);
     };
+    close = () => {};
     detect = (mX, mY) => true;
     hide = () => {
-        if (!this.parent) {
-            this.layer.removeUI(this);
-            if (this.layer.children == 0) LayerManager.remove(this.layer);
-        } else this.parent.remove(this);
+        this.close();
     };
     onadd = (ui) => {
         ui.shift(this.x, this.y);

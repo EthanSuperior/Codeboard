@@ -103,7 +103,7 @@
             }
             const level = ++weaponTypes[type].currentLevel;
             weaponTypes[type] = { ...weaponTypes[type], ...weaponTypes[type].levels[level] };
-            game.scheduleTask(
+            scheduleTask(
                 () => {
                     for (let i = 0; i < (weaponTypes[type].count ?? 1); i++)
                         spawnProjectile(weaponTypes[type], { spawnOrder: i });
@@ -165,8 +165,8 @@
         }
         function makeListUIButton(num, option) {
             const btnPress = function (e) {
-                getWeapon(option);
                 this.root.hide();
+                getWeapon(option);
             };
             const buttonProps = {
                 cornerRadius: 25,
