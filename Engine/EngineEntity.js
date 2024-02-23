@@ -97,7 +97,11 @@ class Entity extends Interactable {
         this.raise("ondraw");
         ctx.restore();
     };
-    despawn = () => despawnEntity(this);
+    despawn = () => {
+        this.raise("ondespawn");
+        if (this.lifeTimer) clearTask(this.lifeTimer);
+        this.layer.removeEntity(this);
+    };
     angleTowards = (entity) => {
         this.direction = angleTo(this, entity);
     };
@@ -177,11 +181,4 @@ function registerEntity(name, options, types) {
             for (let i = 0; i < keys.length; i++) func.call(newSubclass.subtypes[keys[i]], ...args);
         };
     }
-}
-
-function despawnEntity(entity) {
-    if (!entity) return;
-    entity.raise("ondespawn");
-    if (entity.lifeTimer) clearTask(entity.lifeTimer);
-    entity.layer.removeEntity(entity);
 }

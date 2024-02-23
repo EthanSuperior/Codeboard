@@ -83,7 +83,11 @@ class SpacialMap extends Interactable {
         this.entities[child.groupName] ??= [];
         this.entities[child.groupName].push(child);
     };
-    removeEntity = (child) => {};
+    removeEntity = (child) => {
+        const id = typeof child === "string" ? child : child && typeof child.id === "string" ? child.id : null;
+        const idx = this.entities[child.groupName].findIndex((e) => e.id === id);
+        if (idx !== -1) this.entities[child.groupName].splice(idx, 1);
+    };
     //TODO FINISH THIS AND ENTITY MANAGER
     //ADD REMOVE_FROM_PARENTS
     //Redo Lerps not to use Entity
