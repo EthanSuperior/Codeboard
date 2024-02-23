@@ -5,8 +5,8 @@ class Entity extends Interactable {
         this.x = 0;
         this.y = 0;
         this.size = 0;
-        this.dir = null;
-        this.speed = 0;
+        this.velocity = new Vector();
+        MixinToObject(this, this.velocity, ["speed", "direction", "magnitude"]);
         this.exp = 0;
         this.neededXP = 0;
         this.level = 0;
@@ -17,9 +17,9 @@ class Entity extends Interactable {
     update = (delta) => {
         if (this.acceleration) this.speed = clamp(this.speed + this.acceleration, 0, this.maxSpeed);
         this.raise("onupdate", delta);
-        if (this.speed && this.dir !== null && this.dir !== undefined) {
-            if (!this.staticX) this.x += Math.cos(this.dir) * this.speed * delta;
-            if (!this.staticY) this.y += Math.sin(this.dir) * this.speed * delta;
+        if (this.speed && this.direction !== null && this.direction !== undefined) {
+            if (!this.staticX) this.x += Math.cos(this.direction) * this.speed * delta;
+            if (!this.staticY) this.y += Math.sin(this.direction) * this.speed * delta;
         }
         if (this.pixelPerfect) {
             this.x = Math.round(this.x - 0.5) + 0.5;
@@ -57,7 +57,7 @@ class Entity extends Interactable {
     draw = () => {
         ctx.save();
         ctx.translate(this.x, this.y);
-        if (this.rotate) ctx.rotate(this.dir + Math.PI / 2 + (this.rotationalOffset ?? 0));
+        if (this.rotate) ctx.rotate(this.direction + Math.PI / 2 + (this.rotationalOffset ?? 0));
         const halfSize = this.size / 2;
         if (this.img) {
             ctx.save();
@@ -94,7 +94,7 @@ class Entity extends Interactable {
     };
     despawn = () => despawnEntity(this);
     angleTowards = (entity) => {
-        this.dir = angleTo(this, entity);
+        this.direction = angleTo(this, entity);
     };
     distanceTo = (entity) => distanceTo(this, entity);
     levelup = () => {
@@ -111,28 +111,6 @@ class Entity extends Interactable {
             this.exp -= this.neededXP;
             this.raise("levelup");
         }
-    }
-    set velocityX(value) {
-        const velY = this.velocityY;
-        if (this.acceleration) this.speed = Math.hypot(value, velY);
-        this.dir = Math.atan2(velY, value);
-    }
-    get velocityX() {
-        return this.speed * Math.cos(this.dir);
-    }
-    get velocityXSign() {
-        return Math.abs(this.velocityX) < 1e-10 ? 0 : Math.sign(this.velocityX);
-    }
-    set velocityY(value) {
-        const velX = this.velocityX;
-        if (this.acceleration) this.speed = Math.hypot(velX, value);
-        this.dir = Math.atan2(value, velX);
-    }
-    get velocityY() {
-        return this.speed * Math.sin(this.dir);
-    }
-    get velocityYSign() {
-        return Math.abs(this.velocityY) < 1e-10 ? 0 : Math.sign(this.velocityY);
     }
 }
 
@@ -151,7 +129,7 @@ function registerEntity(name, options, types) {
         },
     });
     Object.defineProperty(newSubclass, "group", {
-        value: Array.from({ length: LayerManager.children.length }, () => []),
+        value: Array.from({ length: LayerManager.layers.length }, () => []),
     });
     newSubclass.group = newSubclass.group[-1] = [];
     Object.defineProperty(globalThis, lowerName + "Group", {
@@ -174,7 +152,7 @@ function registerEntity(name, options, types) {
     };
     globalThis["forEvery" + upperName + "Do"] = (func, ...args) => {
         for (let i = newSubclass.group[-1].length - 1; i >= 0; i--) newSubclass.group[i]?.do(func, ...args);
-        if (LayerManager.children.length != 0) {
+        if (LayerManager.layers.length != 0) {
             const entities = LayerManager.currentLayer.getEntities(name);
             for (let i = entities.length - 1; i >= 0; i--) entities[i]?.do(func, ...args);
         }

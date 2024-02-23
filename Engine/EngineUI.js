@@ -13,7 +13,7 @@
  * @property {function(MouseEvent)} [ondblclick] - Callback for the dblclick event.
  * @property {function(WheelEvent)} [onwheel] - Callback for the wheel event.
  */
-class UIElement extends InteractableTree {
+class UIElement extends Interactable {
     // Get callback assigned on adding to get the layer and manager.
     constructor(x, y, { layer, ...options } = {}) {
         super(options.id);
@@ -21,28 +21,43 @@ class UIElement extends InteractableTree {
         this.y = y;
         this.layer = layer;
         this.options = options;
-        const keys = Object.keys(options);
-        for (let i = 0; i < keys.length; i++) {
-            const v = keys[i];
-            Object.defineProperty(this, v, {
-                set(val) {
-                    this.options[v] = val;
-                },
-                get() {
-                    return this.options[v];
-                },
-            });
-        }
+        MixinToObject(this, this.options, Object.keys(options));
     }
+    children = [];
+    parent = null;
+    get root() {
+        let root = this;
+        while (root.parent !== null) root = root.parent;
+        return root;
+    }
+    get = (id) => this.children.find((e) => e.id === id);
+    add = (child) => {
+        child.parent = this;
+        this.raise("onadd", child);
+        this.children.push(child);
+        return child;
+    };
+    remove = (child) => {
+        const id = typeof child === "string" ? child : child && typeof child.id === "string" ? child.id : null;
+        const idx = this.children.findIndex((e) => e.id === id);
+        if (idx !== -1) this.children.splice(idx, 1);
+    };
+    propagate = (call, ...args) => {
+        this.raise("on" + call, ...args);
+        this.children.forEach((c) => c?.raise(call, ...args));
+    };
     draw = () => this.propagate("draw");
     mousedown = (e) => {
+        e = this.modmouseevent(e);
         if (this.detect(e.mouseX, e.mouseY)) this.propagate("mousedown", e);
     };
     mousemove = (e) => {
+        e = this.modmouseevent(e);
         if (this.options) this.options.hovered = this.detect(e.mouseX, e.mouseY);
         this.propagate("mousemove", e);
     };
     click = (e) => {
+        e = this.modmouseevent(e);
         if (this.detect(e.mouseX, e.mouseY)) this.propagate("click", e);
     };
     show = () => {
@@ -304,24 +319,11 @@ class UIScroll extends UIElement {
         this.drawScrollBarX();
         this.drawScrollBarY();
     };
-    mousedown = (e) => {
+    modmouseevent = (e) => {
         const newE = cloneMouseEvent(e);
         newE.mouseX += this.scrollPosition.x;
         newE.mouseY += this.scrollPosition.y;
-        if (this.detect(newE.mouseX, newE.mouseY)) this.propagate("mousedown", newE);
-    };
-    mousemove = (e) => {
-        const newE = cloneMouseEvent(e);
-        newE.mouseX += this.scrollPosition.x;
-        newE.mouseY += this.scrollPosition.y;
-        if (this.options) this.options.hovered = this.detect(newE.mouseX, newE.mouseY);
-        this.propagate("mousemove", newE);
-    };
-    click = (e) => {
-        const newE = cloneMouseEvent(e);
-        newE.mouseX += this.scrollPosition.x;
-        newE.mouseY += this.scrollPosition.y;
-        if (this.detect(newE.mouseX, newE.mouseY)) this.propagate("click", newE);
+        return newE;
     };
     detect = (mX, mY) => detectRect(this.x, this.y, this.scrollWidth, this.scrollHeight, mX, mY);
 }

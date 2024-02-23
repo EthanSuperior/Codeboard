@@ -47,43 +47,90 @@ For more details, view the full legal text at: [CC0 License](https://creativecom
 ## Code Structure
 
 ```
-Manager                 Layer => LayerManager
-│   ┌───GlobalLayer     ├─{IO}──UI => UIRoot
-│   ├───GameLayer       ├─{dT}──Entities => SpacialMap
-└───Layer               └─{dT}──Tasks => AsyncManager
-    ├───RootUI                  └─── w/ onUpdate
-    │   └───UIElements      PlayerTracker
-    ├───SpacialMap          ├───Quest System
-    │   └───Entity          ├───Inventory
-    └───AsyncManager        └───Event Scheduler
-        ├───Task            Entity
-        └───Lerp            └───Register/Spawn<X>
-FUTURE
-├───Entity
-│   ├───Events OnDamage etc.
-│   ├───IO Events? onClick? [✓]
-│   ├───Controller
-│   │   ├───AI/Player change dir
-│   │   └───lateUpdate for Abilities?
-│   ├───Conditions [All Entities]
-│   ├───Stats
-│   │   └───Modifiers [Conditions]
-│   ├───Abilities
-│   │   ├───Props
-│   │   │   ├───TriggerConditions[KeyA etc] are player.
-│   │   │   ├───Hold/Channel/Charge/Loop/etc
-│   │   │   ├───CD/Rate
-│   │   │   └───Callback
-│   │   ├───Levels?Teirs?Ranks?
-│   │   ├───Attacking
-│   │   ├───Passives
-│       └───Spells->AssignOwnership
-├───Particle System
-│   ├───onUpdate&onDraw
-│   └───Entities?
+LayerManager
+│   ┌───GlobalLayer
+└───Layer
+    ├───RootUI
+    │   └───UIElements
+    ├───SpacialMap
+    │   └───Entity
+    └───AsyncManager
+        ├───Task
+        └───Lerp
+
+Layer => LayerManager
+├───UI => UIRoot{IO}
+├───Entity => SpacialMap{IO}
+└───Async => AsyncManager{dT}
+
+SpacialMap {IO}
+├───Tile{Entity}
+└───NavMesh
+    ├───Collisions
+    └───Pathfinding
+
+AsyncManager
+├───Lerp
+├───Sound
+├───Task
+└───Animations?
+
+Entity => registerEntity
+├───Types
+├───Events (onDamage,IO,etc)
+├───Controller
+├───Stats
+├───Conditions
+├───Modifiers
+├───Abilities
+└───Drops[Spread/Jitter]
+
+EntityController
+├───AI/Player => direction
+├───StateMachine?
+└───lateUpdate for Abilities?
+
+Abilities
+├───Properties
+│   ├───CD/Rate
+│   ├───Hold/Channel/Charge/Loop/etc
+│   └───Callback
+├───Levels?Teirs?Ranks?
+├───Attacking
+├───Passives
+└───Spells->AssignOwnership
+
+PlayerClass
+└───InputMap
+
+SpriteSheet
+└───Atlasing/Animation
+
+PlayerTracker
+├───Quest System
+├───Save System
 ├───Inventory
-│   ├───UIDragDrop?
-│   ├───Items
-│   ├───Gear
-│   └───Consumables
+└───Event Scheduler
+
+Inventory
+├───UI
+│   ├───DragDrop
+│   └───Selection
+├───Items/Pots
+└───Equipment
+
+GameSettings
+├───Canvas Size
+├───Game Mode
+└───Level
+
+ParticalSystem
+├───onUpdate&onDraw
+└───Entities?
+
+Networking
+├───Event RPCs
+├───UUID Sync
+├───UUID=>Event
+└───Prediction
 ```

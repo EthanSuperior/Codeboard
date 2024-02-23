@@ -5,46 +5,27 @@ class Identifiable {
     raise = (call, ...args) => {
         if (this.hasOwnProperty(call)) this[call].call(this, ...args);
     };
-}
-class Interactable extends Identifiable {
     propagate = (call, ...args) => this.raise("on" + call, ...args);
-    update = (delta) => this.propagate("update", delta);
-    interact = () => this.propagate("interact");
-    // IO Events
-    keydown = (e) => this.propagate("keydown", e);
-    keyup = (e) => this.propagate("keyup", e);
-    // Mouse IO Events
-    mousedown = (e) => this.propagate("mousedown", e);
-    mouseup = (e) => this.propagate("mouseup", e);
-    mousemove = (e) => this.propagate("mousemove", e);
-    click = (e) => this.propagate("click", e);
-    dblclick = (e) => this.propagate("dblclick", e);
-    wheel = (e) => this.propagate("wheel", e);
 }
-class InteractableTree extends Interactable {
-    children = [];
-    parent = null;
-    get root() {
-        let root = this;
-        while (root.parent !== null) root = root.parent;
-        return root;
-    }
-    get = (id) => this.children.find((e) => e.id === id);
-    add = (child) => {
-        child.parent = this;
-        this.raise("onadd", child);
-        this.children.push(child);
-        return child;
-    };
-    remove = (child) => {
-        const id = typeof child === "string" ? child : child && typeof child.id === "string" ? child.id : null;
-        const idx = this.children.findIndex((e) => e.id === id);
-        if (idx !== -1) this.children.splice(idx, 1);
-    };
-    propagate = (call, ...args) => {
-        this.raise("on" + call, ...args);
-        this.children.forEach((c) => c?.raise(call, ...args));
-    };
+class Updatable extends Identifiable {
+    update = (delta) => this.propagate("update", delta);
+    draw = () => {};
+}
+class Interactable extends Updatable {
+    interact = () => this.propagate("interact");
+    // Helper Utils
+    modmouseevent = (e) => e;
+    modkeyevent = (e) => e;
+    // IO Events
+    keydown = (e) => this.propagate("keydown", this.modkeyevent(e));
+    keyup = (e) => this.propagate("keyup", this.modkeyevent(e));
+    // Mouse IO Events
+    mousedown = (e) => this.propagate("mousedown", this.modmouseevent(e));
+    mouseup = (e) => this.propagate("mouseup", this.modmouseevent(e));
+    mousemove = (e) => this.propagate("mousemove", this.modmouseevent(e));
+    click = (e) => this.propagate("click", this.modmouseevent(e));
+    dblclick = (e) => this.propagate("dblclick", this.modmouseevent(e));
+    wheel = (e) => this.propagate("wheel", this.modmouseevent(e));
 }
 class IterableWeakRef {
     #list = [];

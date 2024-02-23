@@ -107,3 +107,17 @@ const MergeOntoObject = (target, source) => {
     }
     return target;
 };
+
+const MixinToObject = (target, source, properties) => {
+    for (let i = 0; i < properties.length; i++) {
+        const property = properties[i];
+        Object.defineProperty(target, property, {
+            set(val) {
+                source[property] = val;
+            },
+            get() {
+                return source[property];
+            },
+        });
+    }
+};

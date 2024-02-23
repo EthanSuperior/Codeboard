@@ -1,15 +1,16 @@
-const LayerManager = new (class LayerManager extends InteractableTree {
+const LayerManager = new (class LayerManager extends Interactable {
     lastTimestamp;
     ispaused = true;
+    layers = [];
     propagate = (call, ...args) => {
         if (!this.global.ispaused) this.global.raise(call, ...args);
-        if (!!this.children.length && !this.currentLayer.ispaused) this.currentLayer.raise(call, ...args);
+        if (!!this.layers.length && !this.currentLayer.ispaused) this.currentLayer.raise(call, ...args);
     };
     get global() {
-        return this.children[-1];
+        return this.layers[-1];
     }
     set global(val) {
-        this.children[-1] = val;
+        this.layers[-1] = val;
     }
     constructor() {
         super();
@@ -32,7 +33,7 @@ const LayerManager = new (class LayerManager extends InteractableTree {
         document.addEventListener("wheel", this.wheel);
     }
     get currentLayer() {
-        return this.children[this.children.length - 1];
+        return this.layers[this.layers.length - 1];
     }
     update = (timestamp) => {
         // Fraction of a second since last update.
@@ -52,7 +53,7 @@ const LayerManager = new (class LayerManager extends InteractableTree {
         this.ispaused = true;
         cancelAnimationFrame(this.updateframe);
         this.global.pause();
-        this.children.forEach((l) => l.pause());
+        this.layers.forEach((l) => l.pause());
     };
     resume = () => {
         this.ispaused = false;
@@ -64,16 +65,16 @@ const LayerManager = new (class LayerManager extends InteractableTree {
     };
     push = (layer) => {
         this.currentLayer?.pause();
-        layer.position = this.children.length;
+        layer.position = this.layers.length;
         layer.parent = this;
-        this.children.push(layer);
+        this.layers.push(layer);
         Object.values(Entity.types).forEach((t) => t.group.push([]));
         this.raise("onadd", layer);
         layer.resume();
         return layer;
     };
     pop = () => {
-        const layer = this.children.pop();
+        const layer = this.layers.pop();
         layer?.pause();
         Object.values(Entity.types).forEach((t) => t.group.pop());
         this.currentLayer?.resume();

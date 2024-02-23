@@ -78,7 +78,7 @@
                 look();
             } else if (command == "go") {
                 if (argument) go(argument);
-                else display("Enter 'go <direction>' ex: go north");
+                else display("Enter 'go <directionection>' ex: go north");
             } else if (command == "take") {
                 if (argument) take(argument);
                 else display("Enter 'take <item>' ex: take key");
@@ -94,8 +94,8 @@
         }
 
         // Function to handle "go" command
-        function go(direction) {
-            const nextLocation = gameMap[playerLocation][direction];
+        function go(directionection) {
+            const nextLocation = gameMap[playerLocation][directionection];
             if (nextLocation) {
                 playerLocation = nextLocation;
                 look();
