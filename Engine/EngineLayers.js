@@ -68,7 +68,6 @@ const LayerManager = new (class LayerManager extends Interactable {
         layer.position = this.layers.length;
         layer.parent = this;
         this.layers.push(layer);
-        Object.values(Entity.types).forEach((t) => t.group.push([]));
         this.raise("onadd", layer);
         layer.resume();
         return layer;
@@ -76,7 +75,6 @@ const LayerManager = new (class LayerManager extends Interactable {
     pop = () => {
         const layer = this.layers.pop();
         layer?.pause();
-        Object.values(Entity.types).forEach((t) => t.group.pop());
         this.currentLayer?.resume();
         this.raise("onremove", layer);
         return layer;
@@ -94,11 +92,14 @@ class Layer extends Interactable {
     removeUI = (child) => {
         this.UIRoot.remove(child);
     };
+    spacialMap = new SpacialMap(this);
+    addEntity = (child) => {};
+    removeEntity = (child) => {};
     constructor({ id } = {}, calls = {}) {
         super(id);
         this.entities = { Entity: new IterableWeakRef() };
 
-        const keys = Object.keys(Entity.types);
+        const keys = EntityManager.names;
         for (let i = 0; i < keys.length; i++) this.entities[keys[i]] = new IterableWeakRef();
         MergeOntoObject(this, calls);
         LayerManager.push(this);
@@ -179,10 +180,11 @@ class Layer extends Interactable {
     propagate = (call, ...args) => {
         this.raise("on" + call, ...args);
         this.UIRoot.raise(call, ...args);
-        this.getEntities().forEach((c) => c?.raise(call, ...args));
+        this.spacialMap.raise(call, ...args);
     };
     // Game Update Events
     update = (delta) => {
+        if (this.deltaMod) delta *= this.deltaMod;
         if (!this.tickRate) this.propagate("update", delta);
         else {
             this.update.accumulatedTime ??= 0;
@@ -205,22 +207,9 @@ class Layer extends Interactable {
             ctx.translate(game.width / 2 - this.cameraX, game.height / 2 - this.cameraY);
         }
         if (this.scaleX && this.scaleY) ctx.scale(this.scaleX, this.scaleY);
-        this.getEntities().forEach((c) => c.raise("draw"));
+        this.spacialMap.raise("draw");
         ctx.restore();
     };
-    getEntities = (groupName) => {
-        const pos = this.position;
-        if (!groupName)
-            return Object.values(Entity.types)
-                .map((t) => t.group[pos])
-                .flat();
-        else return Entity.types[groupName].group[pos];
-    };
-    removeEntity(entity) {
-        const idx = entity.layer.getEntities(entity.groupName).findIndex((e) => e.id === entity.id);
-        if (idx == -1) return;
-        entity.layer.getEntities(entity.groupName).splice(idx, 1);
-    }
 }
 
 const global = (LayerManager.global = new (class GlobalLayer extends Layer {

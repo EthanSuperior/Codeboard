@@ -32,6 +32,44 @@ class Vector {
         this.speed = val;
     }
 }
+
+/**
+SpacialMap {IO}
+├───Tile{Entity}
+└───NavMesh
+    ├───Collisions
+    └───Pathfinding
+ */
+class SpacialMap extends Interactable {
+    entities = {};
+    constructor(layer) {
+        super();
+        this.layer = layer;
+    }
+    propigate = () => {
+        this.raise("on" + call, ...args);
+        const keys = EntityManager.names;
+        for (let j = 0; j < keys.length; j++) {
+            if (!this.entities[j]) continue;
+            for (let i = entities[key[j]].length - 1; i >= 0; i--) this.entities[j][i].raise(call, ...args);
+        }
+    };
+    modmouseevent = (e) => {
+        const newE = cloneMouseEvent(e);
+        if (this.layer.cameraX) newE.mouseX += this.scrollPosition.x;
+        if (this.layer.cameraY) newE.mouseY += this.scrollPosition.y;
+        return newE;
+    };
+    addEntity = (child) => {
+        this.entities[child.groupName] ??= [];
+        this.entities[child.groupName].push(child);
+    };
+    removeEntity = (child) => {};
+    //TODO FINISH THIS AND ENTITY MANAGER
+    //ADD REMOVE_FROM_PARENTS
+    //Redo Lerps not to use Entity
+}
+
 function detectRect(x, y, w, h, ptX, ptY) {
     return ptX >= x && ptX <= x + w && ptY >= y && ptY <= y + h;
 }

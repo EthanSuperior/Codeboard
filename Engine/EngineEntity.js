@@ -1,12 +1,16 @@
-class Entity extends Interactable {
+class EntityManager {
     static types = {};
+    static names = [];
+    static subtypes = {};
+}
+class Entity extends Interactable {
     constructor() {
         super();
         this.x = 0;
         this.y = 0;
         this.size = 0;
         this.velocity = new Vector();
-        MixinToObject(this, this.velocity, ["speed", "direction", "magnitude"]);
+        AddPublicAccessors(this, "velocity", ["speed", "direction", "magnitude"]);
         this.exp = 0;
         this.neededXP = 0;
         this.level = 0;
@@ -49,7 +53,7 @@ class Entity extends Interactable {
     spawn = () => {
         if (this.acceleration) this.maxSpeed ??= this.speed;
         if (this.hp) this.maxHP ??= this.hp;
-        Entity.types[this.groupName].group[this.layer.position].push(this);
+        this.layer.addEntity(this);
         this.raise("onspawn");
         if (this.lifespan) this.lifeTimer = scheduleTask(() => this.despawn(), { time: this.lifespan });
     };
@@ -118,7 +122,7 @@ function registerEntity(name, options, types) {
     const upperName = name[0].toUpperCase() + name.slice(1);
     const lowerName = name[0].toLowerCase() + name.slice(1);
     const newSubclass = class extends Entity {
-        groupName = name;
+        groupName = upperName;
     };
     Object.defineProperty(newSubclass, "subtypes", {
         set(value) {
@@ -153,11 +157,14 @@ function registerEntity(name, options, types) {
     globalThis["forEvery" + upperName + "Do"] = (func, ...args) => {
         for (let i = newSubclass.group[-1].length - 1; i >= 0; i--) newSubclass.group[i]?.do(func, ...args);
         if (LayerManager.layers.length != 0) {
-            const entities = LayerManager.currentLayer.getEntities(name);
+            const entities = LayerManager.currentLayer.getEntities(upperName);
             for (let i = entities.length - 1; i >= 0; i--) entities[i]?.do(func, ...args);
         }
     };
+    EntityManager.types[upperName] = newSubclass;
+    EntityManager.names.push(upperName);
     if (types) {
+        EntityManager.subtypes[upperName] = types;
         const typeKeys = Object.keys(types);
         for (let i = 0; i < typeKeys.length; i++) {
             const type = typeKeys[i];
@@ -169,7 +176,6 @@ function registerEntity(name, options, types) {
             for (let i = 0; i < keys.length; i++) func.call(newSubclass.subtypes[keys[i]], ...args);
         };
     }
-    Entity.types[name] = newSubclass;
 }
 
 function despawnEntity(entity) {

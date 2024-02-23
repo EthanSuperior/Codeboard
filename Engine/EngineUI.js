@@ -21,7 +21,7 @@ class UIElement extends Interactable {
         this.y = y;
         this.layer = layer;
         this.options = options;
-        MixinToObject(this, this.options, Object.keys(options));
+        AddPublicAccessors(this, "options", Object.keys(options));
     }
     children = [];
     parent = null;

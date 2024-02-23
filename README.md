@@ -24,7 +24,6 @@ For more details, view the full legal text at: [CC0 License](https://creativecom
 -   Finish onboxcollide and make oncirclecollide
 -   Check how to make events not bubble down all UI layers, but be consumed by things like btns etc. (double scroll etc)
     -   Check with console.log to see what onX's are actually being called, maybe a break or something in propigate for those?
--   Make Vector class?
 -   Player Class
 -   Save Player Class Data
 -   Level System?
@@ -75,7 +74,7 @@ AsyncManager
 ├───Task
 └───Animations?
 
-Entity => registerEntity
+Entity => EntityManager & registerEntity
 ├───Types
 ├───Events (onDamage,IO,etc)
 ├───Controller
