@@ -5,6 +5,11 @@ class AsyncManager extends Updatable {
         super();
         this.layer = layer;
     }
+    propagate = (call, ...args) => {
+        this.raise("on" + call, ...args);
+        for (let i = this.tasks.length - 1; i >= 0; i--) this.tasks[i].raise(call, ...args);
+        for (let i = this.lerps.length - 1; i >= 0; i--) this.lerps[i].raise(call, ...args);
+    };
     scheduleTask = (func, options = {}, ...args) => {
         if (options.delay) {
             const { delay, ...newOp } = options;

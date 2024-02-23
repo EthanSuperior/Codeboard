@@ -21,7 +21,8 @@ class Entity extends Interactable {
     update = (delta) => {
         if (this.acceleration) this.speed = clamp(this.speed + this.acceleration, 0, this.maxSpeed);
         this.raise("onupdate", delta);
-        if (this.speed && this.direction !== null && this.direction !== undefined) {
+        // if (this.groupName == "Player") console.log(this, this.direction, this.speed);
+        if (this.speed && this.direction !== null) {
             if (!this.staticX) this.x += Math.cos(this.direction) * this.speed * delta;
             if (!this.staticY) this.y += Math.sin(this.direction) * this.speed * delta;
         }

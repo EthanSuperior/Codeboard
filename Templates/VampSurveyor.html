@@ -462,6 +462,7 @@
             onupdate: function (delta) {
                 if (this.hp <= 0) showDeath();
                 const direction = getPlayerMovementdirectionection();
+                console.log(direction);
                 // Stop player if no keys are pressed otherwise change your directionection.
                 if (direction == null) this.speed = 0;
                 else this.direction = direction;
@@ -485,7 +486,6 @@
         const player = spawnPlayer({
             color: "olive",
             size: 20,
-            direction: 0,
         });
     </script>
 </html>

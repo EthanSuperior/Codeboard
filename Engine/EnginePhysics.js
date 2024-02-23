@@ -1,35 +1,49 @@
 class Vector {
+    #direction;
+    #speed;
     constructor(direction = null, speed = 0) {
-        this.direction = direction;
-        this.speed = speed;
+        this.#direction = direction;
+        this.#speed = speed;
+    }
+    get direction() {
+        return this.#direction;
+    }
+    set direction(val) {
+        this.#direction = val;
+    }
+    get speed() {
+        return this.#speed;
+    }
+    set speed(val) {
+        this.#speed = val;
     }
     set x(value) {
         const velY = this.y;
-        // this.speed = Math.hypot(value, velY);
-        this.direction = Math.atan2(velY, value);
+        this.#speed = Math.hypot(value, velY);
+        this.#direction = Math.atan2(velY, value);
     }
     get x() {
-        return this.speed * Math.cos(this.direction);
+        return this.#speed * Math.cos(this.#direction);
     }
     get xSign() {
         return Math.abs(this.x) < 1e-10 ? 0 : Math.sign(this.x);
     }
     set y(value) {
         const velX = this.x;
-        // this.speed = Math.hypot(velX, value);
-        this.direction = Math.atan2(value, velX);
+        this.#speed = Math.hypot(velX, value);
+        this.#direction = Math.atan2(value, velX);
     }
     get y() {
-        return this.speed * Math.sin(this.direction);
+        return this.#speed * Math.sin(this.#direction);
     }
     get ySign() {
         return Math.abs(this.y) < 1e-10 ? 0 : Math.sign(this.y);
     }
     get magnitude() {
-        return this.speed;
+        return this.#speed;
     }
     set magnitude(val) {
-        this.speed = val;
+        this.#speed = val;
     }
 }
 
