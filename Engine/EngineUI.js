@@ -88,7 +88,17 @@ class UIElement extends Interactable {
         this.propagate("shift", x, y);
     };
 }
-
+class UIRoot extends UIElement {
+    constructor(layer) {
+        super(0, 0, { layer });
+    }
+    add = (child) => {
+        child.parent = null;
+        this.raise("onadd", child);
+        this.children.push(child);
+        return child;
+    };
+}
 /**
  * Options for styling a shape with hover effects.
  * @typedef {UIOptions} ColorOptions

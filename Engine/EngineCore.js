@@ -8,8 +8,10 @@ class Identifiable {
     propagate = (call, ...args) => this.raise("on" + call, ...args);
 }
 class Updatable extends Identifiable {
+    draw = () => this.propagate("draw");
+    pause = () => this.propagate("pause");
+    resume = () => this.propagate("resume");
     update = (delta) => this.propagate("update", delta);
-    draw = () => {};
 }
 class Interactable extends Updatable {
     interact = () => this.propagate("interact");

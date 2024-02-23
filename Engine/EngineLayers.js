@@ -68,7 +68,6 @@ const LayerManager = new (class LayerManager extends Interactable {
         layer.position = this.layers.length;
         layer.parent = this;
         this.layers.push(layer);
-        this.raise("onadd", layer);
         layer.resume();
         return layer;
     };
@@ -82,95 +81,27 @@ const LayerManager = new (class LayerManager extends Interactable {
 })();
 
 class Layer extends Interactable {
-    UIRoot = new UIElement(0, 0, { layer: this });
-    addUI = (child) => {
-        this.raise("onadd", child);
-        this.UIRoot.add(child);
-        child.parent = null;
-        return child;
-    };
-    removeUI = (child) => {
-        this.UIRoot.remove(child);
-    };
-    spacialMap = new SpacialMap(this);
-    addEntity = (child) => {};
-    removeEntity = (child) => {};
     constructor({ id } = {}, calls = {}) {
         super(id);
-        this.entities = { Entity: new IterableWeakRef() };
-
-        const keys = EntityManager.names;
-        for (let i = 0; i < keys.length; i++) this.entities[keys[i]] = new IterableWeakRef();
         MergeOntoObject(this, calls);
         LayerManager.push(this);
     }
+    UIRoot = new UIRoot(this);
+    addUI = (child) => this.UIRoot.add(child);
+    removeUI = (child) => this.UIRoot.remove(child);
+    spacialMap = new SpacialMap(this);
+    addEntity = (child) => this.spacialMap.addEntity(child);
+    removeEntity = (child) => this.spacialMap.removeEntity(child);
+    ispaused = false;
+    asyncManager = new AsyncManager();
+    scheduleTask = (func, options = {}, ...args) => this.asyncManager.scheduleTask(func, options, ...args);
+    findTask = (id) => this.tasks.find((t) => t.id === id);
+    clearTask = (id) => this.asyncManager.clearTask(id);
+    playSoundEffect = (source, options = {}) => this.asyncManager.playSoundEffect(source, options);
+    playMusic = (source, options = {}) => this.asyncManager.playMusic(source, options);
     // Base Methods
     open = () => this.propagate("open");
     close = () => this.propagate("close");
-    // Timing Methods
-    tasks = [];
-    ispaused = false;
-    pause = () => {
-        this.tasks.forEach((t) => t.pause());
-        this.sounds.forEach((s) => s.pause());
-        this.music?.pause();
-    };
-    resume = () => {
-        this.tasks.forEach((t) => t.resume());
-        if (LayerManager.interacted) this.sounds.forEach((s) => s.play());
-        if (LayerManager.interacted) this.music?.play();
-    };
-    scheduleTask = (func, options = {}, ...args) => {
-        if (options.delay) {
-            const { delay, ...newOp } = options;
-            return this.scheduleTask(this.scheduleTask, { time: delay }, newOp);
-        }
-        let task = options.id && this.findTask(options.id);
-        if (task) {
-            task.func = func;
-            task.args = args;
-            task.time = 1_000 * options.time ?? task.time;
-            task.loop = !!(options.loop ?? task.loop);
-        } else {
-            task = new Task(func, options, ...args);
-            task.manager = this;
-            this.tasks.push(task);
-            if (options.expires) this.scheduleTask(() => clearTask(task.id), { time: options.expires });
-        }
-        task.refresh();
-        return task.id;
-    };
-    findTask = (id) => this.tasks.find((t) => t.id === id);
-    clearTask = (id) => {
-        const idx = this.tasks.findIndex((e) => e.id === id);
-        if (idx < 0) return;
-        this.tasks.splice(idx, 1)[0].pause();
-    };
-
-    // Sound Methods
-    sounds = new IterableWeakRef();
-    playSoundEffect = (source, options = {}) => {
-        if (!LayerManager.interacted) return;
-        const { playrate, volume } = options;
-        let soundBite = new Audio(source);
-        if (playrate) soundBite.playbackRate = playrate;
-        if (volume) soundBite.volume = volume;
-        soundBite.addEventListener("canplaythrough", soundBite.play);
-        this.sounds.push(soundBite);
-        soundBite.addEventListener("ended", () => (soundBite.play = () => {}));
-    };
-    playMusic = (source, options = {}) => {
-        if (!LayerManager.interacted) return (this.interact = () => this.playMusic(source, options));
-        const { playrate, volume } = options;
-        if (this.music === undefined) {
-            this.music = new Audio();
-            this.music.loop = true;
-            this.music.addEventListener("canplaythrough", this.music.play);
-        }
-        if (playrate) this.music.playbackRate = playrate;
-        if (volume) this.music.volume = volume;
-        this.music.src = source;
-    };
     // Gameplay Methods
     cameraX;
     cameraY;
@@ -180,6 +111,7 @@ class Layer extends Interactable {
     propagate = (call, ...args) => {
         this.raise("on" + call, ...args);
         this.UIRoot.raise(call, ...args);
+        this.asyncManager.raise(call, ...args);
         this.spacialMap.raise(call, ...args);
     };
     // Game Update Events
@@ -210,6 +142,7 @@ class Layer extends Interactable {
         this.spacialMap.raise("draw");
         ctx.restore();
     };
+    getEntities = () => this.spacialMap.getEntities();
 }
 
 const global = (LayerManager.global = new (class GlobalLayer extends Layer {

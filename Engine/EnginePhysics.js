@@ -46,13 +46,18 @@ class SpacialMap extends Interactable {
         super();
         this.layer = layer;
     }
-    propigate = () => {
+    propagate = (call, ...args) => {
         this.raise("on" + call, ...args);
         const keys = EntityManager.names;
         for (let j = 0; j < keys.length; j++) {
-            if (!this.entities[j]) continue;
-            for (let i = entities[key[j]].length - 1; i >= 0; i--) this.entities[j][i].raise(call, ...args);
+            const key = keys[j];
+            if (!this.entities[key]) continue;
+            for (let i = this.entities[key].length - 1; i >= 0; i--) this.entities[key][i].raise(call, ...args);
         }
+    };
+    getEntities = (groupName) => {
+        if (!groupName) return Object.values(this.entities).flatMap((a) => a);
+        else return this.entities[groupName];
     };
     modmouseevent = (e) => {
         const newE = cloneMouseEvent(e);
