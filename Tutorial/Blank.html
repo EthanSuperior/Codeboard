@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+    <body>
+        <script src="CodeboardEngine.js"></script>
+        <script>
+            // Put all your code inbetween these <script> things
+            // Start by typing on the next line
+
+            // ABOVE THIS
+
+            // LEFT HERE FOR YOUR CONVENIENCE please ignore till finished with Tutorial
+            const FighterAbilities = {
+                RecklessRage: {
+                    type: "Bezerker",
+                    1: {
+                        cooldown: 45,
+                        cost: 0.1,
+                        onactivate: function (player) {
+                            player.health *= 0.5;
+                            player.damage *= 1.2;
+                            function selfheal(type, amount) {
+                                if (type == "self") amount *= 2;
+                            }
+                            player.addEffect("onheal", "RecklessRage_1_Effect", selfheal);
+                        },
+                        ondeactivate: function (player) {
+                            player.damage /= 1.2;
+                            player.removeEffect("RecklessRage_1_Effect");
+                        },
+                        duration: this.perk ? 12 : 10,
+                    },
+                    2: {
+                        onapply: function (player) {
+                            function getModPercent() {
+                                //this is player
+                                const missPerc = 1 - this.health / this.maxHealth;
+                                if (missPerc <= 0.3) return 1;
+                                // Somehow round to nearest .1?
+                                return 1 + Math.min(0.6, missingHealthPercentage + 0.3);
+                            }
+                            player.addModifier("atkspeed", "RecklessRage_2_Modifier", getModPercent);
+                        },
+                        onremove: function (player) {
+                            player.removeModifier("RecklessRage_2_Modifier");
+                        },
+                    },
+                },
+            };
+        </script>
+    </body>
+</html>

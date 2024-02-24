@@ -16,6 +16,7 @@ class Entity extends Interactable {
         this.level = 0;
         this.staticX = false;
         this.staticY = false;
+        this.facingDirection = 0;
         this.groupName = "Entity";
     }
     update = (delta) => {
@@ -23,6 +24,7 @@ class Entity extends Interactable {
         this.raise("onupdate", delta);
         // if (this.groupName == "Player") console.log(this, this.direction, this.speed);
         if (this.speed && this.direction !== null) {
+            this.facingDirection = this.direction;
             if (!this.staticX) this.x += Math.cos(this.direction) * this.speed * delta;
             if (!this.staticY) this.y += Math.sin(this.direction) * this.speed * delta;
         }
@@ -160,11 +162,7 @@ function registerEntity(name, options, types) {
         return newEntity;
     };
     globalThis["forEvery" + upperName + "Do"] = (func, ...args) => {
-        // for (let i = newSubclass.group[-1].length - 1; i >= 0; i--) newSubclass.group[i]?.do(func, ...args);
-        // if (LayerManager.layers.length != 0) {
-        //     const entities = LayerManager.currentLayer.getEntities(upperName);
-        //     for (let i = entities.length - 1; i >= 0; i--) entities[i]?.do(func, ...args);
-        // }
+        LayerManager.getEntities(upperName).forEach((e) => e.do(func, ...args));
     };
     EntityManager.types[upperName] = newSubclass;
     EntityManager.names.push(upperName);

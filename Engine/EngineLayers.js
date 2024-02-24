@@ -43,6 +43,7 @@ const LayerManager = new (class LayerManager extends Interactable {
         this.propagate("draw");
         this.updateframe = requestAnimationFrame(this.update);
     };
+    getEntities = (group) => this.global.getEntities(group).concat(this.currentLayer.getEntities(group));
     pageinteract = () => {
         document.removeEventListener("mousedown", this.pageinteract, { once: true });
         document.removeEventListener("keydown", this.pageinteract, { once: true });
@@ -95,7 +96,7 @@ class Layer extends Interactable {
     ispaused = false;
     asyncManager = new AsyncManager();
     scheduleTask = (func, options = {}, ...args) => this.asyncManager.scheduleTask(func, options, ...args);
-    findTask = (id) => this.tasks.find((t) => t.id === id);
+    findTask = (id) => this.asyncManager.findTask(id);
     clearTask = (id) => this.asyncManager.clearTask(id);
     playSoundEffect = (source, options = {}) => this.asyncManager.playSoundEffect(source, options);
     playMusic = (source, options = {}) => this.asyncManager.playMusic(source, options);
