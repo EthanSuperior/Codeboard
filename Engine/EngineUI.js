@@ -6,12 +6,12 @@
  * @property {function()} [onpageinteract] - Callback for the pageinteract event.
  * @property {function(Event)} [onkeydown] - Callback for the keydown event.
  * @property {function(Event)} [onkeyup] - Callback for the keyup event.
- * @property {function(MouseEvent)} [oninteractmousedown] - Callback for the interactmousedown event.
- * @property {function(MouseEvent)} [oninteractmouseup] - Callback for the interactmouseup event.
- * @property {function(MouseEvent)} [oninteractmousemove] - Callback for the interactmousemove event.
- * @property {function(MouseEvent)} [oninteractclick] - Callback for the interactclick event.
- * @property {function(MouseEvent)} [ondblinteractclick] - Callback for the dblinteractclick event.
- * @property {function(interactwheelEvent)} [oninteractwheel] - Callback for the interactwheel event.
+ * @property {function(MouseEvent)} [onmymousedown] - Callback for the mymousedown event.
+ * @property {function(MouseEvent)} [onmymouseup] - Callback for the mymouseup event.
+ * @property {function(MouseEvent)} [onmymousemove] - Callback for the mymousemove event.
+ * @property {function(MouseEvent)} [onmyclick] - Callback for the myclick event.
+ * @property {function(MouseEvent)} [onmydblclick] - Callback for the mydblclick event.
+ * @property {function(mywheelEvent)} [onmywheel] - Callback for the mywheel event.
  */
 class UIElement extends Interactable {
     // Get callback assigned on adding to get the layer and manager.
@@ -62,7 +62,6 @@ class UIElement extends Interactable {
         this.layer.addUI(this);
     };
     close = () => {};
-    shouldinteract = (mX, mY) => true;
     hide = () => {
         this.close();
     };
@@ -148,7 +147,7 @@ class UITextInput extends UIElement {
             this.raise("onsubmit", this.text);
         }
     };
-    interactclick = (e) => {
+    myclick = (e) => {
         this.isFocused = this.shouldinteract(e.mouseX, e.mouseY);
     };
 
@@ -235,34 +234,34 @@ class UIScroll extends UIElement {
     onwheel = (e) => {
         this.scrollPosition.x = clamp(this.scrollPosition.x + e.deltaX, 0, this.displayWidth);
         this.scrollPosition.y = clamp(this.scrollPosition.y + e.deltaY, 0, this.displayHeight);
-        this.interactmousemove(e);
+        this.mymousemove(e);
     };
-    oninteractmousedown = (e) => {
+    onmymousedown = (e) => {
         this.scrolling = true;
         this.jumpscroll();
     };
-    oninteractmouseup = (e) => {
+    onmymouseup = (e) => {
         this.jumpscroll();
         this.scrolling = false;
     };
-    oninteractmousemove = (e) => {
+    onmymousemove = (e) => {
         this.jumpscroll();
     };
     jumpscroll = () => {
         if (!this.scrolling) return;
-        const interactclickedX =
+        const myclickedX =
             this.scroll.x &&
             detectRect(x, y + this.height - this.scrollBarWidth, this.width, this.scrollBarWidth, mouse.x, mouse.y);
-        const interactclickedY =
+        const myclickedY =
             this.scroll.y &&
             detectRect(x + this.width - this.scrollBarWidth, y, this.scrollBarWidth, this.height, mouse.x, mouse.y);
-        if (interactclickedX == interactclickedY) return;
-        else if (interactclickedX) {
+        if (myclickedX == myclickedY) return;
+        else if (myclickedX) {
             const barHeight = this.width - (this.scroll.y ? this.scrollBarWidth : 0);
             const scrollBarHeight = (barHeight / this.content.width) * barHeight;
             const newScrollRatio = (mouse.x - this.x - scrollBarHeight / 2) / (barHeight - scrollBarHeight);
             this.scrollPosition.x = Math.max(0, Math.min(newScrollRatio * this.displayWidth, this.displayWidth));
-        } else if (interactclickedY) {
+        } else if (myclickedY) {
             const barHeight = this.height - (this.scroll.x ? this.scrollBarWidth : 0);
             const scrollBarHeight = (barHeight / this.content.height) * barHeight;
             const newScrollRatio = (mouse.y - this.y - scrollBarHeight / 2) / (barHeight - scrollBarHeight);
@@ -387,7 +386,7 @@ class UI {
     /**
      * Create a Button UIElement to be rendered.
      *
-     * @param {function} oninteractclick - The callback function to be executed when the button is interactclicked.
+     * @param {function} onmyclick - The callback function to be executed when the button is myclicked.
      * @param {number} x - The x-coordinate of the button.
      * @param {number} y - The y-coordinate of the button.
      * @param {number} width - The width of the button.
@@ -395,8 +394,8 @@ class UI {
      * @param {RectOptions} [options] - Additional options for configuring the button.
      * @returns {UIButton} - A Button UIElement object.
      */
-    static Button = (oninteractclick, x, y, width, height, options) => {
-        return new UIRect(x, y, { width, height, oninteractclick, ...options });
+    static Button = (onmyclick, x, y, width, height, options) => {
+        return new UIRect(x, y, { width, height, onmyclick, ...options });
     };
     /**
      * Create a text input UI element to be rendered.
@@ -435,7 +434,7 @@ class UI {
         title,
         message,
         scale,
-        { cornerRadius, color, buttonText = "Close", oninteractclick, background, ...options } = {}
+        { cornerRadius, color, buttonText = "Close", onmyclick, background, ...options } = {}
     ) => {
         const dialogue = new UIDialogue(x, y, {
             width,
@@ -446,11 +445,11 @@ class UI {
             cornerRadius,
             color,
             buttonText,
-            oninteractclick,
+            onmyclick,
             background,
             ...options,
         });
-        dialogue.oninteractclick ??= () => dialogue.hide();
+        dialogue.onmyclick ??= () => dialogue.hide();
         return dialogue;
     };
     static Scroll = (

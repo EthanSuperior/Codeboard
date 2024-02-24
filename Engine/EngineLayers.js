@@ -40,7 +40,7 @@ const LayerManager = new (class LayerManager extends Interactable {
         const delta = (timestamp - this.lastTimestamp) / 1000;
         this.lastTimestamp = timestamp;
         this.propagate("update", delta);
-        this.propagate("draw");
+        this.draw();
         this.updateframe = requestAnimationFrame(this.update);
     };
     getEntities = (group) => this.global.getEntities(group).concat(this.currentLayer.getEntities(group));
