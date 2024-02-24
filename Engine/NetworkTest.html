@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <script>
+            const socket = new WebSocket("ws://localhost:3000");
+
+            socket.onopen = () => {
+                console.log("Connected to the server");
+                socket.send("Hello, server!");
+            };
+
+            socket.onmessage = (event) => {
+                console.log(`Received message from server: ${event.data}`);
+            };
+
+            socket.onclose = () => {
+                console.log("Connection closed");
+            };
+        </script>
+    </head>
+    <body></body>
+</html>

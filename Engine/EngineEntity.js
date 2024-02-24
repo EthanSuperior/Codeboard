@@ -137,18 +137,18 @@ function registerEntity(name, options, types) {
             return types;
         },
     });
-    Object.defineProperty(newSubclass, "group", {
-        value: Array.from({ length: LayerManager.layers.length }, () => []),
-    });
-    newSubclass.group = newSubclass.group[-1] = [];
-    Object.defineProperty(globalThis, lowerName + "Group", {
-        get() {
-            return newSubclass.group;
-        },
-        set(value) {
-            newSubclass.group = value;
-        },
-    });
+    // Object.defineProperty(newSubclass, "group", {
+    //     value: Array.from({ length: LayerManager.layers.length }, () => []),
+    // });
+    // newSubclass.group = newSubclass.group[-1] = [];
+    // Object.defineProperty(globalThis, lowerName + "Group", {
+    //     get() {
+    //         return newSubclass.group;
+    //     },
+    //     set(value) {
+    //         newSubclass.group = value;
+    //     },
+    // });
     globalThis["spawn" + upperName] = (subType, additional) => {
         const newEntity = new newSubclass();
         MergeOntoObject(newEntity, game.settings);
@@ -160,11 +160,11 @@ function registerEntity(name, options, types) {
         return newEntity;
     };
     globalThis["forEvery" + upperName + "Do"] = (func, ...args) => {
-        for (let i = newSubclass.group[-1].length - 1; i >= 0; i--) newSubclass.group[i]?.do(func, ...args);
-        if (LayerManager.layers.length != 0) {
-            const entities = LayerManager.currentLayer.getEntities(upperName);
-            for (let i = entities.length - 1; i >= 0; i--) entities[i]?.do(func, ...args);
-        }
+        // for (let i = newSubclass.group[-1].length - 1; i >= 0; i--) newSubclass.group[i]?.do(func, ...args);
+        // if (LayerManager.layers.length != 0) {
+        //     const entities = LayerManager.currentLayer.getEntities(upperName);
+        //     for (let i = entities.length - 1; i >= 0; i--) entities[i]?.do(func, ...args);
+        // }
     };
     EntityManager.types[upperName] = newSubclass;
     EntityManager.names.push(upperName);

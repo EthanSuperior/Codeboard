@@ -3,3 +3,5 @@
 */*.wav
 */*.txt
 VampTest1_2-15.json
+node_modules
+package-lock.json

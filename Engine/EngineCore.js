@@ -14,20 +14,54 @@ class Updatable extends Identifiable {
     update = (delta) => this.propagate("update", delta);
 }
 class Interactable extends Updatable {
-    interact = () => this.propagate("interact");
+    pageinteract = () => this.propagate("pageinteract");
     // Helper Utils
     modmouseevent = (e) => e;
+    shouldinteract = (e) => false;
     modkeyevent = (e) => e;
     // IO Events
     keydown = (e) => this.propagate("keydown", this.modkeyevent(e));
     keyup = (e) => this.propagate("keyup", this.modkeyevent(e));
     // Mouse IO Events
-    mousedown = (e) => this.propagate("mousedown", this.modmouseevent(e));
-    mouseup = (e) => this.propagate("mouseup", this.modmouseevent(e));
-    mousemove = (e) => this.propagate("mousemove", this.modmouseevent(e));
-    click = (e) => this.propagate("click", this.modmouseevent(e));
-    dblclick = (e) => this.propagate("dblclick", this.modmouseevent(e));
-    wheel = (e) => this.propagate("wheel", this.modmouseevent(e));
+    mousedown = (e) => {
+        e = this.modmouseevent(e);
+        this.propagate("mousedown", e);
+        if (this.shouldinteract(e.mouseX, e.mouseY)) this.raise("interactmousedown", e);
+    };
+    interactmousedown = (e) => this.raise("oninteractmousedown", e);
+    mouseup = (e) => {
+        e = this.modmouseevent(e);
+        this.propagate("mouseup", e);
+        if (this.shouldinteract(e.mouseX, e.mouseY)) this.raise("interactmouseup", e);
+    };
+    interactmouseup = (e) => this.raise("oninteractmouseup", e);
+    mousemove = (e) => {
+        e = this.modmouseevent(e);
+        this.propagate("mousemove", e);
+        if (this.shouldinteract(e.mouseX, e.mouseY)) {
+            this.raise("interactmousemove", e);
+            this.hovered = true;
+        } else this.hovered = false;
+    };
+    interactmousemove = (e) => this.raise("oninteractmousemove", e);
+    click = (e) => {
+        e = this.modmouseevent(e);
+        this.propagate("click", e);
+        if (this.shouldinteract(e.mouseX, e.mouseY)) this.raise("interactclick", e);
+    };
+    interactclick = (e) => this.raise("oninteractclick", e);
+    dblclick = (e) => {
+        e = this.modmouseevent(e);
+        this.propagate("dblclick", e);
+        if (this.shouldinteract(e.mouseX, e.mouseY)) this.raise("interactdblclick", e);
+    };
+    interactdblclick = (e) => this.raise("oninteractdblclick", e);
+    wheel = (e) => {
+        e = this.modmouseevent(e);
+        this.propagate("wheel", e);
+        if (this.shouldinteract(e.mouseX, e.mouseY)) this.raise("interactwheel", e);
+    };
+    interactwheel = (e) => this.raise("oninteractwheel", e);
 }
 class IterableWeakRef {
     #list = [];

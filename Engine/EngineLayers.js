@@ -20,8 +20,8 @@ const LayerManager = new (class LayerManager extends Interactable {
             if (typeof load !== "undefined") load();
             this.resume();
         };
-        document.addEventListener("mousedown", this.interact, { once: true });
-        document.addEventListener("keydown", this.interact, { once: true });
+        document.addEventListener("mousedown", this.pageinteract, { once: true });
+        document.addEventListener("keydown", this.pageinteract, { once: true });
         // document.addEventListener("contextmenu", (e) => e.preventDefault());
         document.addEventListener("keydown", this.keydown);
         document.addEventListener("keyup", this.keyup);
@@ -43,11 +43,11 @@ const LayerManager = new (class LayerManager extends Interactable {
         this.propagate("draw");
         this.updateframe = requestAnimationFrame(this.update);
     };
-    interact = () => {
-        document.removeEventListener("mousedown", this.interact, { once: true });
-        document.removeEventListener("keydown", this.interact, { once: true });
+    pageinteract = () => {
+        document.removeEventListener("mousedown", this.pageinteract, { once: true });
+        document.removeEventListener("keydown", this.pageinteract, { once: true });
         this.interacted = true;
-        this.propagate("interact");
+        this.propagate("pageinteract");
     };
     pause = () => {
         this.ispaused = true;
@@ -142,7 +142,7 @@ class Layer extends Interactable {
         this.spacialMap.raise("draw");
         ctx.restore();
     };
-    getEntities = () => this.spacialMap.getEntities();
+    getEntities = (type) => this.spacialMap.getEntities(type);
 }
 
 const global = (LayerManager.global = new (class GlobalLayer extends Layer {

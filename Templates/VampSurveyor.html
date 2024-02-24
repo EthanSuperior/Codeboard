@@ -123,11 +123,11 @@
         function addUI() {
             const hud = UI.Blank({ overlay: true });
 
-            const healthUI = hud.add(UI.Text(`HP: ${player.hp}`, 10, 36, { font: "24px monospace", color: "red" }));
+            const healthUI = hud.add(UI.Text(`HP: ${player.hp}`, 10, 40, { font: "24px monospace", color: "red" }));
             healthUI.onupdate = () => (healthUI.text = `HP: ${player.hp}`);
 
             const killsUI = hud.add(
-                UI.Text(`Kills: ${player.kills}`, 10, 66, {
+                UI.Text(`Kills: ${player.kills}`, 10, 70, {
                     font: "24px monospace",
                     color: "gold",
                     onupdate: () => (killsUI.text = `Kills: ${player.kills}`),
@@ -195,7 +195,7 @@
                 stroke: "black",
                 fill: "red",
                 buttonText: "Restart",
-                onclick: () => location.reload(),
+                oninteractclick: () => location.reload(),
             }).show();
         }
 
@@ -462,7 +462,6 @@
             onupdate: function (delta) {
                 if (this.hp <= 0) showDeath();
                 const direction = getPlayerMovementdirectionection();
-                console.log(direction);
                 // Stop player if no keys are pressed otherwise change your directionection.
                 if (direction == null) this.speed = 0;
                 else this.direction = direction;

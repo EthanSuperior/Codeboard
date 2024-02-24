@@ -49,7 +49,7 @@ class AsyncManager extends Updatable {
         soundBite.addEventListener("ended", () => (soundBite.play = () => {}));
     };
     playMusic = (source, options = {}) => {
-        if (!LayerManager.interacted) return (this.interact = () => this.playMusic(source, options));
+        if (!LayerManager.interacted) return (this.onpageinteract = () => this.playMusic(source, options));
         const { playrate, volume } = options;
         if (this.music === undefined) {
             this.music = new Audio();

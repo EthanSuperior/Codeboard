@@ -23,6 +23,7 @@ class Vector {
         this.#direction = Math.atan2(velY, value);
     }
     get x() {
+        if (this.#direction == null) return 0;
         return this.#speed * Math.cos(this.#direction);
     }
     get xSign() {
@@ -34,6 +35,7 @@ class Vector {
         this.#direction = Math.atan2(value, velX);
     }
     get y() {
+        if (this.#direction == null) return 0;
         return this.#speed * Math.sin(this.#direction);
     }
     get ySign() {
@@ -71,12 +73,12 @@ class SpacialMap extends Interactable {
     };
     getEntities = (groupName) => {
         if (!groupName) return Object.values(this.entities).flatMap((a) => a);
-        else return this.entities[groupName];
+        else return this.entities[groupName] ?? [];
     };
     modmouseevent = (e) => {
         const newE = cloneMouseEvent(e);
-        if (this.layer.cameraX) newE.mouseX += this.scrollPosition.x;
-        if (this.layer.cameraY) newE.mouseY += this.scrollPosition.y;
+        if (this.layer.cameraX) newE.mouseX += this.layer.cameraX;
+        if (this.layer.cameraY) newE.mouseY += this.layer.cameraY;
         return newE;
     };
     addEntity = (child) => {
@@ -97,7 +99,8 @@ function detectRect(x, y, w, h, ptX, ptY) {
     return ptX >= x && ptX <= x + w && ptY >= y && ptY <= y + h;
 }
 function detectCircle(x, y, r, ptX, ptY) {
-    return Math.hypot(ptX - x, ptY - y) <= r;
+    const squaredDistance = (x - ptX) ** 2 + (y - ptY) ** 2;
+    return squaredDistance <= r ** 2;
 }
 function detectEntity(entityOne, entityTwo, radius) {
     radius ??= (entityOne.size + entityTwo.size) / 2;

@@ -3,15 +3,15 @@
  * @typedef {object} UIOptions
  * @property {boolean} [overlay] - Render to current layer or not
  * @property {function(number)} [onupdate] - Callback for the update event.
- * @property {function()} [oninteract] - Callback for the interact event.
+ * @property {function()} [onpageinteract] - Callback for the pageinteract event.
  * @property {function(Event)} [onkeydown] - Callback for the keydown event.
  * @property {function(Event)} [onkeyup] - Callback for the keyup event.
- * @property {function(MouseEvent)} [onmousedown] - Callback for the mousedown event.
- * @property {function(MouseEvent)} [onmouseup] - Callback for the mouseup event.
- * @property {function(MouseEvent)} [onmousemove] - Callback for the mousemove event.
- * @property {function(MouseEvent)} [onclick] - Callback for the click event.
- * @property {function(MouseEvent)} [ondblclick] - Callback for the dblclick event.
- * @property {function(WheelEvent)} [onwheel] - Callback for the wheel event.
+ * @property {function(MouseEvent)} [oninteractmousedown] - Callback for the interactmousedown event.
+ * @property {function(MouseEvent)} [oninteractmouseup] - Callback for the interactmouseup event.
+ * @property {function(MouseEvent)} [oninteractmousemove] - Callback for the interactmousemove event.
+ * @property {function(MouseEvent)} [oninteractclick] - Callback for the interactclick event.
+ * @property {function(MouseEvent)} [ondblinteractclick] - Callback for the dblinteractclick event.
+ * @property {function(interactwheelEvent)} [oninteractwheel] - Callback for the interactwheel event.
  */
 class UIElement extends Interactable {
     // Get callback assigned on adding to get the layer and manager.
@@ -47,19 +47,6 @@ class UIElement extends Interactable {
         this.children.forEach((c) => c?.raise(call, ...args));
     };
     draw = () => this.propagate("draw");
-    mousedown = (e) => {
-        e = this.modmouseevent(e);
-        if (this.detect(e.mouseX, e.mouseY)) this.propagate("mousedown", e);
-    };
-    mousemove = (e) => {
-        e = this.modmouseevent(e);
-        if (this.options) this.options.hovered = this.detect(e.mouseX, e.mouseY);
-        this.propagate("mousemove", e);
-    };
-    click = (e) => {
-        e = this.modmouseevent(e);
-        if (this.detect(e.mouseX, e.mouseY)) this.propagate("click", e);
-    };
     show = () => {
         this.raise("onshow");
         this.children.forEach((c) => c.raise("onshow"));
@@ -75,7 +62,7 @@ class UIElement extends Interactable {
         this.layer.addUI(this);
     };
     close = () => {};
-    detect = (mX, mY) => true;
+    shouldinteract = (mX, mY) => true;
     hide = () => {
         this.close();
     };
@@ -116,12 +103,12 @@ class UIRoot extends UIElement {
  * @property {number} [cornerRadius=0] - Radius of the rounded corners.
  */
 class UIRect extends UIElement {
-    ondraw = () => UI.drawRect(this.x, this.y, this.width, this.height, this.options);
-    detect = (mX, mY) => detectRect(this.x, this.y, this.width, this.height, mX, mY);
+    ondraw = () => UI.drawRect(this.x, this.y, this.width, this.height, { ...this.options, hovered: this.hovered });
+    shouldinteract = (mX, mY) => detectRect(this.x, this.y, this.width, this.height, mX, mY);
 }
 class UICircle extends UIElement {
-    ondraw = () => UI.drawCircle(this.x, this.y, this.radius, this.options);
-    detect = (mX, mY) => detectCircle(this.x, this.y, this.radius, mX, mY);
+    ondraw = () => UI.drawCircle(this.x, this.y, this.radius, { ...this.options, hovered: this.hovered });
+    shouldinteract = (mX, mY) => detectCircle(this.x, this.y, this.radius, mX, mY);
 }
 /**
  * Options for styling text within a UI element.
@@ -161,8 +148,8 @@ class UITextInput extends UIElement {
             this.raise("onsubmit", this.text);
         }
     };
-    click = (e) => {
-        this.isFocused = this.detect(e.mouseX, e.mouseY);
+    interactclick = (e) => {
+        this.isFocused = this.shouldinteract(e.mouseX, e.mouseY);
     };
 
     ondraw = () => {
@@ -170,14 +157,15 @@ class UITextInput extends UIElement {
         const fontSize = parseInt(ctx.font);
         // Draw the input box
         ctx.clearRect(this.x, this.y, this.width, fontSize);
-        UI.drawRect(this.x, this.y, this.width, fontSize, { stroke: "black" });
+        UI.drawRect(this.x, this.y, this.width, fontSize, { stroke: "black", hovered: this.hovered });
         // Draw the text inside the input box
         ctx.textBaseline = "middle";
         if (this.color) ctx.fillStyle = this.color;
         ctx.textBaseline = "middle";
         ctx.fillText(this.text, this.x, this.y + fontSize / 2, this.width);
     };
-    detect = (mX, mY) => detectRect(this.x, this.y, this.width, parseInt(this.font ? this.font : ctx.font), mX, mY);
+    shouldinteract = (mX, mY) =>
+        detectRect(this.x, this.y, this.width, parseInt(this.font ? this.font : ctx.font), mX, mY);
 }
 class UIProgressBar extends UIElement {
     get progress() {
@@ -188,6 +176,7 @@ class UIProgressBar extends UIElement {
         UI.drawRect(this.x, this.y, this.width, this.height, {
             ...this.options,
             fill: this.background,
+            hovered: this.hovered,
         });
 
         // Draw the progress bar
@@ -198,7 +187,7 @@ class UIProgressBar extends UIElement {
     };
 }
 class UIDialogue extends UIElement {
-    detect = (mX, mY) =>
+    shouldinteract = (mX, mY) =>
         detectRect(
             this.x + this.scale / 2,
             this.y + this.height - this.scale - this.scale / 2,
@@ -208,7 +197,11 @@ class UIDialogue extends UIElement {
             mY
         );
     ondraw = () => {
-        UI.drawRect(this.x, this.y, this.width, this.height, { ...this.options, fill: this.background });
+        UI.drawRect(this.x, this.y, this.width, this.height, {
+            ...this.options,
+            fill: this.background,
+            hovered: this.hovered,
+        });
         UI.drawText(this.title, this.x, this.y + this.scale, {
             center: true,
             font: `bold ${this.scale}px monospace`,
@@ -224,7 +217,7 @@ class UIDialogue extends UIElement {
             this.y + this.height - this.scale - this.scale / 2,
             this.width - this.scale,
             this.scale,
-            this.options
+            { ...this.options, hovered: this.hovered }
         );
         UI.drawText(this.buttonText, this.x, this.y + this.height - this.scale, {
             font: `bold ${this.scale * 0.75}px monospace`,
@@ -242,34 +235,34 @@ class UIScroll extends UIElement {
     onwheel = (e) => {
         this.scrollPosition.x = clamp(this.scrollPosition.x + e.deltaX, 0, this.displayWidth);
         this.scrollPosition.y = clamp(this.scrollPosition.y + e.deltaY, 0, this.displayHeight);
-        this.mousemove(e);
+        this.interactmousemove(e);
     };
-    onmousedown = (e) => {
+    oninteractmousedown = (e) => {
         this.scrolling = true;
         this.jumpscroll();
     };
-    onmouseup = (e) => {
+    oninteractmouseup = (e) => {
         this.jumpscroll();
         this.scrolling = false;
     };
-    onmousemove = (e) => {
+    oninteractmousemove = (e) => {
         this.jumpscroll();
     };
     jumpscroll = () => {
         if (!this.scrolling) return;
-        const clickedX =
+        const interactclickedX =
             this.scroll.x &&
             detectRect(x, y + this.height - this.scrollBarWidth, this.width, this.scrollBarWidth, mouse.x, mouse.y);
-        const clickedY =
+        const interactclickedY =
             this.scroll.y &&
             detectRect(x + this.width - this.scrollBarWidth, y, this.scrollBarWidth, this.height, mouse.x, mouse.y);
-        if (clickedX == clickedY) return;
-        else if (clickedX) {
+        if (interactclickedX == interactclickedY) return;
+        else if (interactclickedX) {
             const barHeight = this.width - (this.scroll.y ? this.scrollBarWidth : 0);
             const scrollBarHeight = (barHeight / this.content.width) * barHeight;
             const newScrollRatio = (mouse.x - this.x - scrollBarHeight / 2) / (barHeight - scrollBarHeight);
             this.scrollPosition.x = Math.max(0, Math.min(newScrollRatio * this.displayWidth, this.displayWidth));
-        } else if (clickedY) {
+        } else if (interactclickedY) {
             const barHeight = this.height - (this.scroll.x ? this.scrollBarWidth : 0);
             const scrollBarHeight = (barHeight / this.content.height) * barHeight;
             const newScrollRatio = (mouse.y - this.y - scrollBarHeight / 2) / (barHeight - scrollBarHeight);
@@ -335,7 +328,7 @@ class UIScroll extends UIElement {
         newE.mouseY += this.scrollPosition.y;
         return newE;
     };
-    detect = (mX, mY) => detectRect(this.x, this.y, this.scrollWidth, this.scrollHeight, mX, mY);
+    shouldinteract = (mX, mY) => detectRect(this.x, this.y, this.scrollWidth, this.scrollHeight, mX, mY);
 }
 class UIToast extends UIText {
     onshow = () => scheduleTask(() => this.hide(), { time: this.duration });
@@ -394,7 +387,7 @@ class UI {
     /**
      * Create a Button UIElement to be rendered.
      *
-     * @param {function} onclick - The callback function to be executed when the button is clicked.
+     * @param {function} oninteractclick - The callback function to be executed when the button is interactclicked.
      * @param {number} x - The x-coordinate of the button.
      * @param {number} y - The y-coordinate of the button.
      * @param {number} width - The width of the button.
@@ -402,8 +395,8 @@ class UI {
      * @param {RectOptions} [options] - Additional options for configuring the button.
      * @returns {UIButton} - A Button UIElement object.
      */
-    static Button = (onclick, x, y, width, height, options) => {
-        return new UIRect(x, y, { width, height, onclick, ...options });
+    static Button = (oninteractclick, x, y, width, height, options) => {
+        return new UIRect(x, y, { width, height, oninteractclick, ...options });
     };
     /**
      * Create a text input UI element to be rendered.
@@ -442,7 +435,7 @@ class UI {
         title,
         message,
         scale,
-        { cornerRadius, color, buttonText = "Close", onclick, background, ...options } = {}
+        { cornerRadius, color, buttonText = "Close", oninteractclick, background, ...options } = {}
     ) => {
         const dialogue = new UIDialogue(x, y, {
             width,
@@ -453,11 +446,11 @@ class UI {
             cornerRadius,
             color,
             buttonText,
-            onclick,
+            oninteractclick,
             background,
             ...options,
         });
-        dialogue.onclick ??= () => dialogue.hide();
+        dialogue.oninteractclick ??= () => dialogue.hide();
         return dialogue;
     };
     static Scroll = (
@@ -570,7 +563,6 @@ class UI {
         startLerp(popup, lerpMovement, duration);
         popup.show();
     };
-
     static colorPath = ({ hovered, fill, stroke, strokeWidth, hoverFill, hoverStroke, hoverWidth } = {}) => {
         ctx.fillStyle = (hovered && hoverFill) || fill;
         if (fill || (hovered && hoverFill)) ctx.fill();

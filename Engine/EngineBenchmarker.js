@@ -301,6 +301,71 @@ function RaiseFunctionTest() {
     logTestResult("RaiseIfNoCallTest", "raise_if_no_call_start", "raise_if_no_call_end");
     logTestResult("RaisePropertyNoCallTest", "raise_with_property_no_call_start", "raise_with_property_no_call_end");
 }
+function CircleCollisionTest() {
+    const circle1 = { x: 0, y: 0, radius: 5 };
+    const circle2 = { x: 3, y: 4, radius: 5 };
+
+    const testIterations = 1_000_000_000; // Adjust the number of iterations as needed
+
+    // // Method 1: Using Math.hypot
+    // performance.mark("collision_hypot_start");
+    // for (let i = 0; i < testIterations; i++) {
+    //     const distance = Math.hypot(circle2.x - circle1.x, circle2.y - circle1.y);
+    //     const collision = distance < circle1.radius + circle2.radius;
+    // }
+    // performance.mark("collision_hypot_end");
+
+    // Method 2: Using Math.sqrt(num**2 + num**2)
+    performance.mark("collision_sqrt_start");
+    for (let i = 0; i < testIterations; i++) {
+        const distance = Math.sqrt((circle2.x - circle1.x) ** 2 + (circle2.y - circle1.y) ** 2);
+        const collision = distance < circle1.radius + circle2.radius;
+    }
+    performance.mark("collision_sqrt_end");
+
+    // Method 3: Using squared distance (math)**2
+    performance.mark("collision_squared_start");
+    for (let i = 0; i < testIterations; i++) {
+        const squaredDistance = (circle2.x - circle1.x) ** 2 + (circle2.y - circle1.y) ** 2;
+        const collision = squaredDistance < (circle1.radius + circle2.radius) ** 2;
+    }
+    performance.mark("collision_squared_end");
+
+    // Method 3B: Using squared distance (math)**2 no var
+    performance.mark("collision_squared_inline_start");
+    for (let i = 0; i < testIterations; i++) {
+        const collision =
+            (circle2.x - circle1.x) ** 2 + (circle2.y - circle1.y) ** 2 < (circle1.radius + circle2.radius) ** 2;
+    }
+    performance.mark("collision_squared_inline_end");
+
+    // Method 4: Using squared distance (math) * (math)
+    performance.mark("collision_multiply_start");
+    for (let i = 0; i < testIterations; i++) {
+        const x = circle2.x - circle1.x;
+        const y = circle2.y - circle1.y;
+        const r = circle1.radius + circle2.radius;
+        const multipliedDistance = x * x + y * y;
+        const collision = multipliedDistance < r * r;
+    }
+    performance.mark("collision_multiply_end");
+
+    // Method 5: Using squared distance pow
+    performance.mark("collision_pow_start");
+    for (let i = 0; i < testIterations; i++) {
+        const multipliedDistance = Math.pow(circle2.x - circle1.x, 2) + Math.pow(circle2.y - circle1.y, 2);
+        const collision = multipliedDistance < Math.pow(circle1.radius + circle2.radius, 2);
+    }
+    performance.mark("collision_pow_end");
+
+    // Log test results
+    // logTestResult("CollisionHypotTest", "collision_hypot_start", "collision_hypot_end");
+    logTestResult("CollisionSqrtTest", "collision_sqrt_start", "collision_sqrt_end");
+    logTestResult("CollisionSquaredTest", "collision_squared_start", "collision_squared_end");
+    logTestResult("CollisionSquaredInlineTest", "collision_squared_inline_start", "collision_squared_inline_end");
+    logTestResult("CollisionMultiplyTest", "collision_multiply_start", "collision_multiply_end");
+    logTestResult("CollisionPowTest", "collision_pow_start", "collision_pow_end");
+}
 
 // Run the tests
 console.log(ObjectIterationTest());
@@ -308,3 +373,4 @@ console.log(ObjectApplyVsAssignTest());
 console.log(SelectPropertiesTests());
 console.log(RequestAnimationFuncCalling());
 console.log(RaiseFunctionTest());
+console.log(CircleCollisionTest());
