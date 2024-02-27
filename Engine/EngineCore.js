@@ -99,6 +99,52 @@ class IterableWeakRef {
     }
 }
 
+const game = new (class GameSettings {
+    draw = () => LayerManager.draw();
+    /**
+     * Clears the screen and fills it with the specified background color.
+     * @type {function}
+     */
+    ondraw = () => {
+        UI.fillScreen({ color: this.background });
+    };
+    /**
+     * Get the width of the game.
+     * @type {number}
+     */
+    get width() {
+        return canvas.width / (this.scaleX ?? 1);
+    }
+    /**
+     * Set the width of the game.
+     * @type {number}
+     */
+    set width(value) {
+        canvas.width = value * (this.scaleX ?? 1);
+    }
+    /**
+     * Get the height of the game.
+     * @type {number}
+     */
+    get height() {
+        return canvas.height / (this.scaleY ?? 1);
+    }
+    /**
+     * Set the height of the game.
+     * @type {number}
+     */
+    set height(value) {
+        canvas.height = value * (this.scaleY ?? 1);
+    }
+    //TODO FIX ME FIXME
+    set cameraX(value) {
+        LayerManager.currentLayer.cameraX = value;
+    }
+    set cameraY(value) {
+        LayerManager.currentLayer.cameraY = value;
+    }
+})();
+
 const canvas = document.createElement("canvas");
 const ctx = canvas.getContext("2d");
 document.body.appendChild(canvas);

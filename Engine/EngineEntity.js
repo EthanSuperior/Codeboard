@@ -18,8 +18,10 @@ class Entity extends Interactable {
         this.staticY = false;
         this.facingDirection = 0;
         this.groupName = "Entity";
+        this.controller = new EntityController();
     }
     update = (delta) => {
+        this.controller.update(delta);
         if (this.acceleration) this.speed = clamp(this.speed + this.acceleration, 0, this.maxSpeed);
         this.raise("onupdate", delta);
         // if (this.groupName == "Player") console.log(this, this.direction, this.speed);
@@ -131,9 +133,14 @@ class Entity extends Interactable {
 function registerEntity(name, options, types) {
     const upperName = name[0].toUpperCase() + name.slice(1);
     const lowerName = name[0].toLowerCase() + name.slice(1);
-    const newSubclass = class extends Entity {
-        groupName = upperName;
-    };
+    const newSubclass =
+        name === "Player"
+            ? class extends Entity {
+                  groupName = upperName;
+              }
+            : class extends Entity {
+                  groupName = upperName;
+              };
     Object.defineProperty(newSubclass, "subtypes", {
         set(value) {
             types = value;
@@ -182,4 +189,14 @@ function registerEntity(name, options, types) {
             for (let i = 0; i < keys.length; i++) func.call(newSubclass.subtypes[keys[i]], ...args);
         };
     }
+}
+
+class EntityController extends Updatable {}
+class PlayerController extends EntityController {
+    onupdate = (delta) => {
+        this.direction = getPlayerMovementdirectionection();
+        // Stop player if no keys are pressed otherwise change your directionection.
+        // if (direction == null) this.speed = 0;
+        // else this.direction = direction;
+    };
 }

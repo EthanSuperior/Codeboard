@@ -35,6 +35,10 @@ const LayerManager = new (class LayerManager extends Interactable {
     get currentLayer() {
         return this.layers[this.layers.length - 1];
     }
+    draw = () => {
+        game.ondraw();
+        this.propagate("draw");
+    };
     update = (timestamp) => {
         // Fraction of a second since last update.
         const delta = (timestamp - this.lastTimestamp) / 1000;
@@ -159,6 +163,7 @@ const global = (LayerManager.global = new (class GlobalLayer extends Layer {
         this.position = -1;
         this.parent = LayerManager;
         this.parent.pop();
+        this.parent.push(new Layer({ id: "game" }));
     }
     keydown = (e) => {
         keys[e.code] = true;
@@ -210,52 +215,3 @@ const global = (LayerManager.global = new (class GlobalLayer extends Layer {
         e.canvasY = mouse.y;
     };
 })());
-
-/**
- * Represents the main game layer in the application.
- * @extends Layer
- * @class
- */
-const game = new (class GameLayer extends Layer {
-    /**
-     * Constructs a new instance of the GameLayer class.
-     */
-    constructor() {
-        super({ id: "game" });
-    }
-    /**
-     * Clears the screen and fills it with the specified background color.
-     * @type {function}
-     */
-    ondraw = () => {
-        UI.fillScreen({ color: this.background });
-    };
-    /**
-     * Get the width of the game.
-     * @type {number}
-     */
-    get width() {
-        return canvas.width / (this.scaleX ?? 1);
-    }
-    /**
-     * Set the width of the game.
-     * @type {number}
-     */
-    set width(value) {
-        canvas.width = value * (this.scaleX ?? 1);
-    }
-    /**
-     * Get the height of the game.
-     * @type {number}
-     */
-    get height() {
-        return canvas.height / (this.scaleY ?? 1);
-    }
-    /**
-     * Set the height of the game.
-     * @type {number}
-     */
-    set height(value) {
-        canvas.height = value * (this.scaleY ?? 1);
-    }
-})();

@@ -477,10 +477,12 @@
             kills: 0,
             onupdate: function (delta) {
                 if (this.hp <= 0) showDeath();
-                const direction = getPlayerMovementdirectionection();
+
+                this.direction = getPlayerMovementdirectionection();
                 // Stop player if no keys are pressed otherwise change your directionection.
-                if (direction == null) this.speed = 0;
-                else this.direction = direction;
+                // if (direction == null) this.speed = 0;
+                // else this.direction = direction;
+
                 this.flipX = this.velocity.xSign < 0;
                 game.cameraX = this.x;
                 game.cameraY = this.y;
