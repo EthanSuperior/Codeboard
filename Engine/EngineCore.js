@@ -18,7 +18,7 @@ class Interactable extends Updatable {
     // Helper Utils
     modmouseevent = (e) => e;
     // shouldinteract = (e) => false;
-    shouldinteract = (mX, mY) => true;
+    shouldinteract = (mX, mY) => false;
     modkeyevent = (e) => e;
     // IO Events
     keydown = (e) => this.propagate("keydown", this.modkeyevent(e));

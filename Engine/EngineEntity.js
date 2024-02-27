@@ -34,6 +34,9 @@ class Entity extends Interactable {
         }
         if (this.collisions) this.checkCollision();
     };
+    shouldinteract = (mX, mY) =>
+        detectRect(this.x - this.size / 2, this.y - this.size / 2, this.size, this.size, mX, mY);
+
     checkCollision = () => {
         for (let group of this.collisions) {
             for (let e of this.layer.getEntities(group)) {

@@ -23,6 +23,7 @@
         game.height = 600;
         game.cameraX = 0;
         game.cameraY = 0;
+        game.deltaMod = 0.2;
         game.background = "#2a4720";
 
         function load() {
@@ -43,6 +44,16 @@
                         this.x -= (this.velocity.x * this.size) / 20;
                         this.y -= (this.velocity.y * this.size) / 20;
                         other.hp -= this.dmg;
+                    },
+                    onmyclick: function () {
+                        this.despawn();
+                    },
+                    onclick: function (e) {
+                        console.log(e.mouseX, player.x, e.canvasX);
+                    },
+                    onmousemove: function () {
+                        if (this.hovered) this.color = "red";
+                        else this.color = "blue";
                     },
                 },
                 enemyTypes
@@ -86,7 +97,7 @@
             for (let time in waves) scheduleTask(spawnWave, { time: +time }, waves[time]);
             addUI();
             game.draw();
-            player.levelup();
+            // player.levelup();
         }
 
         const DownKeyEvents = {
@@ -133,7 +144,11 @@
                     onupdate: () => (killsUI.text = `Kills: ${player.kills}`),
                 })
             );
-
+            hud.add(
+                new UIElement(100, 100, {
+                    ondraw: () => UI.drawCone(300, 300, 0, Math.PI / 4, 50, { fill: "pink", strokeWidth: 3 }),
+                })
+            );
             const getProgress = () => player.xp / player.neededXP;
             const playerXpBar = hud.add(
                 UI.ProgressBar(getProgress, 5, 5, canvas.width - 10, 12, {

@@ -102,6 +102,22 @@ function detectCircle(x, y, r, ptX, ptY) {
     const squaredDistance = (x - ptX) ** 2 + (y - ptY) ** 2;
     return squaredDistance <= r ** 2;
 }
+function detectBox(x1, y1, w1, h1, x2, y2, w2, h2, ptX, ptY) {
+    return (
+        (ptX >= x1 && ptX <= x1 + w1 && ptY >= y1 && ptY <= y1 + h1) ||
+        (ptX >= x2 && ptX <= x2 + w2 && ptY >= y2 && ptY <= y2 + h2)
+    );
+}
+function detectCone(x, y, direction, arcLength, radius, ptX, ptY) {
+    if (!detectCircle(x, y, radius, ptX, ptY)) return false;
+
+    const angleToTarget = Math.atan2(ptY - y, ptX - x);
+    const angleDiff = Math.abs(angleToTarget - direction);
+
+    // Normalize angle difference to be between -π and π
+    const normalizedDiff = ((angleDiff + Math.PI) % (2 * Math.PI)) - Math.PI;
+    return normalizedDiff <= arcLength / 2;
+}
 function detectEntity(entityOne, entityTwo, radius) {
     radius ??= (entityOne.size + entityTwo.size) / 2;
     return distanceTo(entityOne, entityTwo) <= radius;

@@ -581,6 +581,18 @@ class UI {
         UI.colorPath(options);
         ctx.closePath();
     };
+    static drawCone = (x, y, direction, arcLength, radius, options = {}) => {
+        const startAngle = direction - arcLength / 2;
+        const endAngle = direction + arcLength / 2;
+
+        ctx.beginPath();
+        if (options.noLines === undefined) ctx.moveTo(x, y);
+        // Draw the arc
+        ctx.arc(x, y, radius * 3, startAngle, endAngle);
+        if (options.noLines === undefined) ctx.lineTo(x, y);
+        UI.colorPath(options);
+        ctx.closePath();
+    };
     static drawText = (text, x, y, { width, font, color, center, linewrap } = {}) => {
         if (color) ctx.fillStyle = color;
         if (font) ctx.font = font;

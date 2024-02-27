@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>Your Game Name Goes Here</title>
+    </head>
+    <body>
+        <style>
+            * {
+                background-color: black;
+                color: white;
+                font-family: monospace;
+            }
+        </style>
+
+        <div id="game-display">
+            <textarea id="output" rows="20" cols="64" readonly></textarea>
+            <br />
+            <input
+                type="text"
+                id="input"
+                autofocus
+                placeholder="Enter a command"
+                onkeydown="if(event.keyCode==13) processInput()"
+            />
+            <button onclick="processInput()">Enter</button>
+        </div>
+    </body>
+    <!-- <script src="../Engine/CodeboardEngine.js"></script> -->
+
+    <script src="../Engine/EngineCore.js"></script>
+    <script src="../Engine/EngineUtilities.js"></script>
+    <script src="../Engine/EnginePhysics.js"></script>
+    <script src="../Engine/EngineAsync.js"></script>
+    <script src="../Engine/EngineEntity.js"></script>
+    <script src="../Engine/EngineUI.js"></script>
+    <script src="../Engine/EngineLayers.js"></script>
+
+    <script lang="javascript">
+        function load(){
+        	game.width = 300
+        	game.height = 100;
+        	UI.TextInput(
+        		16, 10, { placeholder: "TypeHere", width:160, font: "24px monospace",
+        		onsubmit:(text)=>console.log(text)
+        	}
+        		// font, color, oninput, onsubmit,
+        	).show();
+        }
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // CORE GAMEPLAY FUNCTIONS TOUCH AT YOUR OWN RISK
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        let roomEntrances = {};
+        let roomExits = {};
+        let roomCount = 0;
+
+        // Function to handle setting up map info, and dangers
+        function initializeGame() {
+        	setupMapInfo();
+        	spawnDangers();
+        	sortDangers();
+        }
+
+        // Function to setup room entrances and exits in case of one way maps
+        function setupMapInfo() {
+        	for (room in gameMap) {
+        		roomCount++;
+        		if (!gameMap[room].danger)
+        			gameMap[room].danger = [];
+        		roomExits[room] = gameMap[room].tunnels;
+        		for (troom of gameMap[room].tunnels) {
+        			if (!roomEntrances[troom])
+        				roomEntrances[troom] = [];
+        			roomEntrances[troom].push(room);
+        		}
+        	}
+        }
+
+        // Function to spawn dangers in rooms
+        function spawnDangers() {
+        	for (d in dangers) {
+        		if (dangers[d].safeSpawn)
+        			continue;
+        		for (let c=0; c<dangers[d].count; c++) {
+        			let room = anyRoom();
+        			while ((d in gameMap[room].danger) || gameMap[room].safe)
+        				room = anyRoom();
+        			gameMap[room].danger.push(d);
+        			console.log(""+room+": " +d);
+        		}
+        	}
+        	for (d in dangers) {
+        		if (dangers[d].safeSpawn) {
+        			for (let c=0; c<dangers[d].count; c++) {
+        				let room = safeRoom();
+        				while (gameMap[room].safe)
+        					room = safeRoom();
+        				gameMap[room].danger.push(d);
+        				console.log(""+room+": " +d);
+        			}
+        		}
+        	}
+        }
+
+        // Function to sort dangers by priority
+        function sortDangers() {
+        	for (room in gameMap) {
+        		sortDangersAtRoom(room);
+        	}
+        }
+
+        // Function to sort dangers by priority
+        function sortDangersAtRoom(room) {
+        	gameMap[room].danger.sort((a,b)=> {
+        		let aPriority = 0;
+        		let bPriority = 0;
+        		if (dangers[a].onEnterPriority)
+        			aPriority=dangers[a].onEnterPriority;
+        		if (dangers[b].onEnterPriority)
+        			bPriority=dangers[b].onEnterPriority;
+        		return bPriority-aPriority;
+        	});
+        }
+
+        // Function to move danger at one room to another if it exists
+        function moveDanger(dangerCheck, roomStart, roomEnd) {
+        	const index = gameMap[roomStart].danger.indexOf(dangerCheck);
+        	if (index > -1) {
+        		gameMap[roomStart].danger.splice(index,1);
+        		gameMap[roomEnd].danger.push(dangerCheck);
+        		sortDangersAtRoom(roomEnd);
+        		console.log("" + dangerCheck + " moved from " + roomStart + " to " + roomEnd);
+        	}
+        }
+
+        // Function to return all rooms with danger
+        function findRoomsWithDanger(dangerCheck) {
+        	let result = [];
+        	for (room in gameMap) {
+        		if (gameMap[room].danger.includes(dangerCheck))
+        			result.push(room);
+        	}
+        	return result;
+        }
+
+        // Function to select a random room
+        function anyRoom() {
+        	let pick = Math.floor(Math.random() * roomCount);
+        	let current = 0;
+        	for (room in gameMap) {
+        		if (pick==current)
+        			return room;
+        		current++;
+        	}
+        	return "";
+        }
+
+        // Function to select a random adjacent room
+        function anyAdjacentRoom(room) {
+        	let pick = Math.floor(Math.random() * gameMap[room].tunnels.length);
+        	return gameMap[room].tunnels[pick];
+        }
+
+        // Function to select a random adjacent room that doesn't have a specific danger
+        function anyAdjacentRoomWithout(room,dangerCheck) {
+        	let tries =20;
+        	for (let t = 0; t<tries; t++) {
+        		let pick = anyAdjacentRoom(room);
+        		if (!gameMap[pick].danger.includes(dangerCheck))
+        			return pick;
+        	}
+        	return room;
+        }
+
+        // Function to select a random room other than passed in values, can be string or
+        function anyRoomOtherThan(roomList) {
+        	if (!(roomList.constructor === Array)) {
+        		roomList = [roomList];
+        	}
+        	let tries =20;
+        	for (let t = 0; t<tries; t++) {
+        		let pick = anyRoom();
+        		if (!roomList.includes(pick))
+        			return pick;
+        	}
+        	let r = "";
+        	for (room in gameMap) {
+        		r = room;
+        		if (!roomList.includes(r))
+        			return r;
+        	}
+        	return r;
+        }
+
+        // Function to select a random room with no dangers
+        function safeRoom() {
+        	let tries =20;
+        	for (let t = 0; t<tries; t++) {
+        		let pick = anyRoom();
+        		if (!(gameMap[pick].danger) || gameMap[pick].danger.length==0)
+        			return pick;
+        	}
+        	let r = "";
+        	for (room in gameMap) {
+        		r = room;
+        		if (!(gameMap[r].danger) || gameMap[r].danger.length==0)
+        			return r;
+        	}
+        	return r;
+        }
+
+        // Function to update the game display
+        function display(message) {
+        	const outputTextArea = document.getElementById("output");
+        	outputTextArea.value += message + "\n";
+        	outputTextArea.scrollTop = outputTextArea.scrollHeight;
+        }
+
+        // Function to handle player input
+        function processInput() {
+        	const inputField = document.getElementById("input");
+        	const input = inputField.value.trim();
+
+        	if (input == "") return; // Don't process empty input
+
+        	display("> " + input); // Display user input
+        	handleInput(input);
+        	inputField.value = ""; // Clear input field
+        }
+
+        // Function to handle player input
+        function handleInput(input) {
+        	const command = input.split(" ")[0];
+        	const argument = input.split(" ")[1];
+
+        	if (command == "look") {
+        		look();
+        	} else if (command == "go") {
+        		if (argument) go(argument);
+        		else display("Enter 'go <room>' ex: go 17");
+        	} else if (command == "attack" || command == "a") {
+        		if (argument) attack(argument);
+        		else display("Enter 'attack <room>' ex: a 17");
+        	} else if (command == "help") {
+        		display("Commands: info, look, attack (or a), go (or blank)");
+        	} else if (command == "info") {
+        		displayInfo();
+        	} else if (!argument) {
+        		go(command)
+        	} else {
+        		display("Invalid command. Try again.");
+        		display("Commands: go, look, take, use");
+        	}
+        }
+
+        // Function to handle entering a room
+        function onEnter(showLook = true) {
+        	for (e in events) {
+        		if (Math.random()<events[e].chance)
+        			eventHappens(e);
+        	}
+        	if (gameMap[playerLocation].danger) {
+        		for (d of gameMap[playerLocation].danger) {
+        			display(dangers[d].onEnter);
+        			const action = dangers[d].onEnterTrigger;
+        			action();
+        			if (dangers[d].interruptOtherDangers)
+        				return;
+        		}
+
+        		gameMap[playerLocation].danger = gameMap[playerLocation].danger.filter((d) => {
+        			return !dangers[d].removeOnEnter;
+        		});
+        	}
+        	if (showLook)
+        		look();
+        }
+
+        // Function to handle "go" command
+        function go(roomName) {
+        	let r = convertRoomNameToKey(roomName);
+        	if (gameMap[r] && gameMap[playerLocation].tunnels.includes(r)) {
+        		playerLocation = r;
+        		onEnter();
+        	} else {
+        		display("You can't go that way.");
+        	}
+        }
+
+        // Function to convert the name to the key in the gameMap. This is a helper function to handle user input.
+        function convertRoomNameToKey(roomName) {
+        	for (room in gameMap) {
+        		if (gameMap[room].name==roomName) {
+        			return room;
+        		}
+        	}
+        	return roomName;
+        }
+
+        // Function to handle "look" command
+        function look() {
+        	let allDangers = findDangers(playerLocation);
+        	for (d of allDangers) {
+        		display(dangers[d].detect);
+        	}
+
+        	if (gameMap[playerLocation].name)
+        		display("You are at " + gameMap[playerLocation].name + ".")
+        	else
+        		display("You are at the " + playerLocation + ".")
+        	if (gameMap[playerLocation].description)
+        		display(gameMap[playerLocation].description);
+
+        	let allRooms = "";
+        	for (r of roomExits[playerLocation]) {
+        		if (gameMap[r].name)
+        			allRooms += " " + gameMap[r].name;
+        		else
+        			allRooms += " " + gameMap[r];
+        	}
+        	display("Tunnels lead to" + allRooms);
+
+        	allRooms = "";
+        	for (r of roomEntrances[playerLocation]) {
+        		if (roomExits[playerLocation].includes(r))
+        			continue;
+        		if (gameMap[r].name)
+        			allRooms += " " + gameMap[r].name;
+        		else
+        			allRooms += " " + gameMap[r];
+        	}
+        	if (allRooms!="") {
+        		display("You also see (but cannot get to)" +allRooms);
+        	}
+        }
+
+        // Function to handle getting list of unique dangers within range within room
+        function findDangers(room) {
+        	let allDangers = [];
+        	let toAdd = [room];
+        	let nextLayer = [];
+        	let distance = 0;
+
+        	while (distance<=playerMaxDetectionRange) {
+        		for (r of toAdd) {
+        			nextLayer.push(...roomExits[r]);
+        			nextLayer.push(...roomEntrances[r]);
+        			if (r==playerLocation)
+        				continue;
+
+        			for (d of gameMap[r].danger) {
+        				if (distance<=dangers[d].detectRange)
+        					allDangers.push(d);
+        			}
+        		}
+        		toAdd=nextLayer;
+        		toAdd = toAdd.filter((value, index) => {
+        			return toAdd.indexOf(value) === index;
+        		});
+        		nextLayer=[];
+        		distance++;
+        	}
+
+        	allDangers = allDangers.filter((value, index) => {
+        		return allDangers.indexOf(value) === index;
+        	});
+        	return allDangers;
+        }
+
+        // Function to handle "attack" command
+        function attack(roomName) {
+        	let r = convertRoomNameToKey(roomName);
+        	if (gameMap[r] && gameMap[playerLocation].tunnels.includes(r)) {
+        		playerArrows--;
+        		for (d of gameMap[r].danger) {
+        			if (dangers[d].onAttackVictory) {
+        				win(d);
+        				return;
+        			}
+        		}
+        		display("You missed.");
+        		if (playerArrows<=0) {
+        			display("You have ran out of arrows, and at night the ice weasels will eat you.");
+        			gameOver();
+        		}
+        		display("You now have "+playerArrows+" arrows left.");
+        		attackDangerMoves();
+        	} else {
+        		display("You can't shoot that way.");
+        	}
+        }
+
+        // Function to move dangers after attack to adjacent rooms
+        function attackDangerMoves(everythingMoves = false) {
+        	let modified = false;
+        	for (d in dangers) {
+        		if (dangers[d].onAttackMove) {
+        			let rooms = findRoomsWithDanger(d);
+        			for (let r=0; r<rooms.length; r++) {
+        				if (everythingMoves || Math.random()<dangers[d].onAttackMove) {
+        					let rend = anyAdjacentRoomWithout(rooms[r],d);
+        					if (rend == rooms[r])
+        						continue;
+        					modified = true;
+        					moveDanger(d,rooms[r],rend);
+        					rooms[r] = rend;
+        				}
+        			}
+        		}
+        	}
+
+        	if (modified)
+        		onEnter(false);
+        }
+
+        // Code for running an event
+        function eventHappens(event) {
+        	display(events[event].description)
+        	for (d of events[event].targetDanger) {
+        		let rooms = findRoomsWithDanger(d);
+        		if (events[event].dangerMoveType && events[event].dangerMoveType>0) {
+        			for (let r=0; r<rooms.length; r++) {
+        				let nextRoom = rooms[r];
+        				if (events[event].dangerMoveType==1)
+        					nextRoom = anyAdjacentRoomWithout(rooms[r],d);
+        				else
+        					nextRoom = anyRoomOtherThan(rooms);
+        				moveDanger(d,rooms[r],nextRoom);
+        				rooms[r] = nextRoom;
+        			}
+        		}
+
+        		rooms = findRoomsWithDanger(d);
+        		let add = 0;
+        		if (events[event].addNew)
+        			add = events[event].addNew;
+        		while (add>0 && rooms.length<roomCount) {
+        			let spawnRoom = anyRoomOtherThan(rooms);
+        			gameMap[spawnRoom].danger.push(d);
+        			sortDangersAtRoom(spawnRoom);
+        			rooms.push(spawnRoom);
+        			add--;
+        			console.log(""+d+" spawned at " +spawnRoom);
+        		}
+        	}
+        }
+
+        // Code after shooting the wumpus
+        function win(wumpusName) {
+        	display("Congratulations! You shot the "+wumpusName+" and won the game!");
+        	// Wait 3 seconds then restart the game
+        	setTimeout(restartGame, 3000);
+        }
+
+        // Function for game over losing
+        function gameOver() {
+        	display("GAME OVER! You lose!");
+        	// Wait 3 seconds then restart the game
+        	setTimeout(restartGame, 3000);
+        }
+
+        // Function to restart the game
+        function restartGame() {
+        	location.reload();
+        }
+
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // TRIGGER GAMEPLAY FUNCTIONS TOUCH AT YOUR OWN RISK
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        function displayInfo() {
+        	display("Travel the cave, and find the wumpus.");
+        	display("You can smell him two rooms away. You have "+playerArrows+" arrows to defeat him.");
+        	display("If you enter the room the wumpus is in, he will eat you.");
+        	display("Beware of bottomless pits. Watch out for superbats since they can pick you up, and take you to a random cavern.");
+        	display("Both of those you can detect 1 room away");
+        }
+
+        // Function for bat movement
+        function batMove() {
+        	playerLocation = anyRoomOtherThan(playerLocation);
+        	onEnter();
+        }
+
+        // Function for picking normal arrows
+        function arrowPickup() {
+        	playerArrows = playerArrows + dangers.arrow.arrowCount;
+        	display("You now have "+playerArrows+" arrows.");
+        }
+
+        // Function for picking magic arrows
+        function magicArrowPickup() {
+        	playerArrows = playerArrows + dangers.magic_arrow.arrowCount;
+        	display("You now have "+playerArrows+" arrows.");
+        }
+
+        function moveAllAttackVictoryAdjacent() {
+        	for (d in dangers) {
+        		if (dangers[d].onAttackMove) {
+        			let rooms = findRoomsWithDanger(d);
+        			for (let r=0; r<rooms.length; r++) {
+        				let rend = anyAdjacentRoomWithout(rooms[r],d);
+        				moveDanger(d,rooms[r],rend);
+        				rooms[r] = rend;
+        			}
+        		}
+        	}
+        }
+
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // START MODIFYING THE CODE HERE
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        // Define the game's map, dangers, and player's initial location
+        let gameMap = {
+        	entrance: {
+        		name: "1",
+        		description: "You see an opening above that leads to the outside world.",
+        		tunnels: ["r2","r5","r8"],
+        	},
+        	r2: {
+        		name: "2",
+        		tunnels: ["entrance","r3","r10"],
+        	},
+        	r3: {
+        		name: "3",
+        		tunnels: ["r2","r4","r12"],
+        	},
+        	r4: {
+        		name: "4",
+        		tunnels: ["r3","r5","r14"],
+        	},
+        	r5: {
+        		name: "5",
+        		tunnels: ["r4","entrance","crystals"],
+        	},
+        	crystals: {
+        		name: "6",
+        		description: "You see crystal clusters scattered around the room.",
+        		tunnels: ["r5","r7","r15"],
+        	},
+        	r7: {
+        		name: "7",
+        		tunnels: ["crystals","r8","r17"],
+        	},
+        	r8: {
+        		name: "8",
+        		tunnels: ["entrance","r7","r9"],
+        	},
+        	r9: {
+        		name: "9",
+        		tunnels: ["r8","r10","r18"],
+        	},
+        	r10: {
+        		name: "10",
+        		tunnels: ["r2","r9","mushrooms"],
+        	},
+        	mushrooms: {
+        		name: "11",
+        		description: "Several mushroom patches are growing in conspicuous shapes.",
+        		tunnels: ["r10","r12","r19"],
+        	},
+        	r12: {
+        		name: "12",
+        		tunnels: ["r3","mushrooms","r13"],
+        	},
+        	r13: {
+        		name: "13",
+        		tunnels: ["r12","r14","chamber"],
+        	},
+        	r14: {
+        		name: "14",
+        		tunnels: ["r4","r13","r15"],
+        	},
+        	r15: {
+        		name: "15",
+        		tunnels: ["crystals","r14","r16"],
+        	},
+        	r16: {
+        		name: "16",
+        		tunnels: ["r15","r17","chamber"],
+        	},
+        	r17: {
+        		name: "17",
+        		tunnels: ["r7","r16","r18"],
+        	},
+        	r18: {
+        		name: "18",
+        		tunnels: ["r9","r17","r19"],
+        	},
+        	r19: {
+        		name: "19",
+        		tunnels: ["mushrooms","r18","chamber"],
+        	},
+        	chamber: {
+        		name: "20",
+        		description: "You see a vaulted ceiling.",
+        		tunnels: ["r13","r16","r19"],
+        	},
+        	//TEMPLATE_ROOM_NAME: {
+        	//	name: "Clean name" // If none is given, will default to TEMPLATE_ROOM_NAME
+        	//	description: "You are in a bedroom.", //FLavor text
+        	//	tunnel: ["OTHER_ROOM_NAME"","TEMPLATE_ROOM_NAME"]
+        	//	safe: true, //No dangers spawn in this room initially, but can move into this room through events
+        	//  danger: ["pit"], //Dangers that always spawn in this room, but can move out this room through events
+        	//},
+        };
+
+        const dangers = {
+        	wumpus: {
+        		detect: "You smell a wumpus!",
+        		detectRange: 2,
+        		count: 1,
+        		onEnter: "ON NO! You ran into the wumpus and got eaten!",
+        		onEnterTrigger: gameOver,
+        		onEnterPriority: 99,
+        		interruptOtherDangers: true,
+        		onAttackVictory: true,
+        		onAttackMove: 0.75,
+        	},
+        	pit: {
+        		detect: "You feel a draft.",
+        		detectRange: 1,
+        		count: 2,
+        		onEnter: "AIEEEE! You fell down a pit and died!",
+        		onEnterTrigger: gameOver,
+        		onEnterPriority: 10,
+        		interruptOtherDangers: true,
+        	},
+        	bat: {
+        		detect: "You hear leathery wings flapping.",
+        		detectRange: 1,
+        		count: 2,
+        		onEnter: "A super bat picks you up, carrying you to a different location.",
+        		onEnterTrigger: batMove,
+        		onEnterPriority: 5,
+        		interruptOtherDangers: true,
+        	},
+        	river: {
+        		detect: "You hear water flowing.",
+        		detectRange: 1,
+        		count: 0,
+        		onEnter: "You splash around in a large river, making a lot of noise.",
+        		onEnterTrigger: moveAllAttackVictoryAdjacent,
+        	},
+        	arrow: {
+        		detect: "You feel a cold shiver down your spine.",
+        		detectRange: 0,
+        		count: 1,
+        		onEnter: "You found a full quiver of arrows left from a corpse.",
+        		onEnterTrigger: arrowPickup,
+        		arrowCount: 5,
+        		removeOnEnter: true,
+        	},
+        	magic_arrow: {
+        		detect: "You feel a glowing warmth.",
+        		detectRange: 1,
+        		count: 1,
+        		onEnter: "You found some magic arrows left from a dead skeleton.",
+        		onEnterTrigger: magicArrowPickup,
+        		arrowCount: 2,
+        		removeOnEnter: true,
+        		safeSpawn: true,
+        	},
+        	TEMPLATE_DANGER: {
+        		detect: "Enter phrase to detect danger.",
+        		detectRange: 2, //How far away you can see the danger
+        		count: 0, //How many to spawn in the map
+        		onEnter: "What you see when you go into the room with the danger",
+        		onEnterTrigger: gameOver, //Function to trigger
+        		onEnterPriority: 99, //Higher priorities happen first, 0 by default
+        		interruptOtherDangers: true, //Stop other dangers in room from happening
+        		removeOnEnter: true, //Only encounter the danger in the room first time
+        		onAttackVictory: false, //If you can attack it to win, false by default
+        		onAttackMove: 0.1, //Chance from 0.0 to 1.0 on moving to an adjacent room on an attack miss, 0 by default
+        		safeSpawn: false, //Keep this if you want this to spawn in a room without any other dangers
+        	},
+        };
+
+        const events = {
+        	earthquake: {
+        		chance: 0.05,
+        		description: "You feel an earthquake rumbling throughout the cave.",
+        		targetDanger: ["pit","river"],
+        		dangerMoveType: 2,
+        	},
+        	bat_migration: {
+        		chance: 0.05,
+        		description: "A bat colony flies in and circles about before heading elsewhere.",
+        		targetDanger: ["bat"],
+        		dangerMoveType: 2,
+        	},
+        	adventurer: {
+        		chance: 0.03,
+        		description: "You hear a blood curdling scream in the distance.",
+        		targetDanger: ["arrow"],
+        		addNew: 1,
+        	},
+        	TEMPLATE_EVENT: {
+        		chance: 0.0, //Chance from 0.0 to 1.0 on a player action that this occurs, 0 by default
+        		description: "Enter the event phrase when it happens",
+        		targetDanger: ["wumpus","pit","bat"], //List of all dangers that this event affects
+        		dangerMoveType: 1, //0 if no move, 1 if adjacent, 2 if anywhere, 0 by default
+        		addNew: 0, //List how many new ones to add, 0 by default (Be careful with this one! Max 1 per room)
+        	},
+        }
+
+        initializeGame();
+
+        // Player's initial state
+        let playerLocation = safeRoom();
+        let playerArrows = 3;
+
+        // How far the player can detect dangers
+        const playerMaxDetectionRange = 2;
+
+
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // START THE GAME HERE
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        // Display game introduction and instructions
+        display("Welcome to Hunt the Wumpus!");
+        display("Type 'info' for how to play. Type 'help' for a list of commands.");
+        display("   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   ");
+        look();
+    </script>
+</html>

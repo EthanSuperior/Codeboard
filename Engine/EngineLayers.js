@@ -115,6 +115,12 @@ class Layer extends Interactable {
         this.asyncManager.raise(call, ...args);
         this.spacialMap.raise(call, ...args);
     };
+    modmouseevent = (e) => {
+        const newE = cloneMouseEvent(e);
+        newE.mouseX += game.width - this.cameraX;
+        newE.mouseY += this.cameraY + game.height / 2;
+        return newE;
+    };
     // Game Update Events
     update = (delta) => {
         if (this.deltaMod) delta *= this.deltaMod;
