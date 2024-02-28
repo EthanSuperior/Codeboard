@@ -210,11 +210,4 @@ const global = (LayerManager.global = new (class GlobalLayer extends Layer {
     };
 })());
 
-Object.defineProperty(globalThis, "currentLayer", {
-    get() {
-        return LayerManager.currentLayer;
-    },
-    set(v) {
-        LayerManager.currentLayer = v;
-    },
-});
+AddAccessor(globalThis, "currentLayer", { initial: LayerManager.currentLayer });

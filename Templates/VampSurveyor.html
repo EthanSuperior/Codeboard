@@ -24,7 +24,7 @@
         game.cameraX = 0;
         game.cameraY = 0;
         game.debug = 1;
-        currentLayer.deltaMod = 0.2;
+        // currentLayer.deltaMod = 0.2;
         game.background = "#2a4720";
 
         function load() {
@@ -339,7 +339,7 @@
                 lifespan: 0.1,
                 onspawn: function () {
                     const isFirst = !(this.spawnOrder % 2);
-                    if (Math.cos(player.direction) > 0) this.direction = isFirst ? 0 : Math.PI;
+                    if (Math.cos(player.facingDirection) > 0) this.direction = isFirst ? 0 : Math.PI;
                     else this.direction = isFirst ? Math.PI : 0;
                 },
                 onupdate: function (delta) {

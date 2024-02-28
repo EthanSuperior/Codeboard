@@ -148,26 +148,7 @@ function registerEntity(name, options, types) {
             : class extends Entity {
                   groupName = upperName;
               };
-    Object.defineProperty(newSubclass, "subtypes", {
-        set(value) {
-            types = value;
-        },
-        get() {
-            return types;
-        },
-    });
-    // Object.defineProperty(newSubclass, "group", {
-    //     value: Array.from({ length: LayerManager.layers.length }, () => []),
-    // });
-    // newSubclass.group = newSubclass.group[-1] = [];
-    // Object.defineProperty(globalThis, lowerName + "Group", {
-    //     get() {
-    //         return newSubclass.group;
-    //     },
-    //     set(value) {
-    //         newSubclass.group = value;
-    //     },
-    // });
+    AddAccessor(newSubclass, "subtypes", { initial: types });
     globalThis["spawn" + upperName] = (subType, additional) => {
         const newEntity = new newSubclass();
         MergeOntoObject(newEntity, game.settings);

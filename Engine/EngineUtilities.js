@@ -121,3 +121,16 @@ const AddPublicAccessors = (target, source, properties) => {
         });
     }
 };
+function AddAccessor(obj, propName, { initial, getter, setter } = {}) {
+    Object.defineProperty(
+        obj,
+        propName,
+        (function () {
+            let val = initial;
+            return {
+                get: typeof getter === "function" ? () => getter.call(obj, val) ?? val : () => val,
+                set: typeof setter === "function" ? (v) => (val = setter.call(obj, val, v) ?? v) : (v) => (val = v),
+            };
+        })()
+    );
+}
