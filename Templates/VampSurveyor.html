@@ -23,7 +23,8 @@
         game.height = 600;
         game.cameraX = 0;
         game.cameraY = 0;
-        game.deltaMod = 0.2;
+        game.debug = 1;
+        currentLayer.deltaMod = 0.2;
         game.background = "#2a4720";
 
         function load() {
@@ -44,16 +45,6 @@
                         this.x -= (this.velocity.x * this.size) / 20;
                         this.y -= (this.velocity.y * this.size) / 20;
                         other.hp -= this.dmg;
-                    },
-                    onmyclick: function () {
-                        this.despawn();
-                    },
-                    onclick: function (e) {
-                        console.log(e.mouseX, player.x, e.canvasX);
-                    },
-                    onmousemove: function () {
-                        if (this.hovered) this.color = "red";
-                        else this.color = "blue";
                     },
                 },
                 enemyTypes
@@ -97,7 +88,7 @@
             for (let time in waves) scheduleTask(spawnWave, { time: +time }, waves[time]);
             addUI();
             game.draw();
-            // player.levelup();
+            player.levelup();
         }
 
         const DownKeyEvents = {
@@ -105,6 +96,13 @@
             KeyQ: () => (player.xp += 5),
             KeyZ: () => player.levelup(),
             KeyK: () => (player.hp = 0),
+            KeyE: () =>
+                forEveryEnemyDo(function () {
+                    this.hp -= 100;
+                    if (this.hp > 0) return;
+                    this.despawn();
+                    spawnDrops(this);
+                }),
         };
 
         function getWeapon(type) {
@@ -142,11 +140,6 @@
                     font: "24px monospace",
                     color: "gold",
                     onupdate: () => (killsUI.text = `Kills: ${player.kills}`),
-                })
-            );
-            hud.add(
-                new UIElement(100, 100, {
-                    ondraw: () => UI.drawCone(300, 300, 0, Math.PI / 4, 50, { fill: "pink", strokeWidth: 3 }),
                 })
             );
             const getProgress = () => player.xp / player.neededXP;
@@ -315,11 +308,11 @@
                     this.direction = player.facingDirection;
                     // TODO CLEAN UP
                     this.x +=
-                        Math.cos(player.direction + Math.PI / 2) * offset * 100 +
-                        Math.cos(player.direction + Math.PI) * Math.abs(offset) * 100;
+                        Math.cos(player.facingDirection + Math.PI / 2) * offset * 100 +
+                        Math.cos(player.facingDirection + Math.PI) * Math.abs(offset) * 100;
                     this.y +=
-                        Math.sin(player.direction + Math.PI / 2) * offset * 100 +
-                        Math.sin(player.direction + Math.PI) * Math.abs(offset) * 100;
+                        Math.sin(player.facingDirection + Math.PI / 2) * offset * 100 +
+                        Math.sin(player.facingDirection + Math.PI) * Math.abs(offset) * 100;
                 },
             },
             whip: {

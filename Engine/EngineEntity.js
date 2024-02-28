@@ -30,15 +30,14 @@ class Entity extends Interactable {
             if (!this.staticX) this.x += Math.cos(this.direction) * this.speed * delta;
             if (!this.staticY) this.y += Math.sin(this.direction) * this.speed * delta;
         }
+        if (this.acceleration && this.direction == null) this.speed = 0;
         if (this.pixelPerfect) {
             this.x = Math.round(this.x - 0.5) + 0.5;
             this.y = Math.round(this.y - 0.5) + 0.5;
         }
         if (this.collisions) this.checkCollision();
     };
-    shouldinteract = (mX, mY) =>
-        detectRect(this.x - this.size / 2, this.y - this.size / 2, this.size, this.size, mX, mY);
-
+    shouldinteract = (mX, mY) => detectCircle(this.x - this.size / 2, this.y - this.size / 2, this.size / 2, mX, mY);
     checkCollision = () => {
         for (let group of this.collisions) {
             for (let e of this.layer.getEntities(group)) {
@@ -103,6 +102,7 @@ class Entity extends Interactable {
         }
         this.raise("ondraw");
         ctx.restore();
+        if (game.debug) this.shouldinteract(this.size / 2, this.size / 2);
     };
     despawn = () => {
         this.raise("ondespawn");
@@ -128,6 +128,13 @@ class Entity extends Interactable {
             this.raise("levelup");
         }
     }
+
+    // mymousedown = (e) => this.raise("onmymousedown", e);
+    // mymouseup = (e) => this.raise("onmymouseup", e);
+    // mymousemove = (e) => this.raise("onmymousemove", e);
+    myclick = (e) => this.despawn();
+    // mydblclick = (e) => this.raise("onmydblclick", e);
+    // mywheel = (e) => this.raise("onmywheel", e);
 }
 
 function registerEntity(name, options, types) {

@@ -1,3 +1,4 @@
+// Needs deltaMod
 class AsyncManager extends Updatable {
     tasks = [];
     lerps = [];

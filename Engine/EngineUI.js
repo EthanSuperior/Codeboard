@@ -46,7 +46,10 @@ class UIElement extends Interactable {
         this.raise("on" + call, ...args);
         this.children.forEach((c) => c?.raise(call, ...args));
     };
-    draw = () => this.propagate("draw");
+    draw = () => {
+        this.propagate("draw");
+        if (game.debug) this.shouldinteract(0, 0);
+    };
     show = () => {
         this.raise("onshow");
         this.children.forEach((c) => c.raise("onshow"));
@@ -216,7 +219,7 @@ class UIDialogue extends UIElement {
             this.y + this.height - this.scale - this.scale / 2,
             this.width - this.scale,
             this.scale,
-            { ...this.options, hovered: this.hovered }
+            { hoverWidth: (this.options.strokeWidth ?? 0) + 4, ...this.options, hovered: this.hovered }
         );
         UI.drawText(this.buttonText, this.x, this.y + this.height - this.scale, {
             font: `bold ${this.scale * 0.75}px monospace`,

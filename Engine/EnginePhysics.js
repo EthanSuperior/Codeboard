@@ -77,8 +77,8 @@ class SpacialMap extends Interactable {
     };
     modmouseevent = (e) => {
         const newE = cloneMouseEvent(e);
-        if (this.layer.cameraX) newE.mouseX += this.layer.cameraX;
-        if (this.layer.cameraY) newE.mouseY += this.layer.cameraY;
+        newE.mouseX += (-game.width / 2 + this.layer.cameraX) * (this.scaleX ?? 1);
+        newE.mouseY += (-game.height / 2 + this.layer.cameraY) * (this.scaleY ?? 1);
         return newE;
     };
     addEntity = (child) => {
@@ -96,9 +96,22 @@ class SpacialMap extends Interactable {
 }
 
 function detectRect(x, y, w, h, ptX, ptY) {
+    if (game.debug) {
+        ctx.strokeStyle = "#f33a";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, w, h);
+    }
     return ptX >= x && ptX <= x + w && ptY >= y && ptY <= y + h;
 }
 function detectCircle(x, y, r, ptX, ptY) {
+    if (game.debug) {
+        ctx.beginPath();
+        ctx.arc(x + ptX, y + ptY, r, 0, 2 * Math.PI);
+        ctx.strokeStyle = "#f33a";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.closePath();
+    }
     const squaredDistance = (x - ptX) ** 2 + (y - ptY) ** 2;
     return squaredDistance <= r ** 2;
 }
@@ -173,35 +186,14 @@ function getPlayerMovementdirectionection({ useCardinal } = {}) {
     return direction;
 }
 function onboxcollide(other) {
-    const thisLeft = this.x - this.size / 2;
-    const thisRight = this.x + this.size / 2;
-    const thisTop = this.y - this.size / 2;
-    const thisBottom = this.y + this.size / 2;
-
-    const otherLeft = other.x - other.size / 2;
-    const otherRight = other.x + other.size / 2;
-    const otherTop = other.y - other.size / 2;
-    const otherBottom = other.y + other.size / 2;
-
-    const xOverlap = thisRight > otherLeft && thisLeft < otherRight;
-    const yOverlap = thisBottom > otherTop && thisTop < otherBottom;
-    if (xOverlap) {
-        // Handle the collision based on the relative velocities
-        if (other.velocity.xSign === 1) {
-            other.x = thisLeft - other.size / 2;
-            other.velocity.x = 0;
-        } else if (other.velocity.xSign === -1) {
-            other.x = thisRight + other.size / 2;
-            other.velocity.x = 0;
-        }
-    }
-    if (yOverlap) {
-        if (other.velocity.ySign === 1) {
-            other.y = thisTop - other.size / 2;
-            other.velocity.y = 0;
-        } else if (other.velocity.ySign === -1) {
-            other.y = thisBottom + other.size / 2;
-            other.velocity.y = 0;
-        }
-    }
+    return detectBox(
+        this.x - this.size / 2,
+        this.y - this.size / 2,
+        this.size,
+        this.size,
+        other.x - other.size / 2,
+        other.y - other.size / 2,
+        other.size,
+        other.size
+    );
 }
