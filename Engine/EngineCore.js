@@ -21,8 +21,16 @@ class Interactable extends Updatable {
     shouldinteract = (mX, mY) => false;
     modkeyevent = (e) => e;
     // IO Events
-    keydown = (e) => this.propagate("keydown", this.modkeyevent(e));
-    keyup = (e) => this.propagate("keyup", this.modkeyevent(e));
+    keydownEvents = {};
+    keydown = (e) => {
+        this.propagate("keydown", this.modkeyevent(e));
+        for (let k in this.keydownEvents) if (e.code == k) this.keydownEvents[k]();
+    };
+    keyupEvents = {};
+    keyup = (e) => {
+        this.propagate("keyup", this.modkeyevent(e));
+        for (let k in this.keyupEvents) if (e.code == k) this.keyupEvents[k]();
+    };
     // Mouse IO Events
     mousedown = (e) => {
         e = this.modmouseevent(e);
@@ -106,7 +114,7 @@ const game = new (class GameSettings {
      * @type {function}
      */
     ondraw = () => {
-        UI.fillScreen({ color: this.background });
+        fillScreen({ color: this.background });
     };
     /**
      * Get the width of the game.
@@ -145,8 +153,5 @@ const game = new (class GameSettings {
     }
 })();
 
-const canvas = document.createElement("canvas");
-const ctx = canvas.getContext("2d");
-document.body.appendChild(canvas);
 const keys = {};
 const mouse = { x: 0, y: 0 };

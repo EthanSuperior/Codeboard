@@ -19,6 +19,7 @@ class Entity extends Interactable {
         this.facingDirection = 0;
         this.groupName = "Entity";
         this.controller = new EntityController();
+        this.abilities = [];
     }
     update = (delta) => {
         this.controller.update(delta);
@@ -39,6 +40,7 @@ class Entity extends Interactable {
     };
     shouldinteract = (mX, mY) => detectCircle(this.x - this.size / 2, this.y - this.size / 2, this.size / 2, mX, mY);
     checkCollision = () => {
+        // this.layer.physicsMap
         for (let group of this.collisions) {
             for (let e of this.layer.getEntities(group)) {
                 if (group === this.groupName && e.id === this.id) continue;
@@ -69,37 +71,7 @@ class Entity extends Interactable {
         ctx.save();
         ctx.translate(this.x, this.y);
         if (this.rotate) ctx.rotate(this.direction + Math.PI / 2 + (this.rotationalOffset ?? 0));
-        const halfSize = this.size / 2;
-        if (this.img) {
-            ctx.save();
-            ctx.scale(this.flipX ? -1 : 1, this.flipY ? -1 : 1);
-            UI.drawImage(this.img, -halfSize, -halfSize, { width: this.size, height: this.size });
-            ctx.restore();
-            //TODO: ONLOAD ANIMATION CODE
-        } else {
-            ctx.fillStyle = this.color;
-            if (this.shape == "circle") {
-                ctx.beginPath();
-                ctx.arc(0, 0, halfSize, 0, 2 * Math.PI);
-                ctx.fill();
-                ctx.closePath();
-            } else if (this.shape == "triangle") {
-                ctx.beginPath();
-                ctx.moveTo(0, -halfSize);
-                ctx.lineTo(-halfSize, halfSize);
-                ctx.lineTo(halfSize, halfSize);
-                ctx.fill();
-                ctx.closePath();
-            } else if (this.shape == "arrow") {
-                ctx.beginPath();
-                ctx.moveTo(0, -halfSize);
-                ctx.lineTo(-halfSize, halfSize);
-                ctx.lineTo(0, halfSize / 2);
-                ctx.lineTo(halfSize, halfSize);
-                ctx.fill();
-                ctx.closePath();
-            } else ctx.fillRect(-halfSize, -halfSize, this.size, this.size);
-        }
+        drawEntity(this);
         this.raise("ondraw");
         ctx.restore();
         if (game.debug) this.shouldinteract(this.size / 2, this.size / 2);
@@ -177,14 +149,4 @@ function registerEntity(name, options, types) {
             for (let i = 0; i < keys.length; i++) func.call(newSubclass.subtypes[keys[i]], ...args);
         };
     }
-}
-
-class EntityController extends Updatable {}
-class PlayerController extends EntityController {
-    onupdate = (delta) => {
-        this.direction = getPlayerMovementdirectionection();
-        // Stop player if no keys are pressed otherwise change your directionection.
-        // if (direction == null) this.speed = 0;
-        // else this.direction = direction;
-    };
 }

@@ -68,6 +68,7 @@ const LayerManager = new (class LayerManager extends Interactable {
         this.global.resume();
         this.currentLayer?.resume();
     };
+
     push = (layer) => {
         this.currentLayer?.pause();
         layer.position = this.layers.length;
@@ -76,6 +77,7 @@ const LayerManager = new (class LayerManager extends Interactable {
         layer.resume();
         return layer;
     };
+
     pop = () => {
         const layer = this.layers.pop();
         layer?.pause();

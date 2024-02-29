@@ -717,7 +717,7 @@ class Entity extends Interactable {
         if (this.img) {
             ctx.save();
             ctx.scale(this.flipX ? -1 : 1, this.flipY ? -1 : 1);
-            UI.drawImage(this.img, -halfSize, -halfSize, { width: this.size, height: this.size });
+            drawImage(this.img, -halfSize, -halfSize, { width: this.size, height: this.size });
             ctx.restore();
             //TODO: ONLOAD ANIMATION CODE
         } else {
@@ -937,11 +937,11 @@ class UIRoot extends UIElement {
  * @property {number} [cornerRadius=0] - Radius of the rounded corners.
  */
 class UIRect extends UIElement {
-    ondraw = () => UI.drawRect(this.x, this.y, this.width, this.height, { ...this.options, hovered: this.hovered });
+    ondraw = () => drawRect(this.x, this.y, 0, this.width, this.height, { ...this.options, hovered: this.hovered });
     shouldinteract = (mX, mY) => detectRect(this.x, this.y, this.width, this.height, mX, mY);
 }
 class UICircle extends UIElement {
-    ondraw = () => UI.drawCircle(this.x, this.y, this.radius, { ...this.options, hovered: this.hovered });
+    ondraw = () => drawCircle(this.x, this.y, 0, this.radius, { ...this.options, hovered: this.hovered });
     shouldinteract = (mX, mY) => detectCircle(this.x, this.y, this.radius, mX, mY);
 }
 /**
@@ -954,10 +954,10 @@ class UICircle extends UIElement {
  * @property {boolean} [linewrap] - Whether to enable line wrapping for the text.
  */
 class UIText extends UIElement {
-    ondraw = () => UI.drawText(this.text, this.x, this.y, this.options);
+    ondraw = () => drawText(this.text, this.x, this.y, 0, this.options);
 }
 class UIImage extends UIElement {
-    ondraw = () => UI.drawImage(this.src, this.x, this.y, this.options);
+    ondraw = () => drawImage(this.src, this.x, this.y, 0, this.options);
 }
 /**
  * Options for configuring a text input UI element.
@@ -991,7 +991,7 @@ class UITextInput extends UIElement {
         const fontSize = parseInt(ctx.font);
         // Draw the input box
         ctx.clearRect(this.x, this.y, this.width, fontSize);
-        UI.drawRect(this.x, this.y, this.width, fontSize, { stroke: "black", hovered: this.hovered });
+        drawRect(this.x, this.y, 0, this.width, fontSize, { stroke: "black", hovered: this.hovered });
         // Draw the text inside the input box
         ctx.textBaseline = "middle";
         if (this.color) ctx.fillStyle = this.color;
@@ -1007,7 +1007,7 @@ class UIProgressBar extends UIElement {
     }
     ondraw = () => {
         // Draw the background
-        UI.drawRect(this.x, this.y, this.width, this.height, {
+        drawRect(this.x, this.y, 0, this.width, this.height, {
             ...this.options,
             fill: this.background,
             hovered: this.hovered,
@@ -1031,29 +1031,30 @@ class UIDialogue extends UIElement {
             mY
         );
     ondraw = () => {
-        UI.drawRect(this.x, this.y, this.width, this.height, {
+        drawRect(this.x, this.y, 0, this.width, this.height, {
             ...this.options,
             fill: this.background,
             hovered: this.hovered,
         });
-        UI.drawText(this.title, this.x, this.y + this.scale, {
+        drawText(this.title, this.x, this.y + this.scale, {
             center: true,
             font: `bold ${this.scale}px monospace`,
             ...this.options,
         });
-        UI.drawText(this.message, this.x, this.y + this.scale + this.scale, {
+        drawText(this.message, this.x, this.y + this.scale + this.scale, {
             font: `bold ${this.scale / 2}px monospace`,
             center: true,
             ...this.options,
         });
-        UI.drawRect(
+        drawRect(
             this.x + this.scale / 2,
             this.y + this.height - this.scale - this.scale / 2,
+            0,
             this.width - this.scale,
             this.scale,
             { ...this.options, hovered: this.hovered }
         );
-        UI.drawText(this.buttonText, this.x, this.y + this.height - this.scale, {
+        drawText(this.buttonText, this.x, this.y + this.height - this.scale, 0, {
             font: `bold ${this.scale * 0.75}px monospace`,
             center: true,
             ...this.options,
@@ -1450,13 +1451,13 @@ class UI {
         }
     };
     static drawImage = (src, x, y, { width, height } = {}) => {
-        UI.drawImage.cache ??= {};
-        if (UI.drawImage.cache[src]) return ctx.drawImage(UI.drawImage.cache[src], x, y, width, height);
+        drawImage.cache ??= {};
+        if (drawImage.cache[src]) return ctx.drawImage(drawImage.cache[src], x, y, width, height);
         const image = new Image();
         image.src = src;
         image.onload = () => {
             ctx.drawImage(image, x, y, width, height);
-            UI.drawImage.cache[src] = image;
+            drawImage.cache[src] = image;
         };
     };
     static fillScreen = ({ color }) => {

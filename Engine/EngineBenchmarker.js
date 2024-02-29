@@ -302,6 +302,7 @@ function RaiseFunctionTest() {
     logTestResult("RaisePropertyNoCallTest", "raise_with_property_no_call_start", "raise_with_property_no_call_end");
 }
 function CircleCollisionTest() {
+    return "CollisionPowTest was the best, 780 vs Multiple(782) vs Squared 787";
     const circle1 = { x: 0, y: 0, radius: 5 };
     const circle2 = { x: 3, y: 4, radius: 5 };
 
@@ -367,6 +368,117 @@ function CircleCollisionTest() {
     logTestResult("CollisionPowTest", "collision_pow_start", "collision_pow_end");
 }
 
+function WeakRefTest() {
+    return "WeakRef sucks!!! SUPER SLOW";
+    const obj = { x: 0, y: 0 };
+    performance.mark("weakref_start");
+    for (let i = 0; i < 10_000_000; i++) {
+        const weakRef = new WeakRef(obj);
+    }
+    performance.mark("weakref_end");
+    const weakRef = new WeakRef(obj);
+    performance.mark("deref_start");
+    for (let i = 0; i < 10_000_000; i++) {
+        const ref = weakRef.deref();
+    }
+    performance.mark("deref_end");
+    const ref = weakRef.deref();
+    performance.mark("ref_mod_start");
+    for (let i = 0; i < 10_000_000; i++) {
+        ref.x++;
+    }
+    performance.mark("ref_mod_end");
+    performance.mark("assign_start");
+    for (let i = 0; i < 10_000_000; i++) {
+        obj.y++;
+    }
+    performance.mark("assign_end");
+    logTestResult("WeakRefTest", "weakref_start", "weakref_end");
+    logTestResult("DerefTest", "deref_start", "deref_end");
+    logTestResult("RefModTest", "ref_mod_start", "ref_mod_end");
+    logTestResult("AssignTest", "assign_start", "assign_end");
+}
+function ObjKeyLookUpTest() {
+    return "Id is best way to lookup, not whole object";
+    let obj = {};
+    let dict = {};
+    // Populate the object with random values
+    for (let i = 0; i < 100; i++) {
+        obj[`a${i}`] = Math.random();
+        dict[`a${i}`] = Math.random();
+    }
+    obj.id = crypto.randomUUID();
+    dict[obj.id] = obj;
+    dict[obj] = obj;
+
+    performance.mark("id_key_lookup_start");
+    for (let i = 0; i < 10_000_000; i++) {
+        dict[obj.id].a0++;
+    }
+    performance.mark("id_key_lookup_end");
+    performance.mark("obj_key_lookup_start");
+    for (let i = 0; i < 10_000_000; i++) {
+        dict[obj].a1++;
+    }
+    performance.mark("obj_key_lookup_end");
+    logTestResult("ObjKeyLookupTest", "id_key_lookup_start", "id_key_lookup_end");
+    logTestResult("ObjKeyLookupTest", "obj_key_lookup_start", "obj_key_lookup_end");
+}
+function SparseArrayTest() {
+    return "Suprising results, almost identical but sparse is slightly slower, but gets faster the more sparse it is";
+    let obj = {};
+    // Populate the object with random values
+    for (let i = 0; i < 100; i++) {
+        obj[`a${i}`] = Math.random();
+    }
+    obj.id = crypto.randomUUID();
+    let map = [];
+    function getRandomInt(min, max) {
+        return Math.floor(Math.random() * (max - min) + min);
+    }
+    const iterationCount = 1_000_000;
+    const maxArraySize = 100;
+    performance.mark("sparse_array_start");
+    for (let i = 0; i < iterationCount; i++) {
+        const id = getRandomInt(0, maxArraySize);
+        map[id] ??= [];
+        map[id].push(obj);
+    }
+    for (let i = 0; i < iterationCount; i++) {
+        for (let j of map) {
+            map[j];
+        }
+    }
+    for (let i = 0; i < iterationCount; i++) {
+        const remID = getRandomInt(0, maxArraySize);
+        map[remID]?.pop();
+        if (map[remID]?.length == 0) map[remID] = undefined;
+    }
+    performance.mark("sparse_array_end");
+    //print the number of non undefined keys in the array
+    console.log(Object.keys(map).filter((key) => map[key] !== undefined).length);
+    for (let i = 0; i < maxArraySize; i++) {
+        map[i] = [];
+    }
+    performance.mark("full_array_start");
+    for (let i = 0; i < iterationCount; i++) {
+        const id = getRandomInt(0, maxArraySize);
+        map[id].push(obj);
+    }
+    for (let i = 0; i < iterationCount; i++) {
+        //iterate over all keys of array
+        for (let j of map) {
+            map[j];
+        }
+    }
+    for (let i = 0; i < iterationCount; i++) {
+        const remID = getRandomInt(0, maxArraySize);
+        map[remID].pop();
+    }
+    performance.mark("full_array_end");
+    logTestResult("SparseArrayTest", "sparse_array_start", "sparse_array_end");
+    logTestResult("FullArrayTest", "full_array_start", "full_array_end");
+}
 // Run the tests
 console.log(ObjectIterationTest());
 console.log(ObjectApplyVsAssignTest());
@@ -374,3 +486,6 @@ console.log(SelectPropertiesTests());
 console.log(RequestAnimationFuncCalling());
 console.log(RaiseFunctionTest());
 console.log(CircleCollisionTest());
+console.log(WeakRefTest());
+console.log(ObjKeyLookUpTest());
+console.log(SparseArrayTest());

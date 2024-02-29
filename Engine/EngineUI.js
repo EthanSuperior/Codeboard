@@ -105,11 +105,11 @@ class UIRoot extends UIElement {
  * @property {number} [cornerRadius=0] - Radius of the rounded corners.
  */
 class UIRect extends UIElement {
-    ondraw = () => UI.drawRect(this.x, this.y, this.width, this.height, { ...this.options, hovered: this.hovered });
+    ondraw = () => drawRect(this.x, this.y, 0, this.width, this.height, { ...this.options, hovered: this.hovered });
     shouldinteract = (mX, mY) => detectRect(this.x, this.y, this.width, this.height, mX, mY);
 }
 class UICircle extends UIElement {
-    ondraw = () => UI.drawCircle(this.x, this.y, this.radius, { ...this.options, hovered: this.hovered });
+    ondraw = () => drawCircle(this.x, this.y, 0, this.radius, { ...this.options, hovered: this.hovered });
     shouldinteract = (mX, mY) => detectCircle(this.x, this.y, this.radius, mX, mY);
 }
 /**
@@ -122,10 +122,10 @@ class UICircle extends UIElement {
  * @property {boolean} [linewrap] - Whether to enable line wrapping for the text.
  */
 class UIText extends UIElement {
-    ondraw = () => UI.drawText(this.text, this.x, this.y, this.options);
+    ondraw = () => drawText(this.text, this.x, this.y, 0, this.options);
 }
 class UIImage extends UIElement {
-    ondraw = () => UI.drawImage(this.src, this.x, this.y, this.options);
+    ondraw = () => drawImage(this.src, this.x, this.y, 0, this.options);
 }
 /**
  * Options for configuring a text input UI element.
@@ -159,7 +159,7 @@ class UITextInput extends UIElement {
         const fontSize = parseInt(ctx.font);
         // Draw the input box
         ctx.clearRect(this.x, this.y, this.width, fontSize);
-        UI.drawRect(this.x, this.y, this.width, fontSize, { stroke: "black", hovered: this.hovered });
+        drawRect(this.x, this.y, 0, this.width, fontSize, { stroke: "black", hovered: this.hovered });
         // Draw the text inside the input box
         ctx.textBaseline = "middle";
         if (this.color) ctx.fillStyle = this.color;
@@ -175,7 +175,7 @@ class UIProgressBar extends UIElement {
     }
     ondraw = () => {
         // Draw the background
-        UI.drawRect(this.x, this.y, this.width, this.height, {
+        drawRect(this.x, this.y, 0, this.width, this.height, {
             ...this.options,
             fill: this.background,
             hovered: this.hovered,
@@ -199,29 +199,30 @@ class UIDialogue extends UIElement {
             mY
         );
     ondraw = () => {
-        UI.drawRect(this.x, this.y, this.width, this.height, {
+        drawRect(this.x, this.y, 0, this.width, this.height, {
             ...this.options,
             fill: this.background,
             hovered: this.hovered,
         });
-        UI.drawText(this.title, this.x, this.y + this.scale, {
+        drawText(this.title, this.x, this.y + this.scale, 0, {
             center: true,
             font: `bold ${this.scale}px monospace`,
             ...this.options,
         });
-        UI.drawText(this.message, this.x, this.y + this.scale + this.scale, {
+        drawText(this.message, this.x, this.y + this.scale + this.scale, 0, {
             font: `bold ${this.scale / 2}px monospace`,
             center: true,
             ...this.options,
         });
-        UI.drawRect(
+        drawRect(
             this.x + this.scale / 2,
             this.y + this.height - this.scale - this.scale / 2,
+            0,
             this.width - this.scale,
             this.scale,
             { hoverWidth: (this.options.strokeWidth ?? 0) + 4, ...this.options, hovered: this.hovered }
         );
-        UI.drawText(this.buttonText, this.x, this.y + this.height - this.scale, {
+        drawText(this.buttonText, this.x, this.y + this.height - this.scale, 0, {
             font: `bold ${this.scale * 0.75}px monospace`,
             center: true,
             ...this.options,
@@ -564,88 +565,5 @@ class UI {
         const popup = new UIToast(x, y, { text, duration, ...options, overlay: true });
         startLerp(popup, lerpMovement, duration);
         popup.show();
-    };
-    static colorPath = ({ hovered, fill, stroke, strokeWidth, hoverFill, hoverStroke, hoverWidth } = {}) => {
-        ctx.fillStyle = (hovered && hoverFill) || fill;
-        if (fill || (hovered && hoverFill)) ctx.fill();
-        ctx.lineWidth = (hovered && hoverWidth) || strokeWidth;
-        ctx.strokeStyle = (hovered && hoverStroke) || stroke;
-        if (stroke || (hovered && hoverStroke)) ctx.stroke();
-    };
-    static drawRect = (x, y, w, h, options = {}) => {
-        ctx.beginPath();
-        ctx.roundRect(x, y, w, h, options?.cornerRadius);
-        UI.colorPath(options);
-        ctx.closePath();
-    };
-    static drawCircle = (x, y, radius, options = {}) => {
-        ctx.beginPath();
-        ctx.arc(x, y, radius, 0, 2 * Math.PI);
-        UI.colorPath(options);
-        ctx.closePath();
-    };
-    static drawCone = (x, y, direction, arcLength, radius, options = {}) => {
-        const startAngle = direction - arcLength / 2;
-        const endAngle = direction + arcLength / 2;
-
-        ctx.beginPath();
-        if (options.noLines === undefined) ctx.moveTo(x, y);
-        // Draw the arc
-        ctx.arc(x, y, radius * 3, startAngle, endAngle);
-        if (options.noLines === undefined) ctx.lineTo(x, y);
-        UI.colorPath(options);
-        ctx.closePath();
-    };
-    static drawText = (text, x, y, { width, font, color, center, linewrap } = {}) => {
-        if (color) ctx.fillStyle = color;
-        if (font) ctx.font = font;
-        ctx.textBaseline = center ? "middle" : "alphabetic";
-
-        if (linewrap && width) {
-            const words = text.split(" ");
-            let currentLine = "";
-            let lines = [];
-
-            for (const word of words) {
-                const testLine = currentLine.length === 0 ? word : `${currentLine} ${word}`;
-                const testWidth = ctx.measureText(testLine).width;
-
-                if (testWidth > width) {
-                    lines.push(currentLine);
-                    currentLine = word;
-                } else currentLine = testLine;
-            }
-
-            lines.push(currentLine);
-
-            if (center) y -= (lines.length - 1) * parseInt(ctx.font);
-
-            lines.forEach((line, index) => {
-                const centeredX = x - (center ? (ctx.measureText(line).width - width) / 2 : 0);
-                ctx.fillText(line, centeredX, y + index * parseInt(ctx.font), width);
-            });
-        } else {
-            const centeredX = x - (center ? (ctx.measureText(text).width - width) / 2 : 0);
-            ctx.fillText(text, centeredX, y, width);
-        }
-    };
-    static drawImage = (src, x, y, { width, height } = {}) => {
-        UI.drawImage.cache ??= {};
-        if (UI.drawImage.cache[src]) return ctx.drawImage(UI.drawImage.cache[src], x, y, width, height);
-        const image = new Image();
-        image.src = src;
-        image.onload = () => {
-            ctx.drawImage(image, x, y, width, height);
-            UI.drawImage.cache[src] = image;
-        };
-    };
-    static fillScreen = ({ color }) => {
-        ctx.save();
-        ctx.resetTransform();
-        if (color) {
-            ctx.fillStyle = color;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-        } else ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.restore();
     };
 }
