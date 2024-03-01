@@ -1,41 +1,21 @@
 // Create a Multilayer Canvas so that Entities can be drawn on top of each other using z-index property
 const MultiCanvas = new (class {
-    #canvas = [];
-    #ctx = [];
     constructor() {
+        this.canvas = [];
+        this.ctx = [];
         this.addCanvas("background");
         this.addCanvas(0);
         this.addCanvas("debug");
-        this.canvas = new Proxy(this.#canvas, {
-            get: (target, prop) => target[prop] || target[0][prop],
-            set: (target, prop, value) => (target[prop] ? (target[prop] = value) : (target[0][prop] = value)),
-        });
-        this.ctx = new Proxy(this.#ctx, {
-            get: (target, prop) => target[prop] || target[0][prop],
-            // {
-            //     if (target[prop] === undefined) {
-            //         const method = target[0][prop];
-            //         console.log(target[0], prop, method);
-            //         if (typeof method === "function") return Reflect.apply(method, target[0], [prop]);
-            //         return method;
-            //     }
-            //     const method = target[prop];
-            //     console.log(target, prop, method);
-            //     if (typeof method === "function") return Reflect.apply(method, target, [prop]);
-            //     return method;
-            // },
-            set: (target, prop, value) => (target[prop] ? (target[prop] = value) : (target[0][prop] = value)),
-        });
     }
     addCanvas = (zIdx) => {
-        if (this.#canvas[zIdx]) return;
+        if (this.canvas[zIdx]) return;
         const newCanvas = document.createElement("canvas");
         newCanvas.style.position = "absolute";
         newCanvas.style.top = "8";
         newCanvas.style.left = "8";
         newCanvas.style.zIndex = zIdx;
-        this.#canvas[zIdx] = newCanvas;
-        this.#ctx[zIdx] = newCanvas.getContext("2d");
+        this.canvas[zIdx] = newCanvas;
+        this.ctx[zIdx] = newCanvas.getContext("2d");
         document.body.appendChild(newCanvas);
     };
 })();
