@@ -1,3 +1,8 @@
+class AbilityManager {
+    static types = {};
+    static names = [];
+}
+
 /* TODO
 Abilities
 ├───Properties
@@ -9,26 +14,36 @@ Abilities
 ├───Passives
 └───Spells->AssignOwnership
 */
-class Ability extends Updatable {
-    constructor(owner, { onactivate = (player) => {}, ondeactivate = (player) => {}, ontick = (player) => {} }) {
+
+// Cooldown is currently tickrate, make it actually cooldown... and add tickrate as a seperate thing
+class Ability extends Interactable {
+    constructor(owner, options = {}) {
+        super();
         this.owner = owner;
         this.boundKey = "";
-        this.bindMode = "Instant";
-        this.cooldown = 0;
+        this.bindMode = options.bindMode || "Charge"; // Default to Instant if not specified
+        this.cooldown = options.cooldown || 0;
         this.cooldownRemaining = 0;
-        this.chargeTime = 0;
-        this.loop = false;
-        this.duration = 0;
-        this.onactivate.bind(this, owner);
-        this.ondeactivate.bind(this, owner);
-        this.ontick.bind(this, owner);
+        this.chargeTime = options.chargeTime || 0;
+        this.loop = options.loop || false;
+        this.duration = options.duration || 0;
+        this.isactive = false;
+
+        // Properly bind methods
+        this.onactivate = options.onactivate ? options.onactivate.bind(this) : () => {};
+        this.ondeactivate = options.ondeactivate ? options.ondeactivate.bind(this) : () => {};
+        this.ontick = options.ontick ? options.ontick.bind(this) : () => {};
+        if (options.key) this.keybind = options.key; // Automatically sets up keybind if provided
     }
     activate = () => {
+        if (this.cooldownRemaining > 0 || this.isactive) return; // Prevent activation if still on cooldown
         this.isactive = true;
-        this.propagate("activate", this.owner);
+        this.raise("onactivate", this.owner);
+        this.cooldownRemaining = this.cooldown; // Reset cooldown
+        this.owner.layer.scheduleTask(this.deactivate, { time: this.duration });
     };
     onupdate = (delta) => {
-        if (this.pause) return;
+        // if (this.pause) return;
         this.cooldownRemaining -= delta;
         if (!this.isactive) return;
         if (this.cooldownRemaining > 0) return;
@@ -39,6 +54,7 @@ class Ability extends Updatable {
         this.propagate("tick", this.owner);
     };
     deactivate = () => {
+        if (!this.isactive) return;
         this.isactive = false;
         this.propagate("deactivate", this.owner);
     };
@@ -46,27 +62,28 @@ class Ability extends Updatable {
         return this.boundKey;
     }
     set keybind(key) {
+        this.keydownEvents = {};
+        this.keypressEvents = {};
+        this.keyupEvents = {};
         this.boundKey = key;
-        this.owner.keydownEvents[key] = this.activate;
+        if (this.bindMode == "Charge") {
+            this.keydownEvents[key] = () => {
+                if (this.charging) return;
+                this.cooldownRemaining = 0;
+                this.charging = true;
+            };
+            this.keyupEvents[key] = () => {
+                this.charging = false;
+                this.chargeTime = -this.cooldownRemaining;
+                this.activate();
+            };
+        } else if (this.bindMode == "Channel") {
+            if (!this.duration) this.duration = Math.infinity;
+            this.keydownEvents[key] = this.activate;
+            this.keyupEvents[key] = this.deactivate;
+        } else this.keyupEvents[key] = this.activate;
     }
 }
-
-class Instant extends Ability {
-    constructor(owner, callback) {
-        super(owner, { activate: callback });
-    }
-}
-class Hold extends Ability {
-    constructor(owner, start, stop, { repeat = (player) => {}, rate } = {}) {
-        super(owner, {
-            activate: start,
-            tick: repeat,
-            deactivate: stop,
-        });
-        this.cooldown = rate;
-    }
-}
-
 const addStat = (obj, propertyName, initial) => {
     // Possible temporary hp etc?
     propertyName = propertyName.toLowerCase();
@@ -100,6 +117,7 @@ const addStat = (obj, propertyName, initial) => {
             return bounds.current;
         }
         set current(val) {
+            if (bounds.current === val) return;
             bounds.current = statBlock.adjust?.call(obj, statBlock, current, val) ?? val;
             statBlock.change();
         }
@@ -192,6 +210,14 @@ const addStat = (obj, propertyName, initial) => {
     obj.stats[propertyName] = statBlock;
 };
 
-function registerAbility() {}
-
-// TODO: REGISTER EFFECT
+function registerAbility(name, options) {
+    const upperName = name[0].toUpperCase() + name.slice(1);
+    const newAbility = class extends Ability {
+        abilityName = upperName;
+        constructor(owner) {
+            super(owner, options);
+        }
+    };
+    AbilityManager.types[upperName] = newAbility;
+    AbilityManager.names.push(upperName);
+}

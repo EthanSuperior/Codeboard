@@ -19,8 +19,15 @@ class Entity extends Interactable {
         this.facingDirection = 0;
         this.groupName = "Entity";
         this.controller = new EntityController();
-        this.abilities = [];
+        this.abilities = {};
     }
+    propagate = (call, ...args) => {
+        this.raise("on" + call, ...args);
+        // Call raise on all abilities
+        const abilityNames = Object.keys(this.abilities);
+        for (let i = 0; i < abilityNames.length; i++) this.abilities[abilityNames[i]].raise(call, ...args);
+    };
+
     update = (delta) => {
         this.controller.update(delta);
         if (this.acceleration) this.speed = clamp(this.speed + this.acceleration, 0, this.maxSpeed);
@@ -37,6 +44,9 @@ class Entity extends Interactable {
             this.y = Math.round(this.y - 0.5) + 0.5;
         }
         if (this.collisions) this.checkCollision();
+
+        const abilityNames = Object.keys(this.abilities);
+        for (let i = 0; i < abilityNames.length; i++) this.abilities[abilityNames[i]].update(delta);
     };
     shouldinteract = (mX, mY) => detectCircle(this.x - this.size / 2, this.y - this.size / 2, this.size / 2, mX, mY);
     checkCollision = () => {
@@ -89,6 +99,10 @@ class Entity extends Interactable {
         this.level++;
         this.raise("onlevelup");
     };
+    addAbility = (ability) => {
+        this.abilities[ability] = new AbilityManager.types[ability](this);
+        this.raise("attach", ability);
+    };
     get xp() {
         return this.exp;
     }
@@ -100,13 +114,6 @@ class Entity extends Interactable {
             this.raise("levelup");
         }
     }
-
-    // mymousedown = (e) => this.raise("onmymousedown", e);
-    // mymouseup = (e) => this.raise("onmymouseup", e);
-    // mymousemove = (e) => this.raise("onmymousemove", e);
-    myclick = (e) => this.despawn();
-    // mydblclick = (e) => this.raise("onmydblclick", e);
-    // mywheel = (e) => this.raise("onmywheel", e);
 }
 
 function registerEntity(name, options, types) {

@@ -426,7 +426,6 @@
                 rarity: 0.02,
                 onpickup: function () {
                     forEveryPickupDo(function () {
-                        console.log("k");
                         if (this.type == "vaccum" || this.type == "chest") return;
                         this.speed = 500 + this.distanceTo(player);
                         this.onupdate = () => this.angleTowards(player);
@@ -500,5 +499,24 @@
             color: "olive",
             size: 20,
         });
+
+        registerAbility("Zoom", {
+            onactivate: (player) => {
+                console.log("activate");
+                forEveryPickupDo(function () {
+                    if (this.type == "vaccum" || this.type == "chest") return;
+                    this.speed = 500 + this.distanceTo(player);
+                    this.onupdate = () => this.angleTowards(player);
+                });
+            },
+            ondeactivate: (player) => {
+                console.log("deactivate");
+            },
+            ontick: (player) => {
+                console.log("tick", player.xp);
+            },
+            key: "KeyR",
+        });
+        player.addAbility("Zoom");
     </script>
 </html>
