@@ -18,11 +18,36 @@
             player.hp.flat = 2;
             console.log("After flat=2 " + player.hp);
             player.hp.flat = 0;
-            console.log("after flat = 0 " + player.hp);
-            player.hp -= player.str;
-            console.log("after -= str " + player.hp);
-            // LEFT HERE FOR YOUR CONVENIENCE please ignore till finished with Tutorial
+            // player.hp -= player.str;
+            console.log(+player.hp);
+            // player.hp.flat = 0;
+            // console.log(+player.hp);
+            // Changing the stats
+            // player.health += amount // heal amount hp
+            // player.health.percent += 0.2    // heal 20% hp
+            // player.health.percentBuff += amount // add amount% buff
+
+            // Getting information
+            // player.health  							// their current hp
+            // player.health.max						// their current maxhp
+            // player.health.percent 				// there current hp/maxhp [0-1]
+            // player.health.missing 			 	// there current amount missing (maxhp-hp)
+            // player.health.missingPercent // there current amount missing [0-1] ((maxhp-hp)/maxhp)
+
             const FighterAbilities = {
+                bloodthirst: {
+                    type: "Bezerker",
+                    1: {
+                        onapply: function (player) {
+                            function selfheal(type, amount) {
+                                player.health += amount * 0.025 * (player.health.missingPercent / 10);
+                            }
+
+                            player.addEffect("onhit", "bloodthirst_1_Effect", selfheal);
+                        },
+                    },
+                    2: {},
+                },
                 RecklessRage: {
                     type: "Bezerker",
                     1: {
