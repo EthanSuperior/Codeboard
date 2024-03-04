@@ -87,7 +87,7 @@
         );
         registerEntity("Player", {
             onupdate: function (delta) {
-                this.direction = getPlayerMovementdirectionection({ useCardinal: true });
+                this.direction = getPlayerMovementDirection({ useCardinal: true });
                 //     // Stop player if no keys are pressed otherwise change your directionection.
                 player.x = clamp(player.x, player.size / 2, game.width - player.size / 2);
                 player.y = clamp(player.y, player.size / 2, game.height - player.size / 2);

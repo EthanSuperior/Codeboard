@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>Your Game Name Goes Here</title>
+    </head>
+    <body></body>
+    <!-- <script src="../Engine/CodeboardEngine.js"></script> -->
+
+    <script src="../Engine/EngineCore.js"></script>
+    <script src="../Engine/EngineGraphics.js"></script>
+    <script src="../Engine/EngineUtilities.js"></script>
+    <script src="../Engine/EnginePhysics.js"></script>
+    <script src="../Engine/EngineAsync.js"></script>
+    <script src="../Engine/EngineAbilities.js"></script>
+    <script src="../Engine/EngineAI.js"></script>
+    <script src="../Engine/EngineEntity.js"></script>
+    <script src="../Engine/EngineUI.js"></script>
+    <script src="../Engine/EngineLayers.js"></script>
+
+    <script src="Abilities.js"></script>
+
+    <script>
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // CORE GAMEPLAY FUNCTIONS | TOUCH AT YOUR OWN RISK
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        game.width = 800;
+        game.height = 600;
+        game.cameraX = 0;
+        game.cameraY = 0;
+        game.debug = 1;
+        // currentLayer.deltaMod = 0.2;
+        game.background = "#2a4720";
+
+        function load() {
+            for (let time in waves) scheduleTask(spawnWave, { time: +time }, waves[time]);
+            addUI();
+            game.draw();
+        }
+
+        function addUI() {
+            const hud = UI.Blank({ overlay: true });
+
+            const healthUI = hud.add(UI.Text(`HP: ${player.health}`, 10, 40, { font: "24px monospace", color: "red" }));
+            healthUI.onupdate = () => (healthUI.text = `HP: ${player.health}`);
+
+            const killsUI = hud.add(
+                UI.Text(`Kills: ${player.kills}`, 10, 70, {
+                    font: "24px monospace",
+                    color: "gold",
+                    onupdate: () => (killsUI.text = `Kills: ${player.kills}`),
+                })
+            );
+            const getProgress = () => player.xp / player.neededXP;
+            const playerXpBar = hud.add(
+                UI.ProgressBar(getProgress, 5, 5, canvas.width - 10, 12, {
+                    background: "black",
+                    fill: "#2165db",
+                    stroke: "#cd9958",
+                    strokeWidth: 3,
+                    cornerRadius: 30,
+                })
+            );
+            // hud.add(UI.ProgressBar(() => player.health.percent, 385, 285, 30, 4, { background: "black", fill: "red" }));
+            hud.show();
+        }
+        const DownKeyEvents = {
+            KeyP: togglePause,
+            KeyQ: () => (player.health.percent = 1),
+            KeyK: () => (player.health = 0),
+        };
+
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // GAME UPDATE FUNCTIONS | TOUCH AT YOUR OWN RISK
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        function showDeath() {
+            UI.Dialogue(250, 200, 300, 200, "You Died", `Final Score: ${player.kills}`, 50, {
+                cornerRadius: 25,
+                background: "white",
+                color: "black",
+                stroke: "black",
+                fill: "red",
+                buttonText: "Restart",
+                onmyclick: () => location.reload(),
+            }).show();
+        }
+
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // GAME SPAWN FUNCTIONS | TOUCH AT YOUR OWN RISK
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        function spawnWave(waveData) {
+            // Remove last wave
+            spawnWave.timers ??= [];
+            spawnWave.timers.forEach(clearTask);
+            spawnWave.timers.length = 0;
+            // Add each enemy
+            for (let type in waveData) {
+                let current = waveData[type];
+                for (let i = 0; i < (current.quantity ?? 1); i++) {
+                    if (current.spawnOnce) spawnEnemy(enemyTypes[type]);
+                    else {
+                        const spawnFunc = () => spawnEnemy(enemyTypes[type]);
+                        const spawnTask = scheduleTask(spawnFunc, { time: current.interval ?? 1, loop: true });
+                        spawnWave.timers.push(spawnTask);
+                    }
+                }
+            }
+        }
+
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // GAME DATA | ADD TO AND CUSTOMIZE FREELY
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        const weaponTypes = {
+            axe: {
+                levels: {
+                    1: {
+                        dmg: 20,
+                        pierce: 3,
+                        count: 1,
+                        description: "High damage, high area scaling.",
+                    },
+                    2: { count: 2, description: "Fires 1 more projectile." },
+                    3: { dmg: 40, description: "Base Damage up by 20." },
+                    4: { pierce: 5, description: "Passes through 2 more enemies." },
+                    5: { count: 3, description: "Fires 1 more projectile." },
+                    6: { dmg: 60, description: "Base Damage up by 20." },
+                    7: { pierce: 7, description: "Passes through 2 more enemies." },
+                    8: { dmg: 80, description: "Base Damage up by 20." },
+                },
+                rotate: true,
+                rotationalOffset: 0,
+                color: "lightgray",
+                speed: 750,
+                size: 30,
+                shape: "triangle",
+                rate: 0.8,
+                lifespan: 4,
+                onspawn: function () {
+                    const spread = 45 * (Math.PI / 180);
+                    this.direction = Math.random() * spread - spread / 2 - Math.PI / 2;
+                    this.speed += -25 + Math.random() * 50;
+                },
+                onupdate: function (delta) {
+                    this.velocity.y += 750 * delta;
+                    this.rotationalOffset += (Math.PI / 180) * this.speed * delta * this.velocity.xSign;
+                },
+            },
+            knife: {
+                levels: {
+                    1: {
+                        dmg: 7,
+                        pierce: 1,
+                        count: 1,
+                        description: "Fires quickly in your player's directionection.",
+                    },
+                    2: { count: 2, description: "Fires 1 more projectile." },
+                    3: { count: 3, dmg: 12, description: "Fires 1 more projectile. Base Damage up by 5." },
+                    4: { count: 4, description: "Fires 1 more projectile." },
+                    5: { pierce: 2, description: "Passes through 1 more enemy." },
+                    6: { count: 5, description: "Fires 1 more projectile." },
+                    7: { count: 6, dmg: 17, description: "Fires 1 more projectile. Base Damage up by 5." },
+                    8: { pierce: 3, description: "Passes through 1 more enemy." },
+                },
+                size: 5,
+                color: "lightgray",
+                speed: 450,
+                rate: 0.4,
+                lifespan: 50,
+                onspawn: function () {
+                    const offset = (this.spawnOrder - (this.count - 1) / 2) * 0.1;
+                    this.direction = player.facingDirection;
+                    // TODO CLEAN UP
+                    this.x +=
+                        Math.cos(player.facingDirection + Math.PI / 2) * offset * 100 +
+                        Math.cos(player.facingDirection + Math.PI) * Math.abs(offset) * 100;
+                    this.y +=
+                        Math.sin(player.facingDirection + Math.PI / 2) * offset * 100 +
+                        Math.sin(player.facingDirection + Math.PI) * Math.abs(offset) * 100;
+                },
+            },
+            whip: {
+                levels: {
+                    1: {
+                        size: 50,
+                        dmg: 10,
+                        count: 1,
+                        description: "Attacks horizontally, passes through enemies.",
+                    },
+                    2: { count: 2, description: "Fires 1 more projectile." },
+                    3: { dmg: 15, description: "Base Damage up by 5." },
+                    4: { size: 55, dmg: 20, speed: 8 * 50, description: "Base Area up by 10%. Base Damage up by 5." },
+                    5: { dmg: 25, description: "Base Damage up by 5." },
+                    6: { size: 60, dmg: 30, speed: 10 * 50, description: "Base Area up by 10%. Base Damage up by 5." },
+                    7: { dmg: 35, description: "Base Damage up by 5." },
+                    8: { dmg: 65, description: "Base Damage up by 5." },
+                },
+                color: "tan",
+                speed: 450,
+                pierce: 10e10,
+                rate: 0.4,
+                staticY: true,
+                lifespan: 0.1,
+                onspawn: function () {
+                    const isFirst = !(this.spawnOrder % 2);
+                    if (Math.cos(player.facingDirection) > 0) this.direction = isFirst ? 0 : Math.PI;
+                    else this.direction = isFirst ? Math.PI : 0;
+                },
+                onupdate: function (delta) {
+                    this.y = player.y;
+                },
+                ondespawn: function () {
+                    this.color = "red";
+                },
+            },
+        };
+
+        const enemyTypes = {
+            bat: {
+                dmg: 4,
+                health: 5,
+                speed: 105,
+                size: 16,
+                color: "RebeccaPurple",
+                xp: 1,
+            },
+            weak_bat: {
+                dmg: 4,
+                health: 1,
+                speed: 105,
+                size: 10,
+                color: "RebeccaPurple",
+                xp: 1,
+            },
+            zombie: {
+                dmg: 9,
+                health: 10,
+                speed: 105,
+                size: 24,
+                color: "gray",
+                xp: 5,
+            },
+            elite: {
+                dmg: 20,
+                health: 1000,
+                speed: 85,
+                size: 45,
+                color: "pink",
+                xp: 30,
+            },
+            reaper: {
+                dmg: 65535,
+                health: 655350,
+                speed: 900,
+                size: 84,
+                color: "red",
+                xp: 0,
+            },
+        };
+
+        const pickupTypes = {
+            xp: {
+                color: "#13a9dc",
+                shape: "circle",
+                size: 12,
+                value: 1,
+                rarity: 1,
+                onpickup: function (other) {
+                    player.xp += this.value;
+                },
+            },
+            health: {
+                color: "red",
+                shape: "circle",
+                size: 16,
+                value: 25,
+                rarity: 0.1,
+                onpickup: function () {
+                    player.health = Math.min(player.health + this.value, player.maxHP);
+                },
+            },
+            vaccum: {
+                color: "blue",
+                shape: "circle",
+                size: 16,
+                value: 1,
+                rarity: 0.02,
+                onpickup: function () {
+                    forEveryPickupDo(function () {
+                        if (this.type == "vaccum" || this.type == "chest") return;
+                        this.speed = 500 + this.distanceTo(player);
+                        this.onupdate = () => this.angleTowards(player);
+                    });
+                },
+            },
+        };
+
+        const waves = {
+            0: {
+                weak_bat: {
+                    quantity: 5,
+                    interval: 2.5,
+                },
+            },
+            30: {
+                bat: {
+                    quantity: 3, // int
+                    interval: 2, // float
+                },
+                weak_bat: {
+                    quantity: 1, // int
+                    interval: 0.5, // float
+                },
+            },
+            60: {
+                elite: {
+                    quantity: 1,
+                    spawnOnce: true,
+                },
+                zombie: {
+                    quantity: 5,
+                    interval: 2,
+                },
+            },
+        };
+
+        registerEntity(
+            "Enemy",
+            {
+                collisions: ["Player"],
+                onspawn: function () {
+                    this.direction = Math.random() * Math.PI * 2;
+                    const radius = (Math.hypot(game.width, game.height) + this.size) / 2;
+                    this.x = player.x + Math.cos(this.direction) * radius;
+                    this.y = player.y + Math.sin(this.direction) * radius;
+                },
+                onupdate: function () {
+                    this.angleTowards(player);
+                },
+                oncollide: function (other) {
+                    this.x -= (this.velocity.x * this.size) / 20;
+                    this.y -= (this.velocity.y * this.size) / 20;
+                    other.health -= this.dmg;
+                },
+            },
+            enemyTypes
+        );
+        registerEntity(
+            "Projectile",
+            {
+                hit: [],
+                pierce: 1,
+                collisions: ["Enemy"],
+                oncollide: function (other) {
+                    if (this.hit.includes(other.id)) return;
+                    this.hit.push(other.id);
+                    other.health -= this.dmg;
+                    this.pierce--;
+                    if (this.pierce <= 0) this.despawn();
+                    if (other.health > 0) return;
+                    player.kills += 1;
+                    other.despawn();
+                },
+                onspawn: function () {
+                    this.x = player.x;
+                    this.y = player.y;
+                },
+            },
+            weaponTypes
+        );
+        registerEntity("Player", {
+            maxSpeed: 225,
+            acceleration: 7.5,
+            weapons: [],
+            pickupRadius: 100,
+            stats: { health: 120, maxhealth: 120, damage: 20 },
+            kills: 0,
+            onupdate: function (delta) {
+                if (this.health <= 0) showDeath();
+            },
+            onlevelup: function () {
+                this.neededXP += this.level * 10;
+                const isMaxLevel = (o) => weaponTypes[o].currentLevel >= Object.keys(weaponTypes[o].levels).length;
+                let options = Object.keys(weaponTypes).filter((a) => !isMaxLevel(a));
+                if (!options.length) player.health = Math.min(player.health + 25, player.maxHP);
+                else showLevelUp(options);
+            },
+        });
+        registerAbility("Attack", {
+            mode: "Instant",
+            onactivate: function () {
+                const player = this.owner;
+                forEveryEnemyDo(function () {
+                    if (detectCone(player.x, player.y, player.facingDirection, Math.PI / 2, 60, this.x, this.y)) {
+                        this.health -= player.stats.damage;
+                        if (this.health <= 0) this.despawn();
+                    }
+                });
+            },
+        });
+        const player = spawnPlayer({
+            color: "olive",
+            size: 20,
+            onspawn: function () {
+                this.addAbility("RecklessRage_1", { keys: "Digit1" });
+                this.addAbility("RecklessRage_2");
+                this.addAbility("Dash_1", { keys: "Digit2" });
+                this.addAbility("Attack", { keys: "Space" });
+            },
+        });
+        player.clickEvent = player.abilities["Attack"].activate;
+        player.controller = new PlayerController(player);
+        player.layer.cameraFollow = player;
+    </script>
+</html>

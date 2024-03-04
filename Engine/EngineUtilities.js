@@ -1,6 +1,11 @@
 function clamp(val, min, max) {
     return Math.min(Math.max(val, min), max);
 }
+
+function round(value, step = 1) {
+    return Math.round(value / step) * step;
+}
+
 function appendToFunction(obj, funcName, additionalFunc, { hasPriority } = {}) {
     const baseFunc = obj[funcName];
     obj[funcName] = function (...args) {

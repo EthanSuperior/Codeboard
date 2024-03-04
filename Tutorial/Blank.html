@@ -22,68 +22,6 @@
             console.log(+player.hp);
             // player.hp.flat = 0;
             // console.log(+player.hp);
-            // Changing the stats
-            // player.health += amount // heal amount hp
-            // player.health.percent += 0.2    // heal 20% hp
-            // player.health.percentBuff += amount // add amount% buff
-
-            // Getting information
-            // player.health  							// their current hp
-            // player.health.max						// their current maxhp
-            // player.health.percent 				// there current hp/maxhp [0-1]
-            // player.health.missing 			 	// there current amount missing (maxhp-hp)
-            // player.health.missingPercent // there current amount missing [0-1] ((maxhp-hp)/maxhp)
-
-            const FighterAbilities = {
-                bloodthirst: {
-                    type: "Bezerker",
-                    1: {
-                        onapply: function (player) {
-                            function selfheal(type, amount) {
-                                player.health += amount * 0.025 * (player.health.missingPercent / 10);
-                            }
-
-                            player.addEffect("onhit", "bloodthirst_1_Effect", selfheal);
-                        },
-                    },
-                    2: {},
-                },
-                RecklessRage: {
-                    type: "Bezerker",
-                    1: {
-                        cooldown: 45,
-                        cost: 0.1,
-                        onactivate: function (player) {
-                            player.health *= 0.5;
-                            player.damage *= 1.2;
-                            function selfheal(type, amount) {
-                                if (type == "self") amount *= 2;
-                            }
-                            player.addEffect("onheal", "RecklessRage_1_Effect", selfheal);
-                        },
-                        ondeactivate: function (player) {
-                            player.damage /= 1.2;
-                            player.removeEffect("RecklessRage_1_Effect");
-                        },
-                        duration: this.perk ? 12 : 10,
-                    },
-                    2: {
-                        onapply: function (player) {
-                            function getModPercent() {
-                                //this is player
-                                const missPerc = 1 - this.health / this.maxHealth;
-                                if (missPerc <= 0.3) return 1;
-                                // Somehow round to nearest .1?
-                                return 1 + Math.min(0.6, missingHealthPercentage + 0.3);
-                            }
-                            player.addModifier("atkspeed", "RecklessRage_2_Modifier", getModPercent);
-                        },
-                        onremove: function (player) {
-                            player.removeModifier("RecklessRage_2_Modifier");
-                        },
-                    },
-                },
-            };
         </script>
     </body>
 </html>

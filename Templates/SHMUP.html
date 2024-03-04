@@ -404,7 +404,7 @@
             bulletType: "normal",
             onupdate: function (delta) {
                 if (this.hp <= 0) showDeath();
-                const direction = getPlayerMovementdirectionection();
+                const direction = getPlayerMovementDirection();
                 // Stop player if no keys are pressed otherwise change your directionection.
                 if (direction == null) this.speed = 0;
                 else this.direction = direction;

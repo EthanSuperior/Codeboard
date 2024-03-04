@@ -1,3 +1,7 @@
+Function.prototype[Symbol.toPrimitive] = function (hint) {
+    if (hint === "number") return this();
+    return this.toString();
+};
 class Identifiable {
     constructor(id) {
         this.id = id || crypto.randomUUID();
@@ -31,19 +35,29 @@ class Interactable extends Updatable {
         this.propagate("keyup", this.modkeyevent(e));
         for (let k in this.keyupEvents) if (e.code == k) this.keyupEvents[k]();
     };
+    keypressEvents = {};
+    keypress = (e) => {
+        this.propagate("keypress", this.modkeyevent(e));
+        for (let k in this.keypressEvents) if (e.code == k) this.keypressEvents[k]();
+    };
     // Mouse IO Events
+    mousedownEvents = {};
     mousedown = (e) => {
         e = this.modmouseevent(e);
         this.propagate("mousedown", e);
         if (this.shouldinteract(e.mouseX, e.mouseY)) this.raise("mymousedown", e);
+        for (let k in this.mousedownEvents) this.mousedownEvents[k]();
     };
     mymousedown = (e) => this.raise("onmymousedown", e);
+    mouseupEvent;
     mouseup = (e) => {
         e = this.modmouseevent(e);
         this.propagate("mouseup", e);
         if (this.shouldinteract(e.mouseX, e.mouseY)) this.raise("mymouseup", e);
+        this.mouseupEvent?.call(this);
     };
     mymouseup = (e) => this.raise("onmymouseup", e);
+    mousemoveEvent;
     mousemove = (e) => {
         e = this.modmouseevent(e);
         this.propagate("mousemove", e);
@@ -51,24 +65,31 @@ class Interactable extends Updatable {
             this.raise("mymousemove", e);
             this.hovered = true;
         } else this.hovered = false;
+        this.mousemoveEvent?.call(this);
     };
     mymousemove = (e) => this.raise("onmymousemove", e);
+    clickEvents = {};
     click = (e) => {
         e = this.modmouseevent(e);
         this.propagate("click", e);
         if (this.shouldinteract(e.mouseX, e.mouseY)) this.raise("myclick", e);
+        for (let k in this.clickEvents) this.clickEvents[k]();
     };
     myclick = (e) => this.raise("onmyclick", e);
+    dblclickEvents = {};
     dblclick = (e) => {
         e = this.modmouseevent(e);
         this.propagate("dblclick", e);
         if (this.shouldinteract(e.mouseX, e.mouseY)) this.raise("mydblclick", e);
+        for (let k in this.dblclickEvents) this.dblclickEvents[k]();
     };
     mydblclick = (e) => this.raise("onmydblclick", e);
+    wheelEvents = {};
     wheel = (e) => {
         e = this.modmouseevent(e);
         this.propagate("wheel", e);
         if (this.shouldinteract(e.mouseX, e.mouseY)) this.raise("mywheel", e);
+        for (let k in this.wheelEvents) this.wheelEvents[k]();
     };
     mywheel = (e) => this.raise("onmywheel", e);
 }
@@ -115,6 +136,7 @@ const game = new (class GameSettings {
      */
     ondraw = () => {
         fillScreen({ color: this.background });
+        MultiCanvas.ctx["debug"].clearRect(0, 0, canvas.width, canvas.height);
     };
     /**
      * Get the width of the game.

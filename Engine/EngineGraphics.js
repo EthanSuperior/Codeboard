@@ -6,6 +6,9 @@ const MultiCanvas = new (class {
         this.addCanvas("background");
         this.addCanvas(0);
         this.addCanvas("debug");
+        this.ctx["debug"].globalAlpha = 0.6;
+        this.ctx["debug"].strokeStyle = "#f33";
+        this.ctx["debug"].lineWidth = 2;
     }
     addCanvas = (zIdx) => {
         if (this.canvas[zIdx]) return;
@@ -107,7 +110,8 @@ drawEntity = (entity) => {
     const halfSize = entity.size / 2;
     if (entity.img) {
         ctx.save();
-        ctx.scale(entity.flipX ? -1 : 1, entity.flipY ? -1 : 1);
+        if (entity.flipX !== undefined || entity.flipY !== undefined)
+            ctx.scale(entity.flipX ? -1 : 1, entity.flipY ? -1 : 1);
         drawImage(entity.img, -halfSize, -halfSize, { width: entity.size, height: entity.size });
         ctx.restore();
         //TODO: ONLOAD ANIMATION CODE

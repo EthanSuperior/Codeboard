@@ -17,30 +17,44 @@ Abilities
 
 // Cooldown is currently tickrate, make it actually cooldown... and add tickrate as a seperate thing
 class Ability extends Interactable {
-    constructor(owner, options = {}) {
+    #mode;
+    #keyup;
+    #keydown;
+    #keypress;
+    #keybinds;
+    constructor(
+        owner,
+        { cooldown, chargeTime, duration, mode, onactivate, ondeactivate, ontick, key, keys = [], ...options } = {}
+    ) {
         super();
         this.owner = owner;
-        this.boundKey = "";
-        this.bindMode = options.bindMode || "Charge"; // Default to Instant if not specified
-        this.cooldown = options.cooldown || 0;
+        this.cooldown = cooldown || 0;
         this.cooldownRemaining = 0;
         this.chargeTime = options.chargeTime || 0;
-        this.loop = options.loop || false;
-        this.duration = options.duration || 0;
+        this.duration = duration || 0;
         this.isactive = false;
 
         // Properly bind methods
-        this.onactivate = options.onactivate ? options.onactivate.bind(this) : () => {};
-        this.ondeactivate = options.ondeactivate ? options.ondeactivate.bind(this) : () => {};
-        this.ontick = options.ontick ? options.ontick.bind(this) : () => {};
-        if (options.key) this.keybind = options.key; // Automatically sets up keybind if provided
+        this.onactivate = onactivate ? onactivate.bind(this) : () => {};
+        this.ondeactivate = ondeactivate ? ondeactivate.bind(this) : () => {};
+        this.ontick = ontick ? ontick.bind(this) : () => {};
+        this.keybinds = keys || key;
+
+        this.mode = mode || "Instant";
     }
     activate = () => {
-        if (this.cooldownRemaining > 0 || this.isactive) return; // Prevent activation if still on cooldown
+        if (this.cooldownRemaining > 0 || this.isactive) return;
         this.isactive = true;
         this.raise("onactivate", this.owner);
         this.cooldownRemaining = this.cooldown; // Reset cooldown
-        this.owner.layer.scheduleTask(this.deactivate, { time: this.duration });
+        this.owner.layer.scheduleTask(
+            () => {
+                console.log(this.duration);
+                this.deactivate();
+            },
+            { time: this.duration }
+        );
+        //FIXME make it work with duration
     };
     onupdate = (delta) => {
         // if (this.pause) return;
@@ -58,30 +72,52 @@ class Ability extends Interactable {
         this.isactive = false;
         this.propagate("deactivate", this.owner);
     };
-    get keybind() {
-        return this.boundKey;
+    get mode() {
+        return this.#mode;
     }
-    set keybind(key) {
-        this.keydownEvents = {};
-        this.keypressEvents = {};
-        this.keyupEvents = {};
-        this.boundKey = key;
-        if (this.bindMode == "Charge") {
-            this.keydownEvents[key] = () => {
+    set mode(val) {
+        this.#mode = val;
+        this.#keydown = undefined;
+        this.#keyup = undefined;
+        this.#keypress = undefined;
+        if (val === "Charge") {
+            this.#keydown = () => {
                 if (this.charging) return;
                 this.cooldownRemaining = 0;
                 this.charging = true;
             };
-            this.keyupEvents[key] = () => {
+            this.#keyup = () => {
                 this.charging = false;
                 this.chargeTime = -this.cooldownRemaining;
                 this.activate();
             };
-        } else if (this.bindMode == "Channel") {
-            if (!this.duration) this.duration = Math.infinity;
-            this.keydownEvents[key] = this.activate;
-            this.keyupEvents[key] = this.deactivate;
-        } else this.keyupEvents[key] = this.activate;
+        } else if (val === "Channel") {
+            if (!this.duration) this.duration = Number.MAX_VALUE;
+            this.#keydown = this.activate;
+            this.#keyup = this.deactivate;
+        } else if (val === "Toggle") {
+            this.#keypress = () => {
+                if (this.isactive) this.deactivate();
+                else this.activate();
+            };
+        } else if (val === "Passive") {
+            this.duration = Number.MAX_VALUE;
+            this.activate();
+        } else this.#keypress = this.activate;
+    }
+    get keybinds() {
+        return this.#keybinds;
+    }
+    set keybinds(keys) {
+        this.keydownEvents = {};
+        this.keypressEvents = {};
+        this.keyupEvents = {};
+        this.#keybinds = Array.isArray(keys) ? keys : [keys];
+        for (const key of this.#keybinds) {
+            this.keydownEvents[key] = (e) => this.#keydown?.call(this, e);
+            this.keyupEvents[key] = (e) => this.#keyup?.call(this, e);
+            this.keypressEvents[key] = (e) => this.#keypress?.call(this, e);
+        }
     }
 }
 const addStat = (obj, propertyName, initial) => {
@@ -122,6 +158,7 @@ const addStat = (obj, propertyName, initial) => {
             statBlock.change();
         }
         recalculate(missing, prior) {
+            bounds.base = Math.min(bounds.base, bounds.maxBase);
             bounds.current = clamp(statBlock.max - missing, prior, statBlock.max);
         }
         change() {
@@ -138,13 +175,16 @@ const addStat = (obj, propertyName, initial) => {
             if (bounds.cap !== undefined) return Math.min(result, bounds.cap);
             return result;
         }
+        get missingPercent() {
+            return this.missing / statBlock.max;
+        }
         get base() {
             return bounds.base;
         }
         set base(val) {
             const missing = statBlock.missing,
                 prior = statBlock.current;
-            bounds.base = bounds.maxBase !== undefined ? Math.min(val, bounds.maxBase) : val;
+            bounds.base = val;
             statBlock.recalculate(missing, prior);
         }
         get maxBase() {
@@ -155,12 +195,20 @@ const addStat = (obj, propertyName, initial) => {
                 prior = statBlock.current;
             bounds.maxBase = val;
             statBlock.recalculate(missing, prior);
-            bounds.base = Math.min(bounds.base, val);
         }
         get percent() {
-            return bounds.percent;
+            return bounds.current / statBlock.max;
         }
         set percent(val) {
+            const missing = statBlock.missing,
+                prior = statBlock.current;
+            bounds.current = statBlock.max * val;
+            statBlock.recalculate(missing, prior);
+        }
+        get percentBuff() {
+            return bounds.percent;
+        }
+        set percentBuff(val) {
             const missing = statBlock.missing,
                 prior = statBlock.current;
             bounds.percent = val;
@@ -210,12 +258,12 @@ const addStat = (obj, propertyName, initial) => {
     obj.stats[propertyName] = statBlock;
 };
 
-function registerAbility(name, options) {
+function registerAbility(name, options = {}) {
     const upperName = name[0].toUpperCase() + name.slice(1);
     const newAbility = class extends Ability {
         abilityName = upperName;
-        constructor(owner) {
-            super(owner, options);
+        constructor(owner, extraOptions = {}) {
+            super(owner, { ...options, ...extraOptions });
         }
     };
     AbilityManager.types[upperName] = newAbility;

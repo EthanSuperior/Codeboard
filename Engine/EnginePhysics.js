@@ -101,6 +101,8 @@ function detectRect(x, y, w, h, ptX, ptY) {
         ctx.lineWidth = 2;
         ctx.strokeRect(x, y, w, h);
     }
+    // if (game.debug) MultiCanvas.ctx["debug"].strokeRect(x, y, w, h);
+
     return ptX >= x && ptX <= x + w && ptY >= y && ptY <= y + h;
 }
 function detectCircle(x, y, r, ptX, ptY) {
@@ -112,6 +114,12 @@ function detectCircle(x, y, r, ptX, ptY) {
         ctx.stroke();
         ctx.closePath();
     }
+    // if (game.debug) {
+    //     MultiCanvas.ctx["debug"].beginPath();
+    //     MultiCanvas.ctx["debug"].arc(x + ptX, y + ptY, r, 0, 2 * Math.PI);
+    //     MultiCanvas.ctx["debug"].stroke();
+    //     MultiCanvas.ctx["debug"].closePath();
+    // }
     const squaredDistance = (x - ptX) ** 2 + (y - ptY) ** 2;
     return squaredDistance <= r ** 2;
 }
@@ -122,8 +130,20 @@ function detectBox(x1, y1, w1, h1, x2, y2, w2, h2, ptX, ptY) {
     );
 }
 function detectCone(x, y, direction, arcLength, radius, ptX, ptY) {
+    if (game.debug) {
+        const startAngle = direction - arcLength / 2;
+        const endAngle = direction + arcLength / 2;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.arc(x, y, radius, startAngle, endAngle);
+        ctx.lineTo(x, y);
+        ctx.strokeStyle = "#f33a";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        // ctx.fill();
+        ctx.closePath();
+    }
     if (!detectCircle(x, y, radius, ptX, ptY)) return false;
-
     const angleToTarget = Math.atan2(ptY - y, ptX - x);
     const angleDiff = Math.abs(angleToTarget - direction);
 
@@ -150,7 +170,7 @@ function distanceTo(from, to) {
 function angleTo(from, to) {
     return Math.atan2(to.y - from.y, to.x - from.x);
 }
-function getPlayerMovementdirectionection({ useCardinal } = {}) {
+function getPlayerMovementDirection({ useCardinal } = {}) {
     let direction = null;
 
     // Check for horizontal movement

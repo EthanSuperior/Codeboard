@@ -8,7 +8,8 @@ class Entity extends Interactable {
         super();
         this.x = 0;
         this.y = 0;
-        this.size = 0;
+        this.size = 10;
+        this.color = "black";
         this.velocity = new Vector();
         AddPublicAccessors(this, "velocity", ["speed", "direction", "magnitude"]);
         this.exp = 0;
@@ -18,14 +19,22 @@ class Entity extends Interactable {
         this.staticY = false;
         this.facingDirection = 0;
         this.groupName = "Entity";
-        this.controller = new EntityController();
+        this.controller = new EntityController(this);
+        // const abilities_to_add = Object.entries(this.abilities ?? {});
+        // for (let i = 0; i < abilities_to_add.length; i++)
+        //     this.addAbility(abilities_to_add[i][1], { keys: abilities_to_add[i][0] });
         this.abilities = {};
+        this.effects = {};
+        this.stats ??= {};
     }
     propagate = (call, ...args) => {
-        this.raise("on" + call, ...args);
+        const oncall = "on" + call;
+        this.raise(oncall, ...args);
         // Call raise on all abilities
-        const abilityNames = Object.keys(this.abilities);
+        const abilityNames = Object.keys(this.abilities ?? {});
         for (let i = 0; i < abilityNames.length; i++) this.abilities[abilityNames[i]].raise(call, ...args);
+        const effectNames = Object.keys(this.effects[oncall] ?? {});
+        for (let i = 0; i < effectNames.length; i++) this.effects[oncall][effectNames[i]].call(this, ...args);
     };
 
     update = (delta) => {
@@ -99,9 +108,16 @@ class Entity extends Interactable {
         this.level++;
         this.raise("onlevelup");
     };
-    addAbility = (ability) => {
-        this.abilities[ability] = new AbilityManager.types[ability](this);
+    addAbility = (ability, options) => {
+        this.abilities[ability] = new AbilityManager.types[ability](this, options);
         this.raise("attach", ability);
+    };
+    addEffect = (trigger, effectName, callback) => {
+        if (!this.effects[trigger]) this.effects[trigger] = {};
+        this.effects[trigger][effectName] = callback;
+    };
+    removeEffect = (trigger, effectName) => {
+        delete this.effects[trigger][effectName];
     };
     get xp() {
         return this.exp;
@@ -135,7 +151,7 @@ function registerEntity(name, options, types) {
         MergeOntoObject(newEntity, subType);
         MergeOntoObject(newEntity, additional);
         newEntity.layer = LayerManager.currentLayer;
-        if (newEntity.stats) for (let stat in newEntity.stats) addStat(newEntity, stat, this.stats[stat]);
+        if (newEntity.stats) for (let stat in newEntity.stats) addStat(newEntity, stat, newEntity.stats[stat]);
         newEntity.raise("spawn");
         return newEntity;
     };

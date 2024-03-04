@@ -24,6 +24,7 @@ const LayerManager = new (class LayerManager extends Interactable {
         document.addEventListener("keydown", this.pageinteract, { once: true });
         // document.addEventListener("contextmenu", (e) => e.preventDefault());
         document.addEventListener("keydown", this.keydown);
+        document.addEventListener("keypress", this.keypress);
         document.addEventListener("keyup", this.keyup);
         document.addEventListener("mousemove", this.mousemove);
         document.addEventListener("mousedown", this.mousedown);
@@ -36,10 +37,11 @@ const LayerManager = new (class LayerManager extends Interactable {
         return this.layers[this.layers.length - 1];
     }
     draw = () => {
-        game.ondraw();
         this.propagate("draw");
     };
     update = (timestamp) => {
+        game.ondraw();
+
         // Fraction of a second since last update.
         const delta = (timestamp - this.lastTimestamp) / 1000;
         this.lastTimestamp = timestamp;
@@ -135,6 +137,10 @@ class Layer extends Interactable {
         }
     };
     draw = () => {
+        if (this.cameraFollow) {
+            this.cameraX = this.cameraFollow.x;
+            this.cameraY = this.cameraFollow.y;
+        }
         ctx.save();
         this.raise("ondraw");
         this.UIRoot.raise("draw");
