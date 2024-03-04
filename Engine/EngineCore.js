@@ -41,12 +41,12 @@ class Interactable extends Updatable {
         for (let k in this.keypressEvents) if (e.code == k) this.keypressEvents[k]();
     };
     // Mouse IO Events
-    mousedownEvents = {};
+    mousedownEvent;
     mousedown = (e) => {
         e = this.modmouseevent(e);
         this.propagate("mousedown", e);
         if (this.shouldinteract(e.mouseX, e.mouseY)) this.raise("mymousedown", e);
-        for (let k in this.mousedownEvents) this.mousedownEvents[k]();
+        this.mousedownEvent?.call(this);
     };
     mymousedown = (e) => this.raise("onmymousedown", e);
     mouseupEvent;
@@ -151,6 +151,9 @@ const game = new (class GameSettings {
      */
     set width(value) {
         canvas.width = value * (this.scaleX ?? 1);
+    }
+    get diagonal() {
+        return Math.hypot(this.width, this.height);
     }
     /**
      * Get the height of the game.

@@ -20,7 +20,9 @@ registerAbility("Bloodthirst_1", {
     mode: "Passive",
     onactivate: function (player) {
         function selfheal(source, amount) {
-            player.health += amount * 0.025 * (player.health.missingPercent / 10);
+            const healAmount = amount * 2.5 * (player.health.missingPercent / 10);
+            player.health += healAmount;
+            player.heal(player, healAmount);
         }
         player.addEffect("onhit", "bloodthirst_1_Effect", selfheal);
     },
@@ -36,10 +38,10 @@ registerAbility("RecklessRage_1", {
     cost: 0.1,
     onactivate: function (player) {
         if (player.hasPerk) this.duration = 12;
-        player.health *= 0.5;
+        player.health.percent -= 0.5;
         player.damage.percentBuff += 0.2;
         function selfheal(source, amount) {
-            if (source == player) amount *= 2;
+            if (source == player) player.health += amount;
         }
         player.addEffect("onheal", "RecklessRage_1_Effect", selfheal);
     },

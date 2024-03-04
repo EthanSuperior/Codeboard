@@ -1,9 +1,44 @@
+function randomInt(min, max) {
+    if (max === undefined) return randomInt(0, min);
+    return Math.floor(Math.random() * (max + 1 - min) + min);
+}
+const randomWholeNumber = randomInt;
+
+function randomRange(min, max) {
+    return Math.random() * (max - min) + min;
+}
+
+function randomChance(chance) {
+    return Math.random() < chance;
+}
+
+function randomChoice(contianer) {
+    if (!Array.isArray(contianer)) return contianer[randomChoice(Object.keys(contianer))];
+    return contianer[randomInt(contianer.length - 1)];
+}
+
+function randomPointInCircle(radius, { minRadius = undefined, start = { x: 0, y: 0 } }) {
+    if (minRadius !== undefined) radius = minRadius + Math.random() * (radius - minRadius);
+    const angle = Math.random() * Math.PI * 2;
+    return {
+        x: start.x + Math.cos(angle) * radius,
+        y: start.y + Math.sin(angle) * radius,
+    };
+}
+
+function randomColor() {
+    return rgbToHex({ r: randomInt(0, 255), g: randomInt(0, 255), b: randomInt(0, 255) });
+}
+
 function clamp(val, min, max) {
     return Math.min(Math.max(val, min), max);
 }
-
-function round(value, step = 1) {
+function roundBy(value, step = 1) {
     return Math.round(value / step) * step;
+}
+function round(value, decimals = 0) {
+    if (decimals === 0) return Math.round(value);
+    return roundBy(value, 1 / Math.pow(10, decimals));
 }
 
 function appendToFunction(obj, funcName, additionalFunc, { hasPriority } = {}) {
@@ -107,7 +142,7 @@ const MergeOntoObject = (target, source) => {
                 };
             } else target[key] = source[key];
             const event = key.slice(2);
-            if (!target[event] && !source[event]) target[event] = (...args) => target.raise(key, ...args);
+            if (!target[event] && !source[event]) target[event] = (...args) => target.propagate(event, ...args);
         } else target[key] = source[key];
     }
     return target;

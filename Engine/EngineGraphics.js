@@ -58,7 +58,7 @@ drawCone = (x, y, zIdx, direction, arcLength, radius, options = {}) => {
     ctx.beginPath();
     if (options.noLines === undefined) ctx.moveTo(x, y);
     // Draw the arc
-    ctx.arc(x, y, radius * 3, startAngle, endAngle);
+    ctx.arc(x, y, radius, startAngle, endAngle);
     if (options.noLines === undefined) ctx.lineTo(x, y);
     colorPath(options);
     ctx.closePath();

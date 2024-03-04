@@ -22,10 +22,7 @@ class Ability extends Interactable {
     #keydown;
     #keypress;
     #keybinds;
-    constructor(
-        owner,
-        { cooldown, chargeTime, duration, mode, onactivate, ondeactivate, ontick, key, keys = [], ...options } = {}
-    ) {
+    constructor(owner, { cooldown, chargeTime, duration, mode, key, keys = [], ...options } = {}) {
         super();
         this.owner = owner;
         this.cooldown = cooldown || 0;
@@ -35,9 +32,8 @@ class Ability extends Interactable {
         this.isactive = false;
 
         // Properly bind methods
-        this.onactivate = onactivate ? onactivate.bind(this) : () => {};
-        this.ondeactivate = ondeactivate ? ondeactivate.bind(this) : () => {};
-        this.ontick = ontick ? ontick.bind(this) : () => {};
+        for (const [k, v] of Object.entries(options)) if (typeof v === "function") this[k] = v.bind(this);
+
         this.keybinds = keys || key;
 
         this.mode = mode || "Instant";
@@ -47,14 +43,14 @@ class Ability extends Interactable {
         this.isactive = true;
         this.raise("onactivate", this.owner);
         this.cooldownRemaining = this.cooldown; // Reset cooldown
-        this.owner.layer.scheduleTask(
-            () => {
-                console.log(this.duration);
-                this.deactivate();
-            },
-            { time: this.duration }
-        );
+        if (this.duration !== 0 && this.duration !== Infinity)
+            this.owner.layer.scheduleTask(this.deactivate, { time: this.duration });
         //FIXME make it work with duration
+    };
+    draw = () => {
+        if (!this.isactive) return;
+        this.propagate("draw");
+        if (this.duration === 0) this.deactivate();
     };
     onupdate = (delta) => {
         // if (this.pause) return;
@@ -92,7 +88,7 @@ class Ability extends Interactable {
                 this.activate();
             };
         } else if (val === "Channel") {
-            if (!this.duration) this.duration = Number.MAX_VALUE;
+            if (!this.duration) this.duration = Infinity;
             this.#keydown = this.activate;
             this.#keyup = this.deactivate;
         } else if (val === "Toggle") {
@@ -101,7 +97,7 @@ class Ability extends Interactable {
                 else this.activate();
             };
         } else if (val === "Passive") {
-            this.duration = Number.MAX_VALUE;
+            this.duration = Infinity;
             this.activate();
         } else this.#keypress = this.activate;
     }
@@ -136,6 +132,7 @@ const addStat = (obj, propertyName, initial) => {
         delete obj.stats[propertyName];
         return;
     }
+    if (obj[propertyName]) initial = obj[propertyName];
     const bounds = {
         current: 0,
         base: initial,
@@ -153,12 +150,14 @@ const addStat = (obj, propertyName, initial) => {
             return bounds.current;
         }
         set current(val) {
+            if (Number.isNaN(val)) debugger;
             if (bounds.current === val) return;
             bounds.current = statBlock.adjust?.call(obj, statBlock, current, val) ?? val;
             statBlock.change();
         }
         recalculate(missing, prior) {
-            bounds.base = Math.min(bounds.base, bounds.maxBase);
+            if (bounds.percent !== 1) debugger;
+            bounds.base = Math.min(bounds.base, bounds.maxBase ?? bounds.base);
             bounds.current = clamp(statBlock.max - missing, prior, statBlock.max);
         }
         change() {
@@ -200,10 +199,7 @@ const addStat = (obj, propertyName, initial) => {
             return bounds.current / statBlock.max;
         }
         set percent(val) {
-            const missing = statBlock.missing,
-                prior = statBlock.current;
             bounds.current = statBlock.max * val;
-            statBlock.recalculate(missing, prior);
         }
         get percentBuff() {
             return bounds.percent;

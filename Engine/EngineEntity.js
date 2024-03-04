@@ -27,6 +27,13 @@ class Entity extends Interactable {
         this.effects = {};
         this.stats ??= {};
     }
+    get position() {
+        return { x: this.x, y: this.y };
+    }
+    set position({ x, y }) {
+        this.x = x;
+        this.y = y;
+    }
     propagate = (call, ...args) => {
         const oncall = "on" + call;
         this.raise(oncall, ...args);
@@ -90,6 +97,8 @@ class Entity extends Interactable {
         ctx.translate(this.x, this.y);
         if (this.rotate) ctx.rotate(this.direction + Math.PI / 2 + (this.rotationalOffset ?? 0));
         drawEntity(this);
+        const abilityNames = Object.keys(this.abilities);
+        for (let i = 0; i < abilityNames.length; i++) this.abilities[abilityNames[i]].draw();
         this.raise("ondraw");
         ctx.restore();
         if (game.debug) this.shouldinteract(this.size / 2, this.size / 2);
@@ -156,11 +165,11 @@ function registerEntity(name, options, types) {
               };
     AddAccessor(newSubclass, "subtypes", { initial: types });
     globalThis["spawn" + upperName] = (subType, additional) => {
-        const newEntity = new newSubclass();
-        MergeOntoObject(newEntity, game.settings);
-        MergeOntoObject(newEntity, options);
-        MergeOntoObject(newEntity, subType);
-        MergeOntoObject(newEntity, additional);
+        let newEntity = new newSubclass();
+        newEntity = MergeOntoObject(newEntity, game.settings);
+        newEntity = MergeOntoObject(newEntity, options);
+        newEntity = MergeOntoObject(newEntity, subType);
+        newEntity = MergeOntoObject(newEntity, additional);
         newEntity.layer = LayerManager.currentLayer;
         if (newEntity.stats) for (let stat in newEntity.stats) addStat(newEntity, stat, newEntity.stats[stat]);
         newEntity.raise("spawn");
