@@ -28,7 +28,7 @@
         game.height = 600;
         game.cameraX = 0;
         game.cameraY = 0;
-        game.debug = 1;
+        game.debug = false;
         // currentLayer.deltaMod = 0.2;
         game.background = "#2a4720";
 
@@ -62,11 +62,11 @@
                     })
                 );
             }
-            const getProgress = () => player.xp / player.neededXP;
+            const getProgress = () => player.health / player.health.max;
             const playerXpBar = hud.add(
                 UI.ProgressBar(getProgress, 5, 5, canvas.width - 10, 12, {
                     background: "black",
-                    fill: "#2165db",
+                    fill: "red",
                     stroke: "#cd9958",
                     strokeWidth: 3,
                     cornerRadius: 30,
