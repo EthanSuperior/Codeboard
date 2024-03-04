@@ -23,7 +23,8 @@ For more details, view the full legal text at: [CC0 License](https://creativecom
 
 -   Finish onboxcollide and make oncirclecollide
 -   Check how to make events not bubble down all UI layers, but be consumed by things like btns etc. (double scroll etc)
-    -   Check with console.log to see what onX's are actually being called, maybe a break or something in propagate for those?
+    -   Check with console.log to see what onX's are actually being called, maybe a break or something in propigate for those?
+-   Make Vector class?
 -   Player Class
 -   Save Player Class Data
 -   Level System?
@@ -46,90 +47,38 @@ For more details, view the full legal text at: [CC0 License](https://creativecom
 ## Code Structure
 
 ```
-LayerManager
-│   ┌───GlobalLayer
-└───Layer
-    ├───RootUI
-    │   └───UIElements
-    ├───SpacialMap
-    │   └───Entity
-    └───AsyncManager
-        ├───Task
+Manager                 Layer => LayerManager
+│   ┌───GlobalLayer     ├─[IO]──UI => UIRoot
+│   ├───GameLayer       ├─[dT]──Entities => SpacialMap
+└───Layer               └─[dT]──Tasks => AsyncManager
+    ├───RootUI                  └─── w/ onUpdate
+    │   └───UIElements      GlobalObserver
+    ├───SpacialMap          ├───Quest System
+    │   └───Entity          └───Event Scheduler
+    └───AsyncManager        Entity
+        ├───Task            └───Register/Spawn<X>
         └───Lerp
-
-Layer => LayerManager
-├───UI => UIRoot{IO}
-├───Entity => SpacialMap{IO}
-└───Async => AsyncManager{dT}
-
-SpacialMap {IO}
-├───Tile{Entity}
-└───NavMesh
-    ├───Collisions
-    └───Pathfinding
-
-AsyncManager
-├───Lerp
-├───Sound
-├───Task
-└───Animations?
-
-Entity => EntityManager & registerEntity
-├───Types
-├───Events (onDamage,IO,etc)
-├───Controller
+FUTURE
+├───Tile System
+│   └───Default Entity Type?
+├───Collision Layer
+│   ├───NavMesh
+│   └───Pathfinding
+├───Entity Drops
+│   └───Spread/Jitter Utils
+├───Additonal Events
+│   └───OnDamage etc.
+├───Particle System
+│   └───Entities?
 ├───Stats
-├───Conditions
-├───Modifiers
-├───Abilities
-└───Drops[Spread/Jitter]
-
-EntityController
-├───AI/Player => direction
-├───StateMachine?
-└───lateUpdate for Abilities?
-
-Abilities
-├───Properties
-│   ├───CD/Rate
-│   ├───Hold/Channel/Charge/Loop/etc
-│   └───Callback
-├───Levels?Teirs?Ranks?
-├───Attacking
-├───Passives
-└───Spells->AssignOwnership
-
-PlayerClass
-└───InputMap
-
-SpriteSheet
-└───Atlasing/Animation
-
-PlayerTracker
-├───Quest System
-├───Save System
+│   └───Modifiers
 ├───Inventory
-└───Event Scheduler
-
-Inventory
-├───UI
-│   ├───DragDrop
-│   └───Selection
-├───Items/Pots
-└───Equipment
-
-GameSettings
-├───Canvas Size
-├───Game Mode
-└───Level
-
-ParticalSystem
-├───onUpdate&onDraw
-└───Entities?
-
-Networking
-├───Event RPCs
-├───UUID Sync
-├───UUID=>Event
-└───Prediction
+│   ├───UIDragDrop?
+│   ├───Items
+│   ├───Gear
+│   └───Consumables
+├───Abilities
+│   ├───Attacking
+│   └───Spells
+└───Conditions
 ```
