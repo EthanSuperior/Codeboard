@@ -69,11 +69,18 @@ drawText = (text, x, y, zIdx, { width, font, color, center, linewrap } = {}) => 
     ctx.textBaseline = center ? "middle" : "alphabetic";
 
     if (linewrap && width) {
-        const words = text.split(" ");
+        const words = text.split(/(\n|\s)/);
         let currentLine = "";
         let lines = [];
 
         for (const word of words) {
+            //check if word contains a newline
+            if (word === "\n") {
+                // Treat newline characters as separate words
+                lines.push(currentLine);
+                currentLine = "";
+                continue;
+            }
             const testLine = currentLine.length === 0 ? word : `${currentLine} ${word}`;
             const testWidth = ctx.measureText(testLine).width;
 

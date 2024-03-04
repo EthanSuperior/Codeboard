@@ -80,7 +80,6 @@ class Entity extends Interactable {
     collide = (other) => this.raise("oncollide", other);
     spawn = () => {
         if (this.acceleration) this.maxSpeed ??= this.speed;
-        if (this.hp) this.maxHP ??= this.hp;
         this.layer.addEntity(this);
         this.raise("onspawn");
         if (this.lifespan) this.lifeTimer = scheduleTask(() => this.despawn(), { time: this.lifespan });
@@ -118,6 +117,18 @@ class Entity extends Interactable {
     };
     removeEffect = (trigger, effectName) => {
         delete this.effects[trigger][effectName];
+    };
+    debugString = () => {
+        return JSON.stringify(
+            player,
+            (k, v) =>
+                k === "layer"
+                    ? "{...}"
+                    : ["controller", "abilities", "parent", "layer"].includes(k)
+                    ? Object.keys(v) ?? ""
+                    : v,
+            1
+        ).replace("/  /g", "\n");
     };
     get xp() {
         return this.exp;
