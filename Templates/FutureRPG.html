@@ -51,15 +51,17 @@
                     onupdate: () => (killsUI.text = `Kills: ${player.kills}`),
                 })
             );
-            const playerStats = hud.add(
-                UI.Text("", 10, 80, {
-                    font: "8px monospace",
-                    width: 400,
-                    linewrap: true,
-                    color: "white",
-                    onupdate: () => (playerStats.text = player.debugString()),
-                })
-            );
+            if (game.debug) {
+                const playerStats = hud.add(
+                    UI.Text("", 10, 80, {
+                        font: "8px monospace",
+                        width: 400,
+                        linewrap: true,
+                        color: "white",
+                        onupdate: () => (playerStats.text = player.debugString()),
+                    })
+                );
+            }
             const getProgress = () => player.xp / player.neededXP;
             const playerXpBar = hud.add(
                 UI.ProgressBar(getProgress, 5, 5, canvas.width - 10, 12, {
