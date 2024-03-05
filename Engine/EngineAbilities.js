@@ -54,7 +54,7 @@ class Ability extends Interactable {
     draw = () => {
         if (!this.isactive) {
             if (this.deltaTimer < 0) return;
-            this.propagate("cooldowndraw");
+            this.propagate("cooldowndraw", this.deltaTimer / this.cooldown);
             return;
         }
         this.propagate("draw");

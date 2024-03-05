@@ -150,9 +150,8 @@
                 if (this.deltaTimer < 0.1) return;
                 drawCone(0, 0, 0, this.owner.facingDirection, Math.PI / 2, 60, { fill: "#a534" });
             },
-            oncooldowndraw: function () {
-                console.log("" + this.deltaTimer / this.cooldown);
-                drawCone(0, 0, 0, this.owner.facingDirection, Math.PI / 2, 60 * (this.deltaTimer / this.cooldown), {
+            oncooldowndraw: function (percent) {
+                drawCone(0, 0, 0, this.owner.facingDirection, Math.PI / 2, 60 * percent, {
                     fill: "#a534",
                 });
             },
