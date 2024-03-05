@@ -129,6 +129,7 @@ class IterableWeakRef {
 }
 
 const game = new (class GameSettings {
+    baseEntity = {};
     draw = () => LayerManager.draw();
     /**
      * Clears the screen and fills it with the specified background color.

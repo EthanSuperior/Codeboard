@@ -22,12 +22,12 @@ class Ability extends Interactable {
     #keydown;
     #keypress;
     #keybinds;
-    constructor(owner, { cooldown, chargeTime, duration, mode, key, keys = [], ...options } = {}) {
+    constructor(owner, { cooldown, tickrate, duration, mode, key, keys = [], ...options } = {}) {
         super();
         this.owner = owner;
         this.cooldown = cooldown || 0;
-        this.cooldownRemaining = 0;
-        this.chargeTime = options.chargeTime || 0;
+        this.deltaTimer = 0;
+        this.tickrate = tickrate || 0;
         this.duration = duration || 0;
         this.isactive = false;
 
@@ -39,34 +39,49 @@ class Ability extends Interactable {
         this.mode = mode || "Instant";
     }
     activate = () => {
-        if (this.cooldownRemaining > 0 || this.isactive) return;
+        if (this.deltaTimer > 0 || this.isactive) return;
         this.isactive = true;
         this.raise("onactivate", this.owner);
-        this.cooldownRemaining = this.cooldown; // Reset cooldown
         if (this.duration !== 0 && this.duration !== Infinity)
-            this.owner.layer.scheduleTask(this.deactivate, { time: this.duration });
-        //FIXME make it work with duration
+            this.owner.layer.scheduleTask(() => this.deactivate(), { time: this.duration });
+        if (this.keybinds?.length !== 0)
+            UI.Popup(this.abilityName, game.width / 2, game.height / 2 - this.owner.size, {
+                center: true,
+                color: "black",
+                font: "8px monospace",
+            });
     };
     draw = () => {
-        if (!this.isactive) return;
+        if (!this.isactive) {
+            if (this.deltaTimer < 0) return;
+            this.propagate("cooldowndraw");
+            return;
+        }
         this.propagate("draw");
         if (this.duration === 0) this.deactivate();
     };
     onupdate = (delta) => {
         // if (this.pause) return;
-        this.cooldownRemaining -= delta;
+        this.deltaTimer -= delta;
         if (!this.isactive) return;
-        if (this.cooldownRemaining > 0) return;
+        if (this.deltaTimer > 0) return;
         this.tick();
-        this.cooldownRemaining = this.cooldown;
     };
     tick = () => {
         this.propagate("tick", this.owner);
+        this.deltaTimer = this.tickrate;
     };
     deactivate = () => {
         if (!this.isactive) return;
         this.isactive = false;
         this.propagate("deactivate", this.owner);
+        this.deltaTimer = this.cooldown;
+        if (this.duration !== 0 && this.duration !== Infinity && this.keybinds?.length !== 0)
+            UI.Popup(this.abilityName, game.width / 2, game.height / 2 - this.owner.size, {
+                center: true,
+                color: "black",
+                font: "8px monospace",
+            });
     };
     get mode() {
         return this.#mode;
@@ -79,12 +94,12 @@ class Ability extends Interactable {
         if (val === "Charge") {
             this.#keydown = () => {
                 if (this.charging) return;
-                this.cooldownRemaining = 0;
+                this.deltaTimer = 0;
                 this.charging = true;
             };
             this.#keyup = () => {
                 this.charging = false;
-                this.chargeTime = -this.cooldownRemaining;
+                this.tickrate = -this.deltaTimer;
                 this.activate();
             };
         } else if (val === "Channel") {
@@ -156,7 +171,6 @@ const addStat = (obj, propertyName, initial) => {
             statBlock.change();
         }
         recalculate(missing, prior) {
-            if (bounds.percent !== 1) debugger;
             bounds.base = Math.min(bounds.base, bounds.maxBase ?? bounds.base);
             bounds.current = clamp(statBlock.max - missing, prior, statBlock.max);
         }

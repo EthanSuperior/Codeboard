@@ -122,7 +122,9 @@ class UICircle extends UIElement {
  * @property {boolean} [linewrap] - Whether to enable line wrapping for the text.
  */
 class UIText extends UIElement {
-    ondraw = () => drawText(this.text, this.x, this.y, 0, this.options);
+    ondraw = () => {
+        drawText(this.text, this.x, this.y, 0, this.options);
+    };
 }
 class UIImage extends UIElement {
     ondraw = () => drawImage(this.src, this.x, this.y, 0, this.options);

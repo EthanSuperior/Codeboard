@@ -128,7 +128,7 @@ const playMusic = (source, options) => {
 };
 
 const MergeOntoObject = (target, source) => {
-    if (!source) return target;
+    if (!source || source == {}) return target;
     const sourceKeys = Object.keys(source);
     for (let i = 0; i < sourceKeys.length; i++) {
         const key = sourceKeys[i];

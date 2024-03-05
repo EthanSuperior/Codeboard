@@ -43,7 +43,13 @@ class Entity extends Interactable {
         const effectNames = Object.keys(this.effects[oncall] ?? {});
         for (let i = 0; i < effectNames.length; i++) this.effects[oncall][effectNames[i]].call(this, ...args);
     };
-
+    evaluateEffects = (call, amount, ...args) => {
+        const oneffects = this.effects["on" + call] ?? {};
+        const effectNames = Object.keys(oneffects);
+        for (let i = 0; i < effectNames.length; i++)
+            amount = oneffects[effectNames[i]].call(this, amount, ...args) ?? amount;
+        return amount;
+    };
     update = (delta) => {
         this.controller.update(delta);
         if (this.acceleration) this.speed = clamp(this.speed + this.acceleration, 0, this.maxSpeed);
@@ -59,29 +65,23 @@ class Entity extends Interactable {
             this.x = Math.round(this.x - 0.5) + 0.5;
             this.y = Math.round(this.y - 0.5) + 0.5;
         }
-        if (this.collisions) this.checkCollision();
+        if (this.collisions) this.forPossibleCollisons(this.checkCollision);
 
         const abilityNames = Object.keys(this.abilities);
         for (let i = 0; i < abilityNames.length; i++) this.abilities[abilityNames[i]].update(delta);
     };
     shouldinteract = (mX, mY) => detectCircle(this.x - this.size / 2, this.y - this.size / 2, this.size / 2, mX, mY);
-    checkCollision = () => {
-        // this.layer.physicsMap
+    forPossibleCollisons = (func, ...args) => {
         for (let group of this.collisions) {
             for (let e of this.layer.getEntities(group)) {
                 if (group === this.groupName && e.id === this.id) continue;
-                // if (this.groupName === "Bullet")
-                if (this.distanceTo(e) <= (this.size + e.size) / 2) {
-                    // console.log(
-                    //     this.distanceTo(e),
-                    //     (this.size + e.size) / 2,
-                    //     this.distanceTo(e) <= (this.size + e.size) / 2
-                    // );
-                    // game.background = "red";
-                    this.raise("collide", e);
-                }
-                //  else game.background = "black";
+                this.do(func, e, ...args);
             }
+        }
+    };
+    checkCollision = (e) => {
+        if (this.distanceTo(e) <= (this.size + e.size) / 2) {
+            this.raise("collide", e);
         }
     };
     collide = (other) => this.raise("oncollide", other);
@@ -125,6 +125,7 @@ class Entity extends Interactable {
         this.effects[trigger][effectName] = callback;
     };
     removeEffect = (trigger, effectName) => {
+        if (!this.effects[trigger]) return;
         delete this.effects[trigger][effectName];
     };
     debugString = () => {
@@ -152,6 +153,15 @@ class Entity extends Interactable {
     }
 }
 
+// On mouse over:
+// UI.Text("", 10, 80, {
+//     font: "8px monospace",
+//     width: 400,
+//     linewrap: true,
+//     color: "white",
+//     onupdate: () => (playerStats.text = player.debugString()),
+// });
+
 function registerEntity(name, options, types) {
     const upperName = name[0].toUpperCase() + name.slice(1);
     const lowerName = name[0].toLowerCase() + name.slice(1);
@@ -166,7 +176,7 @@ function registerEntity(name, options, types) {
     AddAccessor(newSubclass, "subtypes", { initial: types });
     globalThis["spawn" + upperName] = (subType, additional) => {
         let newEntity = new newSubclass();
-        newEntity = MergeOntoObject(newEntity, game.settings);
+        newEntity = MergeOntoObject(newEntity, game.baseEntity);
         newEntity = MergeOntoObject(newEntity, options);
         newEntity = MergeOntoObject(newEntity, subType);
         newEntity = MergeOntoObject(newEntity, additional);

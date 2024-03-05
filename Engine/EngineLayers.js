@@ -41,7 +41,6 @@ const LayerManager = new (class LayerManager extends Interactable {
     };
     update = (timestamp) => {
         game.ondraw();
-
         // Fraction of a second since last update.
         const delta = (timestamp - this.lastTimestamp) / 1000;
         this.lastTimestamp = timestamp;

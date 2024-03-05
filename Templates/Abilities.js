@@ -10,6 +10,10 @@
 // player.health.missing 			 	// there current amount missing (maxhp-hp)
 // player.health.missingPercent // there current amount missing [0-1] ((maxhp-hp)/maxhp)
 
+// function onattack(amount, target) // bob attacks jim[target] amount
+// function oninjure(amount, source) // jim is injured by bob[source] amount
+// function onheal(amount, target) // jim heals bob[target] amount
+// function onrecover(amount, source) // bob is recovered by jim[source] amount
 function hasPerk(perk, noperk) {
     return function () {
         return this.perk ? perk : noperk;
@@ -19,12 +23,10 @@ function hasPerk(perk, noperk) {
 registerAbility("Bloodthirst_1", {
     mode: "Passive",
     onactivate: function (player) {
-        function selfheal(source, amount) {
-            const healAmount = amount * 2.5 * (player.health.missingPercent / 10);
-            player.health += healAmount;
-            player.heal(player, healAmount);
+        function selfheal(amount, target) {
+            player.recover(amount * 2.5 * (player.health.missingPercent / 10), player);
         }
-        player.addEffect("onhit", "bloodthirst_1_Effect", selfheal);
+        player.addEffect("onattack", "bloodthirst_1_Effect", selfheal);
     },
     ondeactivate: function (player) {
         player.removeEffect("onhit", "bloodthirst_1_Effect");
@@ -40,15 +42,16 @@ registerAbility("RecklessRage_1", {
         if (player.hasPerk) this.duration = 12;
         player.health.percent -= 0.5;
         player.damage.percentBuff += 0.2;
-        function selfheal(source, amount) {
-            if (source == player) player.health += amount;
+        function selfheal(amount, source) {
+            if (source == player) return amount * 2;
         }
-        player.addEffect("onheal", "RecklessRage_1_Effect", selfheal);
+        player.addEffect("onrecover", "RecklessRage_1_Effect", selfheal);
     },
     ondeactivate: function (player) {
         player.damage.percentBuff -= 0.2;
         player.removeEffect("onheal", "RecklessRage_1_Effect");
     },
+    ondraw: function () {},
     duration: 10,
 });
 
@@ -56,11 +59,7 @@ registerAbility("RecklessRage_2", {
     mode: "Passive",
     onapply: function (player) {
         function getModPercent() {
-            //this is player
-            const missPerc = 1 - this.health / this.maxHealth;
-            if (missPerc <= 0.3) return 1;
-            // Somehow round to nearest .1?
-            return 1 + Math.min(0.6, missingHealthPercentage + 0.3);
+            return clamp(0.7 + this.health.missingPercent, 1, 1.6);
         }
         player.addModifier("atkspeed", "RecklessRage_2_Modifier", getModPercent);
     },

@@ -37,6 +37,11 @@ class AsyncManager extends Updatable {
         if (idx < 0) return;
         this.tasks.splice(idx, 1)[0].pause();
     };
+    removeLerp = (lerp) => {
+        const idx = this.lerps.findIndex((e) => e === lerp);
+        if (idx < 0) return;
+        this.lerps.splice(idx, 1);
+    };
     // Sound Methods
     sounds = new IterableWeakRef();
     playSoundEffect = (source, options = {}) => {
@@ -118,28 +123,18 @@ class Lerp extends Updatable {
         super();
         this.currentTime = 0;
         this.callback = func;
-        this.duration = this.duration;
+        this.duration = duration;
         this.obj = obj;
         this.layer = layer;
         this.layer.asyncManager.lerps.push(this);
     }
     onupdate = (delta) => {
         this.currentTime += delta;
-        this.progress = clamp(this.currentTime / duration, 0, 1);
+        this.progress = clamp(this.currentTime / this.duration, 0, 1);
         this.callback.call(this.obj, this.progress);
         if (this.progress == 1) this.remove();
     };
     remove = () => this.layer.asyncManager.removeLerp(this);
-    pause = () => {
-        this.tasks.forEach((t) => t.pause());
-        this.sounds.forEach((s) => s.pause());
-        this.music?.pause();
-    };
-    resume = () => {
-        this.tasks.forEach((t) => t.resume());
-        if (LayerManager.interacted) this.sounds.forEach((s) => s.play());
-        if (LayerManager.interacted) this.music?.play();
-    };
 }
 const lerp = (start, end, progress) => start + progress * (end - start);
 function startLerp(obj, lerpFunc, duration, { layer } = {}) {

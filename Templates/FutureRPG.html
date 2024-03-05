@@ -47,29 +47,15 @@
         }
 
         function addUI() {
-            const hud = UI.Blank({ overlay: true });
-            if (game.debug) {
-                const playerStats = hud.add(
-                    UI.Text("", 10, 80, {
-                        font: "8px monospace",
-                        width: 400,
-                        linewrap: true,
-                        color: "white",
-                        onupdate: () => (playerStats.text = player.debugString()),
-                    })
-                );
-            }
-            hud.add(
-                UI.ProgressBar(() => player.health / player.health.max, 5, 5, canvas.width - 10, 12, {
-                    background: "black",
-                    fill: "red",
-                    stroke: "#cd9958",
-                    strokeWidth: 3,
-                    cornerRadius: 30,
-                })
-            );
+            UI.ProgressBar(() => player.health / player.health.max, 5, 5, canvas.width - 10, 12, {
+                background: "black",
+                fill: "red",
+                stroke: "#cd9958",
+                strokeWidth: 3,
+                cornerRadius: 30,
+                overlay: true,
+            }).show();
             // hud.add(UI.ProgressBar(() => player.health.percent, 385, 285, 30, 4, { background: "black", fill: "red" }));
-            hud.show();
         }
 
         function showDeath() {
@@ -91,36 +77,48 @@
             KeyH: () => (player.health.percent = 1),
             KeyK: () => (player.health.percent = 0),
         };
+
+        game.baseEntity = {
+            attack: function (amount, target) {
+                target.injure(this.evaluateEffects("attack", amount, target), this);
+            },
+            injure: function (amount, source) {
+                this.health -= this.evaluateEffects("injure", amount, source);
+                if (this.health <= 0) this.death();
+            },
+            heal: function (amount, target) {
+                target.recover(this.evaluateEffects("heal", amount, target), this);
+            },
+            recover: function (amount, source) {
+                this.health += this.evaluateEffects("recover", amount, source);
+            },
+            ondeath: () => {},
+        };
         const enemyTypes = {
             bat: {
-                damage: 4,
-                health: 5,
+                stats: { damage: 4, health: 5 },
                 speed: 105,
                 size: 16,
                 color: "RebeccaPurple",
             },
             weak_bat: {
-                damage: 4,
-                health: 1,
+                stats: { damage: 4, health: 1 },
                 speed: 105,
                 size: 10,
                 color: "RebeccaPurple",
             },
             zombie: {
-                damage: 9,
-                health: 10,
+                stats: { damage: 9, health: 10 },
                 speed: 105,
                 size: 24,
                 color: "gray",
             },
         };
         const enemyInfo = {
-            stats: { damage: 3 },
             collisions: ["Player"],
             onspawn: function () {
                 this.addAbility("Attack");
                 this.controller = new EnemyController(this, player);
-                setUpDmgEvents(this);
             },
             oncollide: function (other) {
                 this.abilities["Attack"].activate();
@@ -131,8 +129,6 @@
                 this.despawn();
                 player.kills += 1;
             },
-            onhit: () => {},
-            onheal: () => {},
         };
 
         registerAbility("Attack", {
@@ -141,23 +137,33 @@
                 this.tick();
             },
             ontick: function () {
-                const me = this.owner;
                 //DO FIX THIS TO BE BETTER
-                for (let group of me.collisions)
-                    for (let other of me.layer.getEntities(group))
-                        if (detectCone(me.x, me.y, me.facingDirection, Math.PI / 2, 60, other.x, other.y)) {
-                            other.health -= me.damage;
-                            me.hit(other, +me.damage);
-                            if (other.health <= 0) other.death();
-                        }
-                // this.cooldown = player.attackSpeed;
+                function atk(other) {
+                    if (detectCone(this.x, this.y, this.facingDirection, Math.PI / 2, 60, other.x, other.y)) {
+                        this.attack(this.damage, other);
+                    }
+                }
+                this.owner.forPossibleCollisons(atk);
+                this.tickrate = 0.2;
             },
             ondraw: function () {
+                if (this.deltaTimer < 0.1) return;
                 drawCone(0, 0, 0, this.owner.facingDirection, Math.PI / 2, 60, { fill: "#a534" });
+            },
+            oncooldowndraw: function () {
+                console.log("" + this.deltaTimer / this.cooldown);
+                drawCone(0, 0, 0, this.owner.facingDirection, Math.PI / 2, 60 * (this.deltaTimer / this.cooldown), {
+                    fill: "#a534",
+                });
             },
         });
         registerEntity("Enemy", enemyInfo, enemyTypes);
-        registerEntity("Player", {
+        registerEntity("Player");
+
+        const player = spawnPlayer({
+            color: "olive",
+            id: "player",
+            size: 20,
             maxSpeed: 225,
             acceleration: 7.5,
             weapons: [],
@@ -165,38 +171,15 @@
             stats: { health: 120, maxhealth: 120, damage: 20 },
             kills: 0,
             collisions: ["Enemy"],
-            onupdate: function (delta) {
-                if (this.health <= 0) showDeath();
-            },
-            onlevelup: function () {
-                this.neededXP += this.level * 10;
-                const isMaxLevel = (o) => weaponTypes[o].currentLevel >= Object.keys(weaponTypes[o].levels).length;
-                let options = Object.keys(weaponTypes).filter((a) => !isMaxLevel(a));
-                if (!options.length) player.health = Math.min(player.health + 25, player.maxHP);
-                else showLevelUp(options);
-            },
-            onhit: () => {},
-            onheal: () => {},
-        });
-
-        const player = spawnPlayer({
-            color: "olive",
-            size: 20,
             onspawn: function () {
-                this.addAbility("Bloodthirst_1", { keys: "Digit0" });
+                this.addAbility("Bloodthirst_1");
                 this.addAbility("RecklessRage_1", { keys: "Digit1" });
                 this.addAbility("RecklessRage_2");
                 this.addAbility("Dash_1", { keys: "Digit2" });
                 this.addAbility("Attack", { keys: "Space" });
                 this.abilities["Attack"].mode = "Channel";
-                setUpDmgEvents(this);
             },
             ondeath: showDeath,
         });
-
-        function setUpDmgEvents(entity) {
-            // TODO: add damage events so they actually work...
-            // entity.onhealthchange = function () {};
-        }
     </script>
 </html>

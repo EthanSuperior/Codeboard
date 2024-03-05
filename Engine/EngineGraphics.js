@@ -67,7 +67,6 @@ drawText = (text, x, y, zIdx, { width, font, color, center, linewrap } = {}) => 
     if (color) ctx.fillStyle = color;
     if (font) ctx.font = font;
     ctx.textBaseline = center ? "middle" : "alphabetic";
-
     if (linewrap && width) {
         const words = text.split(/(\n|\s)/);
         let currentLine = "";
@@ -99,7 +98,7 @@ drawText = (text, x, y, zIdx, { width, font, color, center, linewrap } = {}) => 
             ctx.fillText(line, centeredX, y + index * parseInt(ctx.font), width);
         });
     } else {
-        const centeredX = x - (center ? (ctx.measureText(text).width - width) / 2 : 0);
+        const centeredX = x - (center ? (ctx.measureText(text).width - (width ?? 0)) / 2 : 0);
         ctx.fillText(text, centeredX, y, width);
     }
 };
