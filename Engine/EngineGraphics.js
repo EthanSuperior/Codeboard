@@ -23,6 +23,24 @@ const MultiCanvas = new (class {
     };
 })();
 
+function hexToRgb(hex) {
+    // Remove the hash if it's included
+    hex = hex.replace(/^#/, "");
+
+    // Parse the hex values
+    const bigint = parseInt(hex, 16);
+
+    // Extract RGB components
+    const r = (bigint >> 16) & 255;
+    const g = (bigint >> 8) & 255;
+    const b = bigint & 255;
+
+    return { r, g, b };
+}
+function rgbToHex(rgb) {
+    if (rgb.a !== undefined) return `#${((rgb.a << 24) | (rgb.r << 16) | (rgb.g << 8) | rgb.b).toString(16).slice(1)}`;
+    else return `#${((rgb.r << 16) | (rgb.g << 8) | rgb.b).toString(16).slice(1)}`;
+}
 fillScreen = ({ color }) => {
     ctx.save();
     ctx.resetTransform();
@@ -48,6 +66,14 @@ drawRect = (x, y, zIdx, w, h, options = {}) => {
 drawCircle = (x, y, zIdx, radius, options = {}) => {
     ctx.beginPath();
     ctx.arc(x, y, radius, 0, 2 * Math.PI);
+    colorPath(options);
+    ctx.closePath();
+};
+drawProgressCircle = (x, y, zIdx, radius, progress, startAngle, options = {}) => {
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.arc(x, y, radius, startAngle, startAngle + 2 * Math.PI * progress, false);
+    ctx.lineTo(x, y);
     colorPath(options);
     ctx.closePath();
 };
