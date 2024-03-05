@@ -133,11 +133,7 @@
 
         registerAbility("Attack", {
             cooldown: 0.2,
-            onactivate: function () {
-                this.tick();
-            },
             ontick: function () {
-                //DO FIX THIS TO BE BETTER
                 function atk(other) {
                     if (detectCone(this.x, this.y, this.facingDirection, Math.PI / 2, 60, other.x, other.y)) {
                         this.attack(this.damage, other);
