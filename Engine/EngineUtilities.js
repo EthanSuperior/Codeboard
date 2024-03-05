@@ -95,23 +95,6 @@ function cloneMouseEvent(originalEvent) {
         canvasY,
     });
 }
-function hexToRgb(hex) {
-    // Remove the hash if it's included
-    hex = hex.replace(/^#/, "");
-
-    // Parse the hex values
-    const bigint = parseInt(hex, 16);
-
-    // Extract RGB components
-    const r = (bigint >> 16) & 255;
-    const g = (bigint >> 8) & 255;
-    const b = bigint & 255;
-
-    return { r, g, b };
-}
-function rgbToHex(rgb) {
-    return `#${((1 << 24) | (rgb.r << 16) | (rgb.g << 8) | rgb.b).toString(16).slice(1)}`;
-}
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // SOUND FUNCTIONS - https://sfxr.me/

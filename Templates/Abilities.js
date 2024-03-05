@@ -19,6 +19,31 @@ function hasPerk(perk, noperk) {
         return this.perk ? perk : noperk;
     };
 }
+
+const basicDrawCalls = {
+    onideldraw: function () {},
+    onchargedraw: function (percent) {
+        ctx.globalCompositeOperation = "hue";
+        drawCircle(0, 0, 0, this.duration + this.size * percent, { fill: this.color });
+        ctx.globalCompositeOperation = "source-over";
+    },
+    oncooldowndraw: function (percent) {
+        ctx.globalCompositeOperation = "hue";
+        drawCircle(0, 0, 0, this.size * (1 - percent), { stroke: this.color, strokeWidth: 2 });
+        ctx.globalCompositeOperation = "source-over";
+    },
+    onactivedraw: function (percent) {
+        ctx.globalCompositeOperation = "hue";
+        drawCircle(0, 0, 0, this.size + this.deltaTimer / 2, { stroke: this.color, strokeWidth: this.deltaTimer });
+        ctx.globalCompositeOperation = "source-over";
+    },
+    ontickdraw: function (percent) {
+        ctx.globalCompositeOperation = "hue";
+        drawProgressCircle(0, 0, this.size, 0, percent, -Math.PI / 2, { fill: this.color });
+        ctx.globalCompositeOperation = "source-over";
+    },
+};
+
 // Bloodthirst: Tier 1 Fighter[Bezerker] Ability
 registerAbility("Bloodthirst_1", {
     mode: "Passive",
@@ -36,8 +61,9 @@ registerAbility("Bloodthirst_1", {
 // RecklessRage: Tier 2 Fighter[Bezerker] Ability
 registerAbility("RecklessRage_1", {
     mode: "Instant",
-    cooldown: 45,
     cost: 0.1,
+    duration: 10,
+    cooldown: 45,
     onactivate: function (player) {
         if (player.hasPerk) this.duration = 12;
         player.health.percent -= 0.5;
@@ -51,8 +77,9 @@ registerAbility("RecklessRage_1", {
         player.damage.percentBuff -= 0.2;
         player.removeEffect("onheal", "RecklessRage_1_Effect");
     },
-    ondraw: function () {},
-    duration: 10,
+    size: 16,
+    color: "red", // rgbToHex({ r: 255, g: 0, b: 0 }),
+    ...basicDrawCalls,
 });
 
 registerAbility("RecklessRage_2", {
