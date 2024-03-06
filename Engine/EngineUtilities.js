@@ -109,7 +109,27 @@ const playMusic = (source, options) => {
     if (options?.global) return LayerManager.global.playMusic(source, options);
     else return LayerManager.currentLayer.playMusic(source, options);
 };
+function deepClone(obj) {
+    if (obj === null || typeof obj !== "object") {
+        // If the input is not an object or is null, return it directly
+        return obj;
+    }
 
+    if (Array.isArray(obj)) {
+        // If it's an array, recursively deep clone each element
+        return obj.map((item) => deepClone(item));
+    }
+
+    // If it's an object, recursively deep clone each property
+    const clonedObj = {};
+    for (const key in obj) {
+        if (obj.hasOwnProperty(key)) {
+            clonedObj[key] = deepClone(obj[key]);
+        }
+    }
+
+    return clonedObj;
+}
 const MergeOntoObject = (target, source) => {
     if (!source || source == {}) return target;
     const sourceKeys = Object.keys(source);
@@ -123,10 +143,10 @@ const MergeOntoObject = (target, source) => {
                     func.call(target, ...args);
                     source[key].call(target, ...args);
                 };
-            } else target[key] = source[key];
+            } else target[key] = deepClone(source[key]);
             const event = key.slice(2);
             if (!target[event] && !source[event]) target[event] = (...args) => target.propagate(event, ...args);
-        } else target[key] = source[key];
+        } else target[key] = deepClone(source[key]);
     }
     return target;
 };

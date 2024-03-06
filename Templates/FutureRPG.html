@@ -12,6 +12,7 @@
     <script src="../Engine/EnginePhysics.js"></script>
     <script src="../Engine/EngineAsync.js"></script>
     <script src="../Engine/EngineAbilities.js"></script>
+    <script src="../Engine/EngineStats.js"></script>
     <script src="../Engine/EngineAI.js"></script>
     <script src="../Engine/EngineEntity.js"></script>
     <script src="../Engine/EngineUI.js"></script>
@@ -141,7 +142,7 @@
                     }
                 }
                 this.owner.forPossibleCollisons(atk);
-                this.tickrate = 0.2;
+                this.tickrate = this.owner.attackspeed ?? 0.2;
             },
             onactive: function (percent, tickPercent) {
                 if (this.deltaTimer < 0.1) return;
@@ -164,7 +165,7 @@
             acceleration: 7.5,
             weapons: [],
             pickupRadius: 100,
-            stats: { health: 120, maxhealth: 120, damage: 20 },
+            stats: { health: 120, maxhealth: 120, damage: 20, attackspeed: 0.2 },
             kills: 0,
             collisions: ["Enemy"],
             onspawn: function () {

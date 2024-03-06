@@ -66,7 +66,7 @@ registerAbility("RecklessRage_1", {
     cooldown: 45,
     onactivate: function (player) {
         if (player.hasPerk) this.duration = 12;
-        player.health.percent -= 0.5;
+        player.health.percent *= 0.5;
         player.damage.percentBuff += 0.2;
         function selfheal(amount, source) {
             if (source == player) return amount * 2;
@@ -86,12 +86,12 @@ registerAbility("RecklessRage_2", {
     mode: "Passive",
     onapply: function (player) {
         function getModPercent() {
-            return clamp(0.7 + this.health.missingPercent, 1, 1.6);
+            return 1 / (16 * clamp(0.7 + player.health.missingPercent, 1, 1.6));
         }
-        player.addModifier("atkspeed", "RecklessRage_2_Modifier", getModPercent);
+        player.attackspeed.buff("RecklessRage_2_Modifier", getModPercent);
     },
     onremove: function (player) {
-        player.removeModifier("RecklessRage_2_Modifier");
+        player.attackspeed.remove("RecklessRage_2_Modifier");
     },
 });
 

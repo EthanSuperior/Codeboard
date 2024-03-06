@@ -182,6 +182,7 @@ function registerEntity(name, options, types) {
         newEntity = MergeOntoObject(newEntity, additional);
         newEntity.layer = LayerManager.currentLayer;
         if (newEntity.stats) for (let stat in newEntity.stats) addStat(newEntity, stat, newEntity.stats[stat]);
+
         newEntity.raise("spawn");
         return newEntity;
     };
