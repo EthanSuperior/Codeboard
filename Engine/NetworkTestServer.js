@@ -1,4 +1,9 @@
-// node NetworkTestServer.js
+// Networking
+// ├───Event RPCs
+// ├───UUID Sync
+// ├───UUID=>Event
+// └───Prediction
+
 const WebSocket = require("ws");
 
 const server = new WebSocket.Server({ port: 3000 });

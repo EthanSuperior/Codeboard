@@ -3,6 +3,15 @@ class EntityManager {
     static names = [];
     static subtypes = {};
 }
+// Entity => EntityManager & registerEntity
+// ├───Types
+// ├───Events (onDamage,IO,etc)
+// ├───Controller
+// ├───Stats
+// ├───Conditions
+// ├───Modifiers
+// ├───Abilities
+// └───Drops[Spread/Jitter]
 class Entity extends Interactable {
     constructor() {
         super();

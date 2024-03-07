@@ -1,4 +1,9 @@
-// Needs deltaMod
+// AsyncManager
+// ├───Lerp
+// ├───Sound
+// ├───Task
+// └───Animations?
+// Needs deltaMod replace tasks with onupdate timers
 class AsyncManager extends Updatable {
     tasks = [];
     lerps = [];
