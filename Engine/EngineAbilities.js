@@ -51,6 +51,13 @@ class Ability extends Interactable {
             font: "12px monospace",
         });
     };
+    attach = () => {
+        this.propagate("attach", this.owner);
+    };
+    remove = () => {
+        this.deactivate();
+        this.propagate("remove", this.owner);
+    };
     activate = () => {
         if (this.deltaTimer > 0 || this.isactive) return;
         this.isactive = true;
@@ -65,7 +72,7 @@ class Ability extends Interactable {
         if (this.isactive) {
             this.propagate("activedraw", this.deltaTimer / this.duration);
             if (this.tickrate !== 0) this.propagate("tickdraw", 1 - this.tickTimer / this.tickrate);
-            if (this.deltaTimer <= 0) this.deactivate();
+            if (this.deltaTimer <= 0 && this.duration !== Infinity) this.deactivate();
         } else if (this.deltaTimer < 0)
             if (this.charging) this.propagate("chargedraw", clamp(-this.deltaTimer / this.chargeTime, 0, 1));
             else this.propagate("ideldraw", this.deltaTimer);
@@ -79,7 +86,8 @@ class Ability extends Interactable {
             this.oncooldown = false;
             this.notify("Ready");
         }
-        if (this.isactive && this.tickTimer <= 0) this.tick();
+        if (!this.isactive && this.mode === "Passive") this.activate();
+        else if (this.isactive && this.tickTimer <= 0) this.tick();
     };
     tick = () => {
         this.propagate("tick", this.owner);
@@ -124,7 +132,6 @@ class Ability extends Interactable {
             };
         } else if (val === "Passive") {
             this.duration = Infinity;
-            this.activate();
         } else this.#keypress = this.activate;
     }
     get keybinds() {

@@ -142,7 +142,7 @@
                     }
                 }
                 this.owner.forPossibleCollisons(atk);
-                this.tickrate = this.owner.attackspeed ?? 0.2;
+                this.tickrate = +this.owner.attackspeed ?? 0.2;
             },
             onactive: function (percent, tickPercent) {
                 if (this.deltaTimer < 0.1) return;

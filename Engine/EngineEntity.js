@@ -118,7 +118,11 @@ class Entity extends Interactable {
     };
     addAbility = (ability, options) => {
         this.abilities[ability] = new AbilityManager.types[ability](this, options);
-        this.raise("attach", ability);
+        this.abilities[ability].attach();
+    };
+    removeAbility = (ability) => {
+        this.abilities[ability]?.raise("remove");
+        delete this.abilities[ability];
     };
     addEffect = (trigger, effectName, callback) => {
         if (!this.effects[trigger]) this.effects[trigger] = {};

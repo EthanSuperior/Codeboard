@@ -8,13 +8,14 @@ class Stat {
             maxBase: otherProps.maxBase,
             cap: otherProps.cap,
         };
+        this.dynamic = 0;
         this.modifiers = [];
     }
     get missing() {
         return this.internal.max - this.internal.current;
     }
     get current() {
-        if (this.#calculateMax() !== this.internal.max) this.calculate(this.#copyinternal);
+        if (this.dynamic && this.#calculateMax() !== this.internal.max) this.calculate(this.#copyinternal);
         return this.internal.current;
     }
     set current(val) {
@@ -93,15 +94,15 @@ class Stat {
             switch (op) {
                 case "*":
                     this.internal.current *= value;
-                    this.max *= value;
+                    this.internal.max *= value;
                     break;
                 case "+":
                     this.internal.current += value;
-                    this.max += value;
+                    this.internal.max += value;
                     break;
                 default:
                     this.internal.current = value;
-                    this.current.max = value;
+                    this.internal.max = value;
             }
         });
         if (this.internal.cap !== undefined) this.internal.max = Math.min(this.internal.max, this.internal.cap);
@@ -111,14 +112,16 @@ class Stat {
         );
         this.onrecalculate?.call(obj, this, prior);
     };
-    buff = (name, value, { op = "*", priority = 10 }) => {
+    buff = (name, value, { op = "*", priority = 10 } = {}) => {
+        if (typeof value === "function") this.dynamic++;
         this.modifiers.push({ name, priority, value, op });
         this.calculate(this.#copyinternal);
     };
-    removeBuff = (name) => {
+    remove = (name) => {
         const idx = this.modifiers.findIndex((mod) => mod.name === name);
         if (idx === -1) return;
-        this.modifiers.splice(idx, 1);
+        const removed = this.modifiers.splice(idx, 1)[0];
+        if (typeof removed.value === "function") this.dynamic--;
         this.calculate(this.#copyinternal);
     };
     [Symbol.toPrimitive](hint) {

@@ -84,13 +84,14 @@ registerAbility("RecklessRage_1", {
 
 registerAbility("RecklessRage_2", {
     mode: "Passive",
-    onapply: function (player) {
+    onactivate: function (player) {
+        console.log("aaa");
         function getModPercent() {
-            return 1 / (16 * clamp(0.7 + player.health.missingPercent, 1, 1.6));
+            return 1 / clamp(0.7 + player.health.missingPercent, 1, 1.6);
         }
         player.attackspeed.buff("RecklessRage_2_Modifier", getModPercent);
     },
-    onremove: function (player) {
+    ondeactivate: function (player) {
         player.attackspeed.remove("RecklessRage_2_Modifier");
     },
 });
