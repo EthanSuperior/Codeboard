@@ -23,6 +23,7 @@ function hasPerk(perk, noperk) {
 const basicDrawCalls = {
     onideldraw: function () {
         this.size ??= 16;
+        this.color ??= 'purple';
     },
     onchargedraw: function (percent) {
         ctx.globalCompositeOperation = "hue";
@@ -31,7 +32,7 @@ const basicDrawCalls = {
     },
     oncooldowndraw: function (percent) {
         ctx.globalCompositeOperation = "hue";
-        drawCircle(0, 0, 0, this.size * (1 - percent), { stroke: this.color, strokeWidth: 2 });
+        drawCircle(0, 0, 0, this.size * (1 - percent), { stroke: this.color, strokeWidth: this.thickness ?? 2 });
         ctx.globalCompositeOperation = "source-over";
     },
     onactivedraw: function (percent) {
