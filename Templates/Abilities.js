@@ -21,7 +21,9 @@ function hasPerk(perk, noperk) {
 }
 
 const basicDrawCalls = {
-    onideldraw: function () {},
+    onideldraw: function () {
+        this.size ??= 16;
+    },
     onchargedraw: function (percent) {
         ctx.globalCompositeOperation = "hue";
         drawCircle(0, 0, 0, this.duration + this.size * percent, { fill: this.color });
@@ -85,7 +87,6 @@ registerAbility("RecklessRage_1", {
 registerAbility("RecklessRage_2", {
     mode: "Passive",
     onactivate: function (player) {
-        console.log("aaa");
         function getModPercent() {
             return 1 / clamp(0.7 + player.health.missingPercent, 1, 1.6);
         }
@@ -98,9 +99,23 @@ registerAbility("RecklessRage_2", {
 
 registerAbility("Dash_1", {
     mode: "Instant",
+    duration: 0.2,
+    cost: 0.1,
+    cooldown: 10,
     onactivate: function (player) {
-        console.log("dashed");
+        // debugger;
+        player.direction = player.facingDirection;
+        player.freezeDirection = true;
+        player.maxSpeed *= 8;
+        player.speed = player.maxSpeed;
     },
+    ondeactivate: function (player) {
+        player.freezeDirection = false;
+        player.maxSpeed /= 8;
+    },
+    size: 16,
+    color: "blue", // rgbToHex({ r: 255, g: 0, b: 0 }),
+    ...basicDrawCalls,
 });
 
 const classAbilities = {

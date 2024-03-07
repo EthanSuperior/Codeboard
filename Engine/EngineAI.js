@@ -6,6 +6,7 @@ class EntityController extends Updatable {
 }
 class PlayerController extends EntityController {
     onupdate = function (delta) {
+        console.log(this.entity.freezeDirection);
         this.entity.direction = getPlayerMovementDirection();
     };
 }

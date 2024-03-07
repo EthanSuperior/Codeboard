@@ -176,6 +176,9 @@
                 this.addAbility("Attack", { keys: "Space" });
                 this.abilities["Attack"].mode = "Channel";
             },
+            ondash: function () {
+                console.log("dashed");
+            },
             ondeath: showDeath,
         });
     </script>
