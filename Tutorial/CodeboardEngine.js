@@ -19,6 +19,9 @@
  * @see {@link https://creativecommons.org/publicdomain/zero/1.0/}
  */
 
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// EngineGlossary.js
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // PUBLIC OBJECTS
 // MouseEvents = {Up:Function,Move:Function,Down:Function}
 // UpKeyEvents = {KeyCode:Function}
@@ -27,9 +30,14 @@
 // load()
 // updateGame(delta)
 
+
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // EngineCore.js
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Function.prototype[Symbol.toPrimitive] = function (hint) {
+    if (hint === "number") return this();
+    return this.toString();
+};
 class Identifiable {
     constructor(id) {
         this.id = id || crypto.randomUUID();
@@ -49,24 +57,43 @@ class Interactable extends Updatable {
     pageinteract = () => this.propagate("pageinteract");
     // Helper Utils
     modmouseevent = (e) => e;
-    shouldinteract = (e) => false;
+    // shouldinteract = (e) => false;
+    shouldinteract = (mX, mY) => false;
     modkeyevent = (e) => e;
     // IO Events
-    keydown = (e) => this.propagate("keydown", this.modkeyevent(e));
-    keyup = (e) => this.propagate("keyup", this.modkeyevent(e));
+    keydownEvents = {};
+    keydown = (e) => {
+        this.propagate("keydown", this.modkeyevent(e));
+        for (let k in this.keydownEvents) if (e.code == k) this.keydownEvents[k]();
+    };
+    keyupEvents = {};
+    keyup = (e) => {
+        this.propagate("keyup", this.modkeyevent(e));
+        for (let k in this.keyupEvents) if (e.code == k) this.keyupEvents[k]();
+    };
+    keypressEvents = {};
+    keypress = (e) => {
+        this.propagate("keypress", this.modkeyevent(e));
+        for (let k in this.keypressEvents) if (e.code == k) this.keypressEvents[k]();
+    };
     // Mouse IO Events
+    mousedownEvent;
     mousedown = (e) => {
         e = this.modmouseevent(e);
         this.propagate("mousedown", e);
         if (this.shouldinteract(e.mouseX, e.mouseY)) this.raise("mymousedown", e);
+        this.mousedownEvent?.call(this);
     };
     mymousedown = (e) => this.raise("onmymousedown", e);
+    mouseupEvent;
     mouseup = (e) => {
         e = this.modmouseevent(e);
         this.propagate("mouseup", e);
         if (this.shouldinteract(e.mouseX, e.mouseY)) this.raise("mymouseup", e);
+        this.mouseupEvent?.call(this);
     };
     mymouseup = (e) => this.raise("onmymouseup", e);
+    mousemoveEvent;
     mousemove = (e) => {
         e = this.modmouseevent(e);
         this.propagate("mousemove", e);
@@ -74,24 +101,31 @@ class Interactable extends Updatable {
             this.raise("mymousemove", e);
             this.hovered = true;
         } else this.hovered = false;
+        this.mousemoveEvent?.call(this);
     };
     mymousemove = (e) => this.raise("onmymousemove", e);
+    clickEvents = {};
     click = (e) => {
         e = this.modmouseevent(e);
         this.propagate("click", e);
         if (this.shouldinteract(e.mouseX, e.mouseY)) this.raise("myclick", e);
+        for (let k in this.clickEvents) this.clickEvents[k]();
     };
     myclick = (e) => this.raise("onmyclick", e);
+    dblclickEvents = {};
     dblclick = (e) => {
         e = this.modmouseevent(e);
         this.propagate("dblclick", e);
         if (this.shouldinteract(e.mouseX, e.mouseY)) this.raise("mydblclick", e);
+        for (let k in this.dblclickEvents) this.dblclickEvents[k]();
     };
     mydblclick = (e) => this.raise("onmydblclick", e);
+    wheelEvents = {};
     wheel = (e) => {
         e = this.modmouseevent(e);
         this.propagate("wheel", e);
         if (this.shouldinteract(e.mouseX, e.mouseY)) this.raise("mywheel", e);
+        for (let k in this.wheelEvents) this.wheelEvents[k]();
     };
     mywheel = (e) => this.raise("onmywheel", e);
 }
@@ -130,18 +164,418 @@ class IterableWeakRef {
     }
 }
 
-const canvas = document.createElement("canvas");
-const ctx = canvas.getContext("2d");
-document.body.appendChild(canvas);
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// EngineGlobal.js
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 const keys = {};
 const mouse = { x: 0, y: 0 };
+
+// GameSettings
+// ├───Canvas Size
+// ├───Scale
+// ├───Tickrate
+// ├───Game Mode
+// ├───DEBUG MODE
+// └───Level
+
+const game = new (class GameSettings {
+    baseEntity = {};
+    draw = () => LayerManager.draw();
+    /**
+     * Clears the screen and fills it with the specified background color.
+     * @type {function}
+     */
+    ondraw = () => {
+        fillScreen({ color: this.background });
+        MultiCanvas.ctx["debug"].clearRect(0, 0, canvas.width, canvas.height);
+    };
+    /**
+     * Get the width of the game.
+     * @type {number}
+     */
+    get width() {
+        return canvas.width / (this.scaleX ?? 1);
+    }
+    /**
+     * Set the width of the game.
+     * @type {number}
+     */
+    set width(value) {
+        canvas.width = value * (this.scaleX ?? 1);
+    }
+    get diagonal() {
+        return Math.hypot(this.width, this.height);
+    }
+    /**
+     * Get the height of the game.
+     * @type {number}
+     */
+    get height() {
+        return canvas.height / (this.scaleY ?? 1);
+    }
+    /**
+     * Set the height of the game.
+     * @type {number}
+     */
+    set height(value) {
+        canvas.height = value * (this.scaleY ?? 1);
+    }
+    //TODO FIX ME FIXME
+    set cameraX(value) {
+        LayerManager.currentLayer.cameraX = value;
+    }
+    set cameraY(value) {
+        LayerManager.currentLayer.cameraY = value;
+    }
+})();
+
+// LayerManager
+// │   ┌───GlobalLayer
+// └───Layer
+//     ├───RootUI
+//     │   └───UIElements
+//     ├───SpacialMap
+//     │   └───Entity
+//     └───AsyncManager
+//         ├───Task
+//         └───Lerp
+
+const LayerManager = new (class LayerManager extends Interactable {
+    lastTimestamp;
+    ispaused = true;
+    layers = [];
+    propagate = (call, ...args) => {
+        if (!this.global.ispaused) this.global.raise(call, ...args);
+        if (!!this.layers.length && !this.currentLayer.ispaused) this.currentLayer.raise(call, ...args);
+    };
+    get global() {
+        return this.layers[-1];
+    }
+    set global(val) {
+        this.layers[-1] = val;
+    }
+    constructor() {
+        super();
+        globalThis.onblur = this.pause;
+        globalThis.onfocus = this.resume;
+        globalThis.onload = () => {
+            if (typeof load !== "undefined") load();
+            this.resume();
+        };
+        document.addEventListener("mousedown", this.pageinteract, { once: true });
+        document.addEventListener("keydown", this.pageinteract, { once: true });
+        // document.addEventListener("contextmenu", (e) => e.preventDefault());
+        document.addEventListener("keydown", this.keydown);
+        document.addEventListener("keypress", this.keypress);
+        document.addEventListener("keyup", this.keyup);
+        document.addEventListener("mousemove", this.mousemove);
+        document.addEventListener("mousedown", this.mousedown);
+        document.addEventListener("mouseup", this.mouseup);
+        document.addEventListener("click", this.click);
+        document.addEventListener("dblclick", this.dblclick);
+        document.addEventListener("wheel", this.wheel);
+    }
+    get currentLayer() {
+        return this.layers[this.layers.length - 1];
+    }
+    draw = () => {
+        this.propagate("draw");
+    };
+    update = (timestamp) => {
+        game.ondraw();
+        // Fraction of a second since last update.
+        const delta = (timestamp - this.lastTimestamp) / 1000;
+        this.lastTimestamp = timestamp;
+        this.propagate("update", delta);
+        this.draw();
+        this.updateframe = requestAnimationFrame(this.update);
+    };
+    getEntities = (group) => this.global.getEntities(group).concat(this.currentLayer.getEntities(group));
+    pageinteract = () => {
+        document.removeEventListener("mousedown", this.pageinteract, { once: true });
+        document.removeEventListener("keydown", this.pageinteract, { once: true });
+        this.interacted = true;
+        this.propagate("pageinteract");
+    };
+    pause = () => {
+        this.ispaused = true;
+        cancelAnimationFrame(this.updateframe);
+        this.global.pause();
+        this.layers.forEach((l) => l.pause());
+    };
+    resume = () => {
+        this.ispaused = false;
+        cancelAnimationFrame(this.updateframe);
+        this.lastTimestamp = document.timeline.currentTime;
+        this.updateframe = requestAnimationFrame(this.update);
+        this.global.resume();
+        this.currentLayer?.resume();
+    };
+
+    push = (layer) => {
+        this.currentLayer?.pause();
+        layer.position = this.layers.length;
+        layer.parent = this;
+        this.layers.push(layer);
+        layer.resume();
+        return layer;
+    };
+
+    pop = () => {
+        const layer = this.layers.pop();
+        layer?.pause();
+        this.currentLayer?.resume();
+        this.raise("onremove", layer);
+        return layer;
+    };
+})();
+
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// EngineGraphics.js
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// Create a Multilayer Canvas so that Entities can be drawn on top of each other using z-index property
+const MultiCanvas = new (class {
+    constructor() {
+        this.canvas = [];
+        this.ctx = [];
+        this.addCanvas("background");
+        this.addCanvas(0);
+        this.addCanvas("debug");
+        this.ctx["debug"].globalAlpha = 0.6;
+        this.ctx["debug"].strokeStyle = "#f33";
+        this.ctx["debug"].lineWidth = 2;
+    }
+    addCanvas = (zIdx) => {
+        if (this.canvas[zIdx]) return;
+        const newCanvas = document.createElement("canvas");
+        newCanvas.style.position = "absolute";
+        newCanvas.style.top = "8";
+        newCanvas.style.left = "8";
+        newCanvas.style.zIndex = zIdx;
+        this.canvas[zIdx] = newCanvas;
+        this.ctx[zIdx] = newCanvas.getContext("2d");
+        document.body.appendChild(newCanvas);
+    };
+})();
+
+function hexToRgb(hex) {
+    // Remove the hash if it's included
+    hex = hex.replace(/^#/, "");
+
+    // Parse the hex values
+    const bigint = parseInt(hex, 16);
+
+    // Extract RGB components
+    const r = (bigint >> 16) & 255;
+    const g = (bigint >> 8) & 255;
+    const b = bigint & 255;
+
+    return { r, g, b };
+}
+function rgbToHex(rgb) {
+    if (rgb.a !== undefined) return `#${((rgb.a << 24) | (rgb.r << 16) | (rgb.g << 8) | rgb.b).toString(16).slice(1)}`;
+    else return `#${((rgb.r << 16) | (rgb.g << 8) | rgb.b).toString(16).slice(1)}`;
+}
+fillScreen = ({ color }) => {
+    ctx.save();
+    ctx.resetTransform();
+    if (color) {
+        ctx.fillStyle = color;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    } else ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
+};
+colorPath = ({ hovered, fill, stroke, strokeWidth, hoverFill, hoverStroke, hoverWidth } = {}) => {
+    ctx.fillStyle = (hovered && hoverFill) || fill;
+    if (fill || (hovered && hoverFill)) ctx.fill();
+    ctx.lineWidth = (hovered && hoverWidth) || strokeWidth;
+    ctx.strokeStyle = (hovered && hoverStroke) || stroke;
+    if (stroke || (hovered && hoverStroke)) ctx.stroke();
+};
+drawRect = (x, y, zIdx, w, h, options = {}) => {
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, options?.cornerRadius);
+    colorPath(options);
+    ctx.closePath();
+};
+drawCircle = (x, y, zIdx, radius, options = {}) => {
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, 2 * Math.PI);
+    colorPath(options);
+    ctx.closePath();
+};
+drawProgressCircle = (x, y, zIdx, radius, progress, startAngle, options = {}) => {
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.arc(x, y, radius, startAngle, startAngle + 2 * Math.PI * progress, false);
+    ctx.lineTo(x, y);
+    colorPath(options);
+    ctx.closePath();
+};
+drawCone = (x, y, zIdx, direction, arcLength, radius, options = {}) => {
+    const startAngle = direction - arcLength / 2;
+    const endAngle = direction + arcLength / 2;
+
+    ctx.beginPath();
+    if (options.noLines === undefined) ctx.moveTo(x, y);
+    // Draw the arc
+    ctx.arc(x, y, radius, startAngle, endAngle);
+    if (options.noLines === undefined) ctx.lineTo(x, y);
+    colorPath(options);
+    ctx.closePath();
+};
+drawText = (text, x, y, zIdx, { width, font, color, center, linewrap } = {}) => {
+    if (color) ctx.fillStyle = color;
+    if (font) ctx.font = font;
+    ctx.textBaseline = center ? "middle" : "alphabetic";
+    if (linewrap && width) {
+        const words = text.split(/(\n|\s)/);
+        let currentLine = "";
+        let lines = [];
+
+        for (const word of words) {
+            //check if word contains a newline
+            if (word === "\n") {
+                // Treat newline characters as separate words
+                lines.push(currentLine);
+                currentLine = "";
+                continue;
+            }
+            const testLine = currentLine.length === 0 ? word : `${currentLine} ${word}`;
+            const testWidth = ctx.measureText(testLine).width;
+
+            if (testWidth > width) {
+                lines.push(currentLine);
+                currentLine = word;
+            } else currentLine = testLine;
+        }
+
+        lines.push(currentLine);
+
+        if (center) y -= (lines.length - 1) * parseInt(ctx.font);
+
+        lines.forEach((line, index) => {
+            const centeredX = x - (center ? (ctx.measureText(line).width - width) / 2 : 0);
+            ctx.fillText(line, centeredX, y + index * parseInt(ctx.font), width);
+        });
+    } else {
+        const centeredX = x - (center ? (ctx.measureText(text).width - (width ?? 0)) / 2 : 0);
+        ctx.fillText(text, centeredX, y, width);
+    }
+};
+drawImage = (src, x, y, zIdx, { width, height } = {}) => {
+    drawImage.cache ??= {};
+    if (drawImage.cache[src]) return ctx.drawImage(drawImage.cache[src], x, y, width, height);
+    const image = new Image();
+    image.src = src;
+    image.onload = () => {
+        ctx.drawImage(image, x, y, width, height);
+        drawImage.cache[src] = image;
+    };
+};
+drawEntity = (entity) => {
+    const halfSize = entity.size / 2;
+    if (entity.img) {
+        ctx.save();
+        if (entity.flipX !== undefined || entity.flipY !== undefined)
+            ctx.scale(entity.flipX ? -1 : 1, entity.flipY ? -1 : 1);
+        drawImage(entity.img, -halfSize, -halfSize, { width: entity.size, height: entity.size });
+        ctx.restore();
+        //TODO: ONLOAD ANIMATION CODE
+    } else {
+        ctx.fillStyle = entity.color;
+        if (entity.shape == "circle") {
+            ctx.beginPath();
+            ctx.arc(0, 0, halfSize, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.closePath();
+        } else if (entity.shape == "triangle") {
+            ctx.beginPath();
+            ctx.moveTo(0, -halfSize);
+            ctx.lineTo(-halfSize, halfSize);
+            ctx.lineTo(halfSize, halfSize);
+            ctx.fill();
+            ctx.closePath();
+        } else if (entity.shape == "arrow") {
+            ctx.beginPath();
+            ctx.moveTo(0, -halfSize);
+            ctx.lineTo(-halfSize, halfSize);
+            ctx.lineTo(0, halfSize / 2);
+            ctx.lineTo(halfSize, halfSize);
+            ctx.fill();
+            ctx.closePath();
+        } else ctx.fillRect(-halfSize, -halfSize, entity.size, entity.size);
+    }
+};
+// Make public getter for MultiCanvas's canvas and ctx
+const canvas = MultiCanvas.canvas[0];
+const ctx = MultiCanvas.ctx[0];
+
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// EngineAnimation.js
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// SpriteSheet
+// └───Atlasing/Animation
+
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// EngineParticles.js
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// ParticalSystem
+// ├───onUpdate&onDraw
+// ├───Direct Image Manipulation
+// └───Entities?
+
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // EngineUtilities.js
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+function randomInt(min, max) {
+    if (max === undefined) return randomInt(0, min);
+    return Math.floor(Math.random() * (max + 1 - min) + min);
+}
+const randomWholeNumber = randomInt;
+
+function randomRange(min, max) {
+    return Math.random() * (max - min) + min;
+}
+
+function randomChance(chance) {
+    return Math.random() < chance;
+}
+
+function randomChoice(contianer) {
+    if (!Array.isArray(contianer)) return contianer[randomChoice(Object.keys(contianer))];
+    return contianer[randomInt(contianer.length - 1)];
+}
+
+function randomPointInCircle(radius, { minRadius = undefined, start = { x: 0, y: 0 } }) {
+    if (minRadius !== undefined) radius = minRadius + Math.random() * (radius - minRadius);
+    const angle = Math.random() * Math.PI * 2;
+    return {
+        x: start.x + Math.cos(angle) * radius,
+        y: start.y + Math.sin(angle) * radius,
+    };
+}
+
+function randomColor() {
+    return rgbToHex({ r: randomInt(0, 255), g: randomInt(0, 255), b: randomInt(0, 255) });
+}
+
 function clamp(val, min, max) {
     return Math.min(Math.max(val, min), max);
 }
+function roundBy(value, step = 1) {
+    return Math.round(value / step) * step;
+}
+function round(value, decimals = 0) {
+    if (decimals === 0) return Math.round(value);
+    return roundBy(value, 1 / Math.pow(10, decimals));
+}
+
 function appendToFunction(obj, funcName, additionalFunc, { hasPriority } = {}) {
     const baseFunc = obj[funcName];
     obj[funcName] = function (...args) {
@@ -196,23 +630,6 @@ function cloneMouseEvent(originalEvent) {
         canvasY,
     });
 }
-function hexToRgb(hex) {
-    // Remove the hash if it's included
-    hex = hex.replace(/^#/, "");
-
-    // Parse the hex values
-    const bigint = parseInt(hex, 16);
-
-    // Extract RGB components
-    const r = (bigint >> 16) & 255;
-    const g = (bigint >> 8) & 255;
-    const b = bigint & 255;
-
-    return { r, g, b };
-}
-function rgbToHex(rgb) {
-    return `#${((1 << 24) | (rgb.r << 16) | (rgb.g << 8) | rgb.b).toString(16).slice(1)}`;
-}
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // SOUND FUNCTIONS - https://sfxr.me/
@@ -227,9 +644,29 @@ const playMusic = (source, options) => {
     if (options?.global) return LayerManager.global.playMusic(source, options);
     else return LayerManager.currentLayer.playMusic(source, options);
 };
+function deepClone(obj) {
+    if (obj === null || typeof obj !== "object") {
+        // If the input is not an object or is null, return it directly
+        return obj;
+    }
 
+    if (Array.isArray(obj)) {
+        // If it's an array, recursively deep clone each element
+        return obj.map((item) => deepClone(item));
+    }
+
+    // If it's an object, recursively deep clone each property
+    const clonedObj = {};
+    for (const key in obj) {
+        if (obj.hasOwnProperty(key)) {
+            clonedObj[key] = deepClone(obj[key]);
+        }
+    }
+
+    return clonedObj;
+}
 const MergeOntoObject = (target, source) => {
-    if (!source) return target;
+    if (!source || source == {}) return target;
     const sourceKeys = Object.keys(source);
     for (let i = 0; i < sourceKeys.length; i++) {
         const key = sourceKeys[i];
@@ -241,10 +678,10 @@ const MergeOntoObject = (target, source) => {
                     func.call(target, ...args);
                     source[key].call(target, ...args);
                 };
-            } else target[key] = source[key];
+            } else target[key] = deepClone(source[key]);
             const event = key.slice(2);
-            if (!target[event] && !source[event]) target[event] = (...args) => target.raise(key, ...args);
-        } else target[key] = source[key];
+            if (!target[event] && !source[event]) target[event] = (...args) => target.propagate(event, ...args);
+        } else target[key] = deepClone(source[key]);
     }
     return target;
 };
@@ -262,6 +699,20 @@ const AddPublicAccessors = (target, source, properties) => {
         });
     }
 };
+function AddAccessor(obj, propName, { initial, getter, setter } = {}) {
+    Object.defineProperty(
+        obj,
+        propName,
+        (function () {
+            let val = initial;
+            return {
+                get: typeof getter === "function" ? () => getter.call(obj, val) ?? val : () => val,
+                set: typeof setter === "function" ? (v) => (val = setter.call(obj, val, v) ?? v) : (v) => (val = v),
+            };
+        })()
+    );
+}
+
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // EnginePhysics.js
@@ -317,13 +768,12 @@ class Vector {
     }
 }
 
-/**
-SpacialMap {IO}
-├───Tile{Entity}
-└───NavMesh
-    ├───Collisions
-    └───Pathfinding
- */
+// SpacialMap {IO}
+// ├───Tile{Entity}
+// └───NavMesh
+//     ├───Collisions
+//     └───Pathfinding
+
 class SpacialMap extends Interactable {
     entities = {};
     constructor(layer) {
@@ -345,8 +795,8 @@ class SpacialMap extends Interactable {
     };
     modmouseevent = (e) => {
         const newE = cloneMouseEvent(e);
-        if (this.layer.cameraX) newE.mouseX += this.layer.cameraX;
-        if (this.layer.cameraY) newE.mouseY += this.layer.cameraY;
+        newE.mouseX += (-game.width / 2 + this.layer.cameraX) * (this.scaleX ?? 1);
+        newE.mouseY += (-game.height / 2 + this.layer.cameraY) * (this.scaleY ?? 1);
         return newE;
     };
     addEntity = (child) => {
@@ -364,11 +814,60 @@ class SpacialMap extends Interactable {
 }
 
 function detectRect(x, y, w, h, ptX, ptY) {
+    if (game.debug) {
+        ctx.strokeStyle = "#f33a";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, w, h);
+    }
+    // if (game.debug) MultiCanvas.ctx["debug"].strokeRect(x, y, w, h);
+
     return ptX >= x && ptX <= x + w && ptY >= y && ptY <= y + h;
 }
 function detectCircle(x, y, r, ptX, ptY) {
+    if (game.debug) {
+        ctx.beginPath();
+        ctx.arc(x + ptX, y + ptY, r, 0, 2 * Math.PI);
+        ctx.strokeStyle = "#f33a";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.closePath();
+    }
+    // if (game.debug) {
+    //     MultiCanvas.ctx["debug"].beginPath();
+    //     MultiCanvas.ctx["debug"].arc(x + ptX, y + ptY, r, 0, 2 * Math.PI);
+    //     MultiCanvas.ctx["debug"].stroke();
+    //     MultiCanvas.ctx["debug"].closePath();
+    // }
     const squaredDistance = (x - ptX) ** 2 + (y - ptY) ** 2;
     return squaredDistance <= r ** 2;
+}
+function detectBox(x1, y1, w1, h1, x2, y2, w2, h2, ptX, ptY) {
+    return (
+        (ptX >= x1 && ptX <= x1 + w1 && ptY >= y1 && ptY <= y1 + h1) ||
+        (ptX >= x2 && ptX <= x2 + w2 && ptY >= y2 && ptY <= y2 + h2)
+    );
+}
+function detectCone(x, y, direction, arcLength, radius, ptX, ptY) {
+    if (game.debug) {
+        const startAngle = direction - arcLength / 2;
+        const endAngle = direction + arcLength / 2;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.arc(x, y, radius, startAngle, endAngle);
+        ctx.lineTo(x, y);
+        ctx.strokeStyle = "#f33a";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        // ctx.fill();
+        ctx.closePath();
+    }
+    if (!detectCircle(x, y, radius, ptX, ptY)) return false;
+    const angleToTarget = Math.atan2(ptY - y, ptX - x);
+    const angleDiff = Math.abs(angleToTarget - direction);
+
+    // Normalize angle difference to be between -π and π
+    const normalizedDiff = ((angleDiff + Math.PI) % (2 * Math.PI)) - Math.PI;
+    return normalizedDiff <= arcLength / 2;
 }
 function detectEntity(entityOne, entityTwo, radius) {
     radius ??= (entityOne.size + entityTwo.size) / 2;
@@ -389,7 +888,7 @@ function distanceTo(from, to) {
 function angleTo(from, to) {
     return Math.atan2(to.y - from.y, to.x - from.x);
 }
-function getPlayerMovementdirectionection({ useCardinal } = {}) {
+function getPlayerMovementDirection({ useCardinal } = {}) {
     let direction = null;
 
     // Check for horizontal movement
@@ -425,42 +924,28 @@ function getPlayerMovementdirectionection({ useCardinal } = {}) {
     return direction;
 }
 function onboxcollide(other) {
-    const thisLeft = this.x - this.size / 2;
-    const thisRight = this.x + this.size / 2;
-    const thisTop = this.y - this.size / 2;
-    const thisBottom = this.y + this.size / 2;
-
-    const otherLeft = other.x - other.size / 2;
-    const otherRight = other.x + other.size / 2;
-    const otherTop = other.y - other.size / 2;
-    const otherBottom = other.y + other.size / 2;
-
-    const xOverlap = thisRight > otherLeft && thisLeft < otherRight;
-    const yOverlap = thisBottom > otherTop && thisTop < otherBottom;
-    if (xOverlap) {
-        // Handle the collision based on the relative velocities
-        if (other.velocity.xSign === 1) {
-            other.x = thisLeft - other.size / 2;
-            other.velocity.x = 0;
-        } else if (other.velocity.xSign === -1) {
-            other.x = thisRight + other.size / 2;
-            other.velocity.x = 0;
-        }
-    }
-    if (yOverlap) {
-        if (other.velocity.ySign === 1) {
-            other.y = thisTop - other.size / 2;
-            other.velocity.y = 0;
-        } else if (other.velocity.ySign === -1) {
-            other.y = thisBottom + other.size / 2;
-            other.velocity.y = 0;
-        }
-    }
+    return detectBox(
+        this.x - this.size / 2,
+        this.y - this.size / 2,
+        this.size,
+        this.size,
+        other.x - other.size / 2,
+        other.y - other.size / 2,
+        other.size,
+        other.size
+    );
 }
+
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // EngineAsync.js
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// AsyncManager
+// ├───Lerp
+// ├───Sound
+// ├───Task
+// └───Animations?
+// Needs deltaMod replace tasks with onupdate timers
 class AsyncManager extends Updatable {
     tasks = [];
     lerps = [];
@@ -498,6 +983,11 @@ class AsyncManager extends Updatable {
         const idx = this.tasks.findIndex((e) => e.id === id);
         if (idx < 0) return;
         this.tasks.splice(idx, 1)[0].pause();
+    };
+    removeLerp = (lerp) => {
+        const idx = this.lerps.findIndex((e) => e === lerp);
+        if (idx < 0) return;
+        this.lerps.splice(idx, 1);
     };
     // Sound Methods
     sounds = new IterableWeakRef();
@@ -580,28 +1070,18 @@ class Lerp extends Updatable {
         super();
         this.currentTime = 0;
         this.callback = func;
-        this.duration = this.duration;
+        this.duration = duration;
         this.obj = obj;
         this.layer = layer;
         this.layer.asyncManager.lerps.push(this);
     }
     onupdate = (delta) => {
         this.currentTime += delta;
-        this.progress = clamp(this.currentTime / duration, 0, 1);
+        this.progress = clamp(this.currentTime / this.duration, 0, 1);
         this.callback.call(this.obj, this.progress);
         if (this.progress == 1) this.remove();
     };
     remove = () => this.layer.asyncManager.removeLerp(this);
-    pause = () => {
-        this.tasks.forEach((t) => t.pause());
-        this.sounds.forEach((s) => s.pause());
-        this.music?.pause();
-    };
-    resume = () => {
-        this.tasks.forEach((t) => t.resume());
-        if (LayerManager.interacted) this.sounds.forEach((s) => s.play());
-        if (LayerManager.interacted) this.music?.play();
-    };
 }
 const lerp = (start, end, progress) => start + progress * (end - start);
 function startLerp(obj, lerpFunc, duration, { layer } = {}) {
@@ -643,6 +1123,385 @@ const resume = () => LayerManager.resume();
 
 const togglePause = () => (LayerManager.ispaused ? resume : pause)();
 
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// EngineAbilities.js
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class AbilityManager {
+    static types = {};
+    static names = [];
+}
+
+/* TODO
+Abilities
+├───Properties
+│   ├───CD/Rate
+│   ├───Hold/Channel/Charge/Loop/etc
+│   └───Callback
+├───Levels?Teirs?Ranks?
+├───Attacking
+├───Passives
+└───Spells->AssignOwnership
+*/
+
+// Cooldown is currently tickrate, make it actually cooldown... and add tickrate as a seperate thing
+class Ability extends Interactable {
+    #mode;
+    #keyup;
+    #keydown;
+    #keypress;
+    #keybinds;
+    constructor(owner, { cooldown, tickrate, chargeTime, duration, mode, key, keys = [], ...options } = {}) {
+        super();
+        this.owner = owner;
+        this.cooldown = cooldown || 0;
+        this.tickrate = tickrate || 0;
+        this.duration = duration || 0;
+        this.chargeTime = chargeTime || 0;
+        this.isactive = false;
+        this.oncooldown = false;
+        this.deltaTimer = -1 / 1e-10;
+        this.tickTimer = 0;
+
+        // Properly bind methods
+        for (const [k, v] of Object.entries(options))
+            if (typeof v === "function") this[k] = v.bind(this);
+            else this[k] = v;
+
+        this.keybinds = keys || key;
+
+        this.mode = mode || "Instant";
+    }
+    notify = (state) => {
+        if (this.noNotice) return;
+        UI.Popup(`${state} ${this.abilityName}`, game.width / 2, game.height / 2 - this.owner.size, {
+            center: true,
+            color: "black",
+            font: "12px monospace",
+        });
+    };
+    attach = () => {
+        this.propagate("attach", this.owner);
+    };
+    remove = () => {
+        this.deactivate();
+        this.propagate("remove", this.owner);
+    };
+    activate = () => {
+        if (this.deltaTimer > 0 || this.isactive) return;
+        this.isactive = true;
+        this.raise("onactivate", this.owner);
+        if (this.keybinds?.length !== 0) this.notify("Activated");
+        this.deltaTimer = this.duration !== Infinity ? this.duration : 0;
+        this.tickTimer = 0;
+        this.tick();
+    };
+    draw = () => {
+        this.propagate("draw");
+        if (this.isactive) {
+            this.propagate("activedraw", this.deltaTimer / this.duration);
+            if (this.tickrate !== 0) this.propagate("tickdraw", 1 - this.tickTimer / this.tickrate);
+            if (this.deltaTimer <= 0 && this.duration !== Infinity) this.deactivate();
+        } else if (this.deltaTimer < 0)
+            if (this.charging) this.propagate("chargedraw", clamp(-this.deltaTimer / this.chargeTime, 0, 1));
+            else this.propagate("ideldraw", this.deltaTimer);
+        else if (this.cooldown !== 0) this.propagate("cooldowndraw", 1 - this.deltaTimer / this.cooldown);
+    };
+    onupdate = (delta) => {
+        // if (this.pause) return;
+        this.deltaTimer -= delta;
+        this.tickTimer -= delta;
+        if (this.oncooldown && this.deltaTimer <= 0) {
+            this.oncooldown = false;
+            this.notify("Ready");
+        }
+        if (!this.isactive && this.mode === "Passive") this.activate();
+        else if (this.isactive && this.tickTimer <= 0) this.tick();
+    };
+    tick = () => {
+        this.propagate("tick", this.owner);
+        this.tickTimer += this.tickrate;
+    };
+    deactivate = () => {
+        if (!this.isactive) return;
+        this.isactive = false;
+        this.propagate("deactivate", this.owner);
+        this.deltaTimer = this.cooldown;
+        if (this.cooldown !== 0) this.oncooldown = true;
+        if (this.duration !== 0 && this.keybinds?.length !== 0) this.notify("Ended");
+    };
+    get mode() {
+        return this.#mode;
+    }
+    set mode(val) {
+        this.#mode = val;
+        this.#keydown = undefined;
+        this.#keyup = undefined;
+        this.#keypress = undefined;
+        if (val === "Charge") {
+            this.#keydown = () => {
+                if (this.charging) return;
+                this.deltaTimer = 0;
+                this.charging = true;
+            };
+            this.#keyup = () => {
+                this.charging = false;
+                this.chargedPercent = clamp(-this.deltaTimer / this.chargeTime, 0, 1);
+                this.deltaTimer = 0;
+                this.activate();
+            };
+        } else if (val === "Channel") {
+            if (!this.duration) this.duration = Infinity;
+            this.#keydown = this.activate;
+            this.#keyup = this.deactivate;
+        } else if (val === "Toggle") {
+            this.#keypress = () => {
+                if (this.isactive) this.deactivate();
+                else this.activate();
+            };
+        } else if (val === "Passive") {
+            this.duration = Infinity;
+        } else this.#keypress = this.activate;
+    }
+    get keybinds() {
+        return this.#keybinds;
+    }
+    set keybinds(keys) {
+        this.keydownEvents = {};
+        this.keypressEvents = {};
+        this.keyupEvents = {};
+        this.#keybinds = Array.isArray(keys) ? keys : [keys];
+        for (const key of this.#keybinds) {
+            this.keydownEvents[key] = (e) => this.#keydown?.call(this, e);
+            this.keyupEvents[key] = (e) => this.#keyup?.call(this, e);
+            this.keypressEvents[key] = (e) => this.#keypress?.call(this, e);
+        }
+    }
+}
+
+function registerAbility(name, options = {}) {
+    const upperName = name[0].toUpperCase() + name.slice(1);
+    const newAbility = class extends Ability {
+        abilityName = upperName;
+        constructor(owner, extraOptions = {}) {
+            super(owner, { ...options, ...extraOptions });
+        }
+    };
+    AbilityManager.types[upperName] = newAbility;
+    AbilityManager.names.push(upperName);
+}
+
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// EngineStats.js
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class Stat {
+    constructor(value) {
+        let { initial, ...otherProps } = typeof value === "object" ? value : { initial: value };
+        this.internal = {
+            max: initial,
+            base: initial,
+            current: otherProps.current ?? initial,
+            maxBase: otherProps.maxBase,
+            cap: otherProps.cap,
+        };
+        this.dynamic = 0;
+        this.modifiers = [];
+    }
+    get missing() {
+        return this.internal.max - this.internal.current;
+    }
+    get current() {
+        if (this.dynamic && this.#calculateMax() !== this.internal.max) this.calculate(this.#copyinternal);
+        return this.internal.current;
+    }
+    set current(val) {
+        if (Number.isNaN(val)) debugger;
+        if (this.internal.current === val) return;
+        this.internal.current = Math.min(val, this.internal.max);
+        this.change();
+    }
+    get max() {
+        return this.internal.max;
+    }
+    get missingPercent() {
+        return this.missing / this.max;
+    }
+    get base() {
+        return this.internal.base;
+    }
+    set base(val) {
+        const prior = this.#copyinternal;
+        this.internal.base = val;
+        this.calculate(prior);
+    }
+    get percent() {
+        return this.internal.current / this.internal.max;
+    }
+    set percent(val) {
+        this.current = this.internal.max * val;
+    }
+    get maxBase() {
+        return this.internal.maxBase;
+    }
+    set maxBase(val) {
+        const prior = this.#copyinternal;
+        this.internal.maxBase = val;
+        if (this.internal.maxBase !== undefined) this.internal.base = Math.min(this.internal.base, val);
+        this.calculate(prior);
+    }
+    get cap() {
+        return this.internal.cap;
+    }
+    set cap(val) {
+        const prior = this.#copyinternal;
+        this.internal.cap = val;
+        if (this.internal.cap !== undefined) this.internal.max = Math.min(this.internal.max, val);
+        this.calculate(prior);
+    }
+    get #copyinternal() {
+        return { ...this.internal };
+    }
+    change = () => {
+        this.onchange?.call(obj, this);
+    };
+    #calculateMax = () => {
+        let x = this.internal.base;
+        this.modifiers.forEach((modifier) => {
+            const { value, op } = modifier;
+            switch (op) {
+                case "*":
+                    x *= value;
+                    break;
+                case "+":
+                    x += value;
+                    break;
+                default:
+                    x = value;
+            }
+        });
+        return this.internal.cap !== undefined ? x : Math.min(x, this.internal.cap);
+    };
+    calculate = (prior) => {
+        this.internal.current = this.percent * this.internal.base;
+        this.internal.max = this.internal.base;
+
+        this.modifiers.forEach((modifier) => {
+            const { value, op } = modifier;
+            switch (op) {
+                case "*":
+                    this.internal.current *= value;
+                    this.internal.max *= value;
+                    break;
+                case "/":
+                    this.internal.current /= value;
+                    this.internal.max /= value;
+                    break;
+                case "+":
+                    this.internal.current += value;
+                    this.internal.max += value;
+                    break;
+                case "-":
+                    this.internal.current -= value;
+                    this.internal.max -= value;
+                    break;
+                case "^":
+                case "**":
+                    this.internal.current **= value;
+                    this.internal.max **= value;
+                    break;
+                default:
+                    this.internal.current = value;
+                    this.internal.max = value;
+            }
+        });
+        if (this.internal.cap !== undefined) this.internal.max = Math.min(this.internal.max, this.internal.cap);
+        this.internal.current = Math.min(this.internal.current, this.internal.max);
+        Object.keys(prior).forEach(
+            (k) => (prior[k] = this.internal[k] !== undefined ? this.internal[k] - (prior[k] || 0) : undefined)
+        );
+        this.onrecalculate?.call(obj, this, prior);
+    };
+    buff = (name, value, { op = "*", priority = 10 } = {}) => {
+        if (typeof value === "function") this.dynamic++;
+        this.modifiers.push({ name, priority, value, op });
+        this.calculate(this.#copyinternal);
+    };
+    remove = (name) => {
+        const idx = this.modifiers.findIndex((mod) => mod.name === name);
+        if (idx === -1) return;
+        const removed = this.modifiers.splice(idx, 1)[0];
+        if (typeof removed.value === "function") this.dynamic--;
+        this.calculate(this.#copyinternal);
+    };
+    [Symbol.toPrimitive](hint) {
+        return this.current;
+    }
+}
+
+const addStat = (obj, propertyName, initial) => {
+    // Possible temporary hp etc?
+    propertyName = propertyName.toLowerCase();
+    const subStat = propertyName.slice(3);
+    if (propertyName.startsWith("max")) {
+        if (!obj[subStat]) addStat(obj, subStat, initial);
+        obj[subStat].maxBase = initial;
+        delete obj.stats[propertyName];
+        return;
+    }
+    if (propertyName.startsWith("cap")) {
+        if (!obj[subStat]) addStat(obj, subStat, initial);
+        obj[subStat].cap = initial;
+        delete obj.stats[propertyName];
+        return;
+    }
+    if (obj[propertyName]) initial = obj[propertyName];
+    const stat = new Stat(initial);
+    Object.defineProperty(obj, propertyName, {
+        get() {
+            return stat;
+        },
+        set(newVal) {
+            stat.current = newVal;
+        },
+    });
+    AddAccessor(obj, "on" + propertyName + "change", stat.onchange);
+    obj.stats[propertyName] = stat;
+};
+
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// EngineAI.js
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// EntityController
+// ├───AI/Player => direction
+// ├───StateMachine?
+// └───lateUpdate for Abilities?
+
+class EntityController extends Updatable {
+    constructor(entity) {
+        super();
+        this.entity = entity;
+    }
+}
+class PlayerController extends EntityController {
+    onupdate = function (delta) {
+        this.entity.direction = getPlayerMovementDirection();
+    };
+}
+
+class EnemyController extends EntityController {
+    constructor(entity, target) {
+        super(entity);
+        this.target = target ?? null;
+        this.agroRange = 140;
+    }
+    onupdate = function (delta) {
+        this.entity.angleTowards(this.target);
+    };
+}
+
+
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // EngineEntity.js
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -651,59 +1510,106 @@ class EntityManager {
     static names = [];
     static subtypes = {};
 }
+// Entity => EntityManager & registerEntity
+// ├───Types
+// ├───Events (onDamage,IO,etc)
+// ├───Controller
+// ├───Stats
+// ├───Conditions
+// ├───Modifiers
+// ├───Abilities
+// └───Drops[Spread/Jitter]
 class Entity extends Interactable {
     constructor() {
         super();
         this.x = 0;
         this.y = 0;
-        this.size = 0;
+        this.size = 10;
+        this.color = "black";
         this.velocity = new Vector();
-        AddPublicAccessors(this, "velocity", ["speed", "direction", "magnitude"]);
+        AddPublicAccessors(this, "velocity", ["speed", "magnitude"]);
         this.exp = 0;
         this.neededXP = 0;
         this.level = 0;
         this.staticX = false;
         this.staticY = false;
+        this.freezeDirection = false;
         this.facingDirection = 0;
         this.groupName = "Entity";
+        this.controller = new EntityController(this);
+        // const abilities_to_add = Object.entries(this.abilities ?? {});
+        // for (let i = 0; i < abilities_to_add.length; i++)
+        //     this.addAbility(abilities_to_add[i][1], { keys: abilities_to_add[i][0] });
+        this.abilities = {};
+        this.effects = {};
+        this.stats ??= {};
     }
+    get position() {
+        return { x: this.x, y: this.y };
+    }
+    set position({ x, y }) {
+        this.x = x;
+        this.y = y;
+    }
+    get direction() {
+        return this.velocity.direction;
+    }
+    set direction(direction) {
+        if (this.freezeDirection) return;
+        this.velocity.direction = direction;
+    }
+    propagate = (call, ...args) => {
+        const oncall = "on" + call;
+        this.raise(oncall, ...args);
+        // Call raise on all abilities
+        const abilityNames = Object.keys(this.abilities ?? {});
+        for (let i = 0; i < abilityNames.length; i++) this.abilities[abilityNames[i]].raise(call, ...args);
+        const effectNames = Object.keys(this.effects[oncall] ?? {});
+        for (let i = 0; i < effectNames.length; i++) this.effects[oncall][effectNames[i]].call(this, ...args);
+    };
+    evaluateEffects = (call, amount, ...args) => {
+        const oneffects = this.effects["on" + call] ?? {};
+        const effectNames = Object.keys(oneffects);
+        for (let i = 0; i < effectNames.length; i++)
+            amount = oneffects[effectNames[i]].call(this, amount, ...args) ?? amount;
+        return amount;
+    };
     update = (delta) => {
+        this.controller.update(delta);
         if (this.acceleration) this.speed = clamp(this.speed + this.acceleration, 0, this.maxSpeed);
         this.raise("onupdate", delta);
-        // if (this.groupName == "Player") console.log(this, this.direction, this.speed);
         if (this.speed && this.direction !== null) {
             this.facingDirection = this.direction;
             if (!this.staticX) this.x += Math.cos(this.direction) * this.speed * delta;
             if (!this.staticY) this.y += Math.sin(this.direction) * this.speed * delta;
         }
+        if (this.acceleration && this.direction == null) this.speed = 0;
         if (this.pixelPerfect) {
             this.x = Math.round(this.x - 0.5) + 0.5;
             this.y = Math.round(this.y - 0.5) + 0.5;
         }
-        if (this.collisions) this.checkCollision();
+        if (this.collisions) this.forPossibleCollisons(this.checkCollision);
+
+        const abilityNames = Object.keys(this.abilities);
+        for (let i = 0; i < abilityNames.length; i++) this.abilities[abilityNames[i]].update(delta);
     };
-    checkCollision = () => {
+    shouldinteract = (mX, mY) => detectCircle(this.x - this.size / 2, this.y - this.size / 2, this.size / 2, mX, mY);
+    forPossibleCollisons = (func, ...args) => {
         for (let group of this.collisions) {
             for (let e of this.layer.getEntities(group)) {
                 if (group === this.groupName && e.id === this.id) continue;
-                // if (this.groupName === "Bullet")
-                if (this.distanceTo(e) <= (this.size + e.size) / 2) {
-                    // console.log(
-                    //     this.distanceTo(e),
-                    //     (this.size + e.size) / 2,
-                    //     this.distanceTo(e) <= (this.size + e.size) / 2
-                    // );
-                    // game.background = "red";
-                    this.raise("collide", e);
-                }
-                //  else game.background = "black";
+                this.do(func, e, ...args);
             }
+        }
+    };
+    checkCollision = (e) => {
+        if (this.distanceTo(e) <= (this.size + e.size) / 2) {
+            this.raise("collide", e);
         }
     };
     collide = (other) => this.raise("oncollide", other);
     spawn = () => {
         if (this.acceleration) this.maxSpeed ??= this.speed;
-        if (this.hp) this.maxHP ??= this.hp;
         this.layer.addEntity(this);
         this.raise("onspawn");
         if (this.lifespan) this.lifeTimer = scheduleTask(() => this.despawn(), { time: this.lifespan });
@@ -713,39 +1619,12 @@ class Entity extends Interactable {
         ctx.save();
         ctx.translate(this.x, this.y);
         if (this.rotate) ctx.rotate(this.direction + Math.PI / 2 + (this.rotationalOffset ?? 0));
-        const halfSize = this.size / 2;
-        if (this.img) {
-            ctx.save();
-            ctx.scale(this.flipX ? -1 : 1, this.flipY ? -1 : 1);
-            drawImage(this.img, -halfSize, -halfSize, { width: this.size, height: this.size });
-            ctx.restore();
-            //TODO: ONLOAD ANIMATION CODE
-        } else {
-            ctx.fillStyle = this.color;
-            if (this.shape == "circle") {
-                ctx.beginPath();
-                ctx.arc(0, 0, halfSize, 0, 2 * Math.PI);
-                ctx.fill();
-                ctx.closePath();
-            } else if (this.shape == "triangle") {
-                ctx.beginPath();
-                ctx.moveTo(0, -halfSize);
-                ctx.lineTo(-halfSize, halfSize);
-                ctx.lineTo(halfSize, halfSize);
-                ctx.fill();
-                ctx.closePath();
-            } else if (this.shape == "arrow") {
-                ctx.beginPath();
-                ctx.moveTo(0, -halfSize);
-                ctx.lineTo(-halfSize, halfSize);
-                ctx.lineTo(0, halfSize / 2);
-                ctx.lineTo(halfSize, halfSize);
-                ctx.fill();
-                ctx.closePath();
-            } else ctx.fillRect(-halfSize, -halfSize, this.size, this.size);
-        }
+        drawEntity(this);
+        const abilityNames = Object.keys(this.abilities);
+        for (let i = 0; i < abilityNames.length; i++) this.abilities[abilityNames[i]].draw();
         this.raise("ondraw");
         ctx.restore();
+        if (game.debug) this.shouldinteract(this.size / 2, this.size / 2);
     };
     despawn = () => {
         this.raise("ondespawn");
@@ -760,6 +1639,34 @@ class Entity extends Interactable {
         this.level++;
         this.raise("onlevelup");
     };
+    addAbility = (ability, options) => {
+        this.abilities[ability] = new AbilityManager.types[ability](this, options);
+        this.abilities[ability].attach();
+    };
+    removeAbility = (ability) => {
+        this.abilities[ability]?.raise("remove");
+        delete this.abilities[ability];
+    };
+    addEffect = (trigger, effectName, callback) => {
+        if (!this.effects[trigger]) this.effects[trigger] = {};
+        this.effects[trigger][effectName] = callback;
+    };
+    removeEffect = (trigger, effectName) => {
+        if (!this.effects[trigger]) return;
+        delete this.effects[trigger][effectName];
+    };
+    debugString = () => {
+        return JSON.stringify(
+            player,
+            (k, v) =>
+                k === "layer"
+                    ? "{...}"
+                    : ["controller", "abilities", "parent", "layer"].includes(k)
+                    ? Object.keys(v) ?? ""
+                    : v,
+            1
+        ).replace("/  /g", "\n");
+    };
     get xp() {
         return this.exp;
     }
@@ -773,39 +1680,36 @@ class Entity extends Interactable {
     }
 }
 
+// On mouse over:
+// UI.Text("", 10, 80, {
+//     font: "8px monospace",
+//     width: 400,
+//     linewrap: true,
+//     color: "white",
+//     onupdate: () => (playerStats.text = player.debugString()),
+// });
+
 function registerEntity(name, options, types) {
     const upperName = name[0].toUpperCase() + name.slice(1);
     const lowerName = name[0].toLowerCase() + name.slice(1);
-    const newSubclass = class extends Entity {
-        groupName = upperName;
-    };
-    Object.defineProperty(newSubclass, "subtypes", {
-        set(value) {
-            types = value;
-        },
-        get() {
-            return types;
-        },
-    });
-    // Object.defineProperty(newSubclass, "group", {
-    //     value: Array.from({ length: LayerManager.layers.length }, () => []),
-    // });
-    // newSubclass.group = newSubclass.group[-1] = [];
-    // Object.defineProperty(globalThis, lowerName + "Group", {
-    //     get() {
-    //         return newSubclass.group;
-    //     },
-    //     set(value) {
-    //         newSubclass.group = value;
-    //     },
-    // });
+    const newSubclass =
+        name === "Player"
+            ? class extends Entity {
+                  groupName = upperName;
+              }
+            : class extends Entity {
+                  groupName = upperName;
+              };
+    AddAccessor(newSubclass, "subtypes", { initial: types });
     globalThis["spawn" + upperName] = (subType, additional) => {
-        const newEntity = new newSubclass();
-        MergeOntoObject(newEntity, game.settings);
-        MergeOntoObject(newEntity, options);
-        MergeOntoObject(newEntity, subType);
-        MergeOntoObject(newEntity, additional);
+        let newEntity = new newSubclass();
+        newEntity = MergeOntoObject(newEntity, game.baseEntity);
+        newEntity = MergeOntoObject(newEntity, options);
+        newEntity = MergeOntoObject(newEntity, subType);
+        newEntity = MergeOntoObject(newEntity, additional);
         newEntity.layer = LayerManager.currentLayer;
+        if (newEntity.stats) for (let stat in newEntity.stats) addStat(newEntity, stat, newEntity.stats[stat]);
+
         newEntity.raise("spawn");
         return newEntity;
     };
@@ -828,6 +1732,34 @@ function registerEntity(name, options, types) {
         };
     }
 }
+
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// EngineItems.js
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// Inventory
+// ├───UI
+// │   ├───DragDrop
+// │   └───Selection
+// ├───Items/Pots
+// └───Equipment
+
+// Items and Drops
+// └───GrabBag Drop
+
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// EnginePlayer.js
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// PlayerClass
+// └───InputMap
+
+// PlayerTracker
+// ├───Quest System
+// ├───Save System
+// ├───Inventory
+// └───Event Scheduler
+
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // EngineUI.js
@@ -880,7 +1812,10 @@ class UIElement extends Interactable {
         this.raise("on" + call, ...args);
         this.children.forEach((c) => c?.raise(call, ...args));
     };
-    draw = () => this.propagate("draw");
+    draw = () => {
+        this.propagate("draw");
+        if (game.debug) this.shouldinteract(0, 0);
+    };
     show = () => {
         this.raise("onshow");
         this.children.forEach((c) => c.raise("onshow"));
@@ -896,7 +1831,6 @@ class UIElement extends Interactable {
         this.layer.addUI(this);
     };
     close = () => {};
-    shouldinteract = (mX, mY) => true;
     hide = () => {
         this.close();
     };
@@ -937,11 +1871,11 @@ class UIRoot extends UIElement {
  * @property {number} [cornerRadius=0] - Radius of the rounded corners.
  */
 class UIRect extends UIElement {
-    ondraw = () => drawRect(this.x, this.y, this.width, this.height, { ...this.options, hovered: this.hovered });
+    ondraw = () => drawRect(this.x, this.y, 0, this.width, this.height, { ...this.options, hovered: this.hovered });
     shouldinteract = (mX, mY) => detectRect(this.x, this.y, this.width, this.height, mX, mY);
 }
 class UICircle extends UIElement {
-    ondraw = () => drawCircle(this.x, this.y, this.radius, { ...this.options, hovered: this.hovered });
+    ondraw = () => drawCircle(this.x, this.y, 0, this.radius, { ...this.options, hovered: this.hovered });
     shouldinteract = (mX, mY) => detectCircle(this.x, this.y, this.radius, mX, mY);
 }
 /**
@@ -954,10 +1888,12 @@ class UICircle extends UIElement {
  * @property {boolean} [linewrap] - Whether to enable line wrapping for the text.
  */
 class UIText extends UIElement {
-    ondraw = () => drawText(this.text, this.x, this.y, this.options);
+    ondraw = () => {
+        drawText(this.text, this.x, this.y, 0, this.options);
+    };
 }
 class UIImage extends UIElement {
-    ondraw = () => drawImage(this.src, this.x, this.y, this.options);
+    ondraw = () => drawImage(this.src, this.x, this.y, 0, this.options);
 }
 /**
  * Options for configuring a text input UI element.
@@ -991,7 +1927,7 @@ class UITextInput extends UIElement {
         const fontSize = parseInt(ctx.font);
         // Draw the input box
         ctx.clearRect(this.x, this.y, this.width, fontSize);
-        drawRect(this.x, this.y, this.width, fontSize, { stroke: "black", hovered: this.hovered });
+        drawRect(this.x, this.y, 0, this.width, fontSize, { stroke: "black", hovered: this.hovered });
         // Draw the text inside the input box
         ctx.textBaseline = "middle";
         if (this.color) ctx.fillStyle = this.color;
@@ -1007,7 +1943,7 @@ class UIProgressBar extends UIElement {
     }
     ondraw = () => {
         // Draw the background
-        drawRect(this.x, this.y, this.width, this.height, {
+        drawRect(this.x, this.y, 0, this.width, this.height, {
             ...this.options,
             fill: this.background,
             hovered: this.hovered,
@@ -1031,17 +1967,17 @@ class UIDialogue extends UIElement {
             mY
         );
     ondraw = () => {
-        drawRect(this.x, this.y, this.width, this.height, {
+        drawRect(this.x, this.y, 0, this.width, this.height, {
             ...this.options,
             fill: this.background,
             hovered: this.hovered,
         });
-        drawText(this.title, this.x, this.y + this.scale, {
+        drawText(this.title, this.x, this.y + this.scale, 0, {
             center: true,
             font: `bold ${this.scale}px monospace`,
             ...this.options,
         });
-        drawText(this.message, this.x, this.y + this.scale + this.scale, {
+        drawText(this.message, this.x, this.y + this.scale + this.scale, 0, {
             font: `bold ${this.scale / 2}px monospace`,
             center: true,
             ...this.options,
@@ -1049,11 +1985,12 @@ class UIDialogue extends UIElement {
         drawRect(
             this.x + this.scale / 2,
             this.y + this.height - this.scale - this.scale / 2,
+            0,
             this.width - this.scale,
             this.scale,
-            { ...this.options, hovered: this.hovered }
+            { hoverWidth: (this.options.strokeWidth ?? 0) + 4, ...this.options, hovered: this.hovered }
         );
-        drawText(this.buttonText, this.x, this.y + this.height - this.scale, {
+        drawText(this.buttonText, this.x, this.y + this.height - this.scale, 0, {
             font: `bold ${this.scale * 0.75}px monospace`,
             center: true,
             ...this.options,
@@ -1397,164 +2334,16 @@ class UI {
         startLerp(popup, lerpMovement, duration);
         popup.show();
     };
-    static colorPath = ({ hovered, fill, stroke, strokeWidth, hoverFill, hoverStroke, hoverWidth } = {}) => {
-        ctx.fillStyle = (hovered && hoverFill) || fill;
-        if (fill || (hovered && hoverFill)) ctx.fill();
-        ctx.lineWidth = (hovered && hoverWidth) || strokeWidth;
-        ctx.strokeStyle = (hovered && hoverStroke) || stroke;
-        if (stroke || (hovered && hoverStroke)) ctx.stroke();
-    };
-    static drawRect = (x, y, w, h, options = {}) => {
-        ctx.beginPath();
-        ctx.roundRect(x, y, w, h, options?.cornerRadius);
-        UI.colorPath(options);
-        ctx.closePath();
-    };
-    static drawCircle = (x, y, radius, options = {}) => {
-        ctx.beginPath();
-        ctx.arc(x, y, radius, 0, 2 * Math.PI);
-        UI.colorPath(options);
-        ctx.closePath();
-    };
-    static drawText = (text, x, y, { width, font, color, center, linewrap } = {}) => {
-        if (color) ctx.fillStyle = color;
-        if (font) ctx.font = font;
-        ctx.textBaseline = center ? "middle" : "alphabetic";
-
-        if (linewrap && width) {
-            const words = text.split(" ");
-            let currentLine = "";
-            let lines = [];
-
-            for (const word of words) {
-                const testLine = currentLine.length === 0 ? word : `${currentLine} ${word}`;
-                const testWidth = ctx.measureText(testLine).width;
-
-                if (testWidth > width) {
-                    lines.push(currentLine);
-                    currentLine = word;
-                } else currentLine = testLine;
-            }
-
-            lines.push(currentLine);
-
-            if (center) y -= (lines.length - 1) * parseInt(ctx.font);
-
-            lines.forEach((line, index) => {
-                const centeredX = x - (center ? (ctx.measureText(line).width - width) / 2 : 0);
-                ctx.fillText(line, centeredX, y + index * parseInt(ctx.font), width);
-            });
-        } else {
-            const centeredX = x - (center ? (ctx.measureText(text).width - width) / 2 : 0);
-            ctx.fillText(text, centeredX, y, width);
-        }
-    };
-    static drawImage = (src, x, y, { width, height } = {}) => {
-        drawImage.cache ??= {};
-        if (drawImage.cache[src]) return ctx.drawImage(drawImage.cache[src], x, y, width, height);
-        const image = new Image();
-        image.src = src;
-        image.onload = () => {
-            ctx.drawImage(image, x, y, width, height);
-            drawImage.cache[src] = image;
-        };
-    };
-    static fillScreen = ({ color }) => {
-        ctx.save();
-        ctx.resetTransform();
-        if (color) {
-            ctx.fillStyle = color;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-        } else ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.restore();
-    };
 }
+
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // EngineLayers.js
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-const LayerManager = new (class LayerManager extends Interactable {
-    lastTimestamp;
-    ispaused = true;
-    layers = [];
-    propagate = (call, ...args) => {
-        if (!this.global.ispaused) this.global.raise(call, ...args);
-        if (!!this.layers.length && !this.currentLayer.ispaused) this.currentLayer.raise(call, ...args);
-    };
-    get global() {
-        return this.layers[-1];
-    }
-    set global(val) {
-        this.layers[-1] = val;
-    }
-    constructor() {
-        super();
-        globalThis.onblur = this.pause;
-        globalThis.onfocus = this.resume;
-        globalThis.onload = () => {
-            if (typeof load !== "undefined") load();
-            this.resume();
-        };
-        document.addEventListener("mousedown", this.pageinteract, { once: true });
-        document.addEventListener("keydown", this.pageinteract, { once: true });
-        // document.addEventListener("contextmenu", (e) => e.preventDefault());
-        document.addEventListener("keydown", this.keydown);
-        document.addEventListener("keyup", this.keyup);
-        document.addEventListener("mousemove", this.mousemove);
-        document.addEventListener("mousedown", this.mousedown);
-        document.addEventListener("mouseup", this.mouseup);
-        document.addEventListener("click", this.click);
-        document.addEventListener("dblclick", this.dblclick);
-        document.addEventListener("wheel", this.wheel);
-    }
-    get currentLayer() {
-        return this.layers[this.layers.length - 1];
-    }
-    update = (timestamp) => {
-        // Fraction of a second since last update.
-        const delta = (timestamp - this.lastTimestamp) / 1000;
-        this.lastTimestamp = timestamp;
-        this.propagate("update", delta);
-        this.propagate("draw");
-        this.updateframe = requestAnimationFrame(this.update);
-    };
-    getEntities = (group) => this.global.getEntities(group).concat(this.currentLayer.getEntities(group));
-    pageinteract = () => {
-        document.removeEventListener("mousedown", this.pageinteract, { once: true });
-        document.removeEventListener("keydown", this.pageinteract, { once: true });
-        this.interacted = true;
-        this.propagate("pageinteract");
-    };
-    pause = () => {
-        this.ispaused = true;
-        cancelAnimationFrame(this.updateframe);
-        this.global.pause();
-        this.layers.forEach((l) => l.pause());
-    };
-    resume = () => {
-        this.ispaused = false;
-        cancelAnimationFrame(this.updateframe);
-        this.lastTimestamp = document.timeline.currentTime;
-        this.updateframe = requestAnimationFrame(this.update);
-        this.global.resume();
-        this.currentLayer?.resume();
-    };
-    push = (layer) => {
-        this.currentLayer?.pause();
-        layer.position = this.layers.length;
-        layer.parent = this;
-        this.layers.push(layer);
-        layer.resume();
-        return layer;
-    };
-    pop = () => {
-        const layer = this.layers.pop();
-        layer?.pause();
-        this.currentLayer?.resume();
-        this.raise("onremove", layer);
-        return layer;
-    };
-})();
+// Layer => LayerManager
+// ├───UI => UIRoot{IO}
+// ├───Entity => SpacialMap{IO}
+// └───Async => AsyncManager{dT}
 
 class Layer extends Interactable {
     constructor({ id } = {}, calls = {}) {
@@ -1604,6 +2393,10 @@ class Layer extends Interactable {
         }
     };
     draw = () => {
+        if (this.cameraFollow) {
+            this.cameraX = this.cameraFollow.x;
+            this.cameraY = this.cameraFollow.y;
+        }
         ctx.save();
         this.raise("ondraw");
         this.UIRoot.raise("draw");
@@ -1628,6 +2421,7 @@ const global = (LayerManager.global = new (class GlobalLayer extends Layer {
         this.position = -1;
         this.parent = LayerManager;
         this.parent.pop();
+        new Layer({ id: "game" });
     }
     keydown = (e) => {
         keys[e.code] = true;
@@ -1680,51 +2474,5 @@ const global = (LayerManager.global = new (class GlobalLayer extends Layer {
     };
 })());
 
-/**
- * Represents the main game layer in the application.
- * @extends Layer
- * @class
- */
-const game = new (class GameLayer extends Layer {
-    /**
-     * Constructs a new instance of the GameLayer class.
-     */
-    constructor() {
-        super({ id: "game" });
-    }
-    /**
-     * Clears the screen and fills it with the specified background color.
-     * @type {function}
-     */
-    ondraw = () => {
-        UI.fillScreen({ color: this.background });
-    };
-    /**
-     * Get the width of the game.
-     * @type {number}
-     */
-    get width() {
-        return canvas.width / (this.scaleX ?? 1);
-    }
-    /**
-     * Set the width of the game.
-     * @type {number}
-     */
-    set width(value) {
-        canvas.width = value * (this.scaleX ?? 1);
-    }
-    /**
-     * Get the height of the game.
-     * @type {number}
-     */
-    get height() {
-        return canvas.height / (this.scaleY ?? 1);
-    }
-    /**
-     * Set the height of the game.
-     * @type {number}
-     */
-    set height(value) {
-        canvas.height = value * (this.scaleY ?? 1);
-    }
-})();
+AddAccessor(globalThis, "currentLayer", { initial: LayerManager.currentLayer });
+
