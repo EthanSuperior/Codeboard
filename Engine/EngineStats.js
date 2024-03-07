@@ -96,9 +96,22 @@ class Stat {
                     this.internal.current *= value;
                     this.internal.max *= value;
                     break;
+                case "/":
+                    this.internal.current /= value;
+                    this.internal.max /= value;
+                    break;
                 case "+":
                     this.internal.current += value;
                     this.internal.max += value;
+                    break;
+                case "-":
+                    this.internal.current -= value;
+                    this.internal.max -= value;
+                    break;
+                case "^":
+                case "**":
+                    this.internal.current **= value;
+                    this.internal.max **= value;
                     break;
                 default:
                     this.internal.current = value;
