@@ -3,6 +3,15 @@ class EntityManager {
     static names = [];
     static subtypes = {};
 }
+// Entity => EntityManager & registerEntity
+// ├───Types
+// ├───Events (onDamage,IO,etc)
+// ├───Controller
+// ├───Stats
+// ├───Conditions
+// ├───Modifiers
+// ├───Abilities
+// └───Drops[Spread/Jitter]
 class Entity extends Interactable {
     constructor() {
         super();
@@ -11,12 +20,13 @@ class Entity extends Interactable {
         this.size = 10;
         this.color = "black";
         this.velocity = new Vector();
-        AddPublicAccessors(this, "velocity", ["speed", "direction", "magnitude"]);
+        AddPublicAccessors(this, "velocity", ["speed", "magnitude"]);
         this.exp = 0;
         this.neededXP = 0;
         this.level = 0;
         this.staticX = false;
         this.staticY = false;
+        this.freezeDirection = false;
         this.facingDirection = 0;
         this.groupName = "Entity";
         this.controller = new EntityController(this);
@@ -33,6 +43,13 @@ class Entity extends Interactable {
     set position({ x, y }) {
         this.x = x;
         this.y = y;
+    }
+    get direction() {
+        return this.velocity.direction;
+    }
+    set direction(direction) {
+        if (this.freezeDirection) return;
+        this.velocity.direction = direction;
     }
     propagate = (call, ...args) => {
         const oncall = "on" + call;
@@ -54,7 +71,6 @@ class Entity extends Interactable {
         this.controller.update(delta);
         if (this.acceleration) this.speed = clamp(this.speed + this.acceleration, 0, this.maxSpeed);
         this.raise("onupdate", delta);
-        // if (this.groupName == "Player") console.log(this, this.direction, this.speed);
         if (this.speed && this.direction !== null) {
             this.facingDirection = this.direction;
             if (!this.staticX) this.x += Math.cos(this.direction) * this.speed * delta;
@@ -118,7 +134,11 @@ class Entity extends Interactable {
     };
     addAbility = (ability, options) => {
         this.abilities[ability] = new AbilityManager.types[ability](this, options);
-        this.raise("attach", ability);
+        this.abilities[ability].attach();
+    };
+    removeAbility = (ability) => {
+        this.abilities[ability]?.raise("remove");
+        delete this.abilities[ability];
     };
     addEffect = (trigger, effectName, callback) => {
         if (!this.effects[trigger]) this.effects[trigger] = {};
@@ -182,6 +202,7 @@ function registerEntity(name, options, types) {
         newEntity = MergeOntoObject(newEntity, additional);
         newEntity.layer = LayerManager.currentLayer;
         if (newEntity.stats) for (let stat in newEntity.stats) addStat(newEntity, stat, newEntity.stats[stat]);
+
         newEntity.raise("spawn");
         return newEntity;
     };

@@ -1,3 +1,8 @@
+// EntityController
+// ├───AI/Player => direction
+// ├───StateMachine?
+// └───lateUpdate for Abilities?
+
 class EntityController extends Updatable {
     constructor(entity) {
         super();

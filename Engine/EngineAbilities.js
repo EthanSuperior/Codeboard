@@ -51,6 +51,13 @@ class Ability extends Interactable {
             font: "12px monospace",
         });
     };
+    attach = () => {
+        this.propagate("attach", this.owner);
+    };
+    remove = () => {
+        this.deactivate();
+        this.propagate("remove", this.owner);
+    };
     activate = () => {
         if (this.deltaTimer > 0 || this.isactive) return;
         this.isactive = true;
@@ -65,7 +72,7 @@ class Ability extends Interactable {
         if (this.isactive) {
             this.propagate("activedraw", this.deltaTimer / this.duration);
             if (this.tickrate !== 0) this.propagate("tickdraw", 1 - this.tickTimer / this.tickrate);
-            if (this.deltaTimer <= 0) this.deactivate();
+            if (this.deltaTimer <= 0 && this.duration !== Infinity) this.deactivate();
         } else if (this.deltaTimer < 0)
             if (this.charging) this.propagate("chargedraw", clamp(-this.deltaTimer / this.chargeTime, 0, 1));
             else this.propagate("ideldraw", this.deltaTimer);
@@ -79,7 +86,8 @@ class Ability extends Interactable {
             this.oncooldown = false;
             this.notify("Ready");
         }
-        if (this.isactive && this.tickTimer <= 0) this.tick();
+        if (!this.isactive && this.mode === "Passive") this.activate();
+        else if (this.isactive && this.tickTimer <= 0) this.tick();
     };
     tick = () => {
         this.propagate("tick", this.owner);
@@ -124,7 +132,6 @@ class Ability extends Interactable {
             };
         } else if (val === "Passive") {
             this.duration = Infinity;
-            this.activate();
         } else this.#keypress = this.activate;
     }
     get keybinds() {
@@ -142,142 +149,6 @@ class Ability extends Interactable {
         }
     }
 }
-const addStat = (obj, propertyName, initial) => {
-    // Possible temporary hp etc?
-    propertyName = propertyName.toLowerCase();
-    const subStat = propertyName.slice(3);
-    if (propertyName.startsWith("max")) {
-        if (!obj[subStat]) addStat(obj, subStat, initial);
-        obj[subStat].maxBase = initial;
-        delete obj.stats[propertyName];
-        return;
-    }
-    if (propertyName.startsWith("cap")) {
-        if (!obj[subStat]) addStat(obj, subStat, initial);
-        obj[subStat].cap = initial;
-        delete obj.stats[propertyName];
-        return;
-    }
-    if (obj[propertyName]) initial = obj[propertyName];
-    const bounds = {
-        current: 0,
-        base: initial,
-        percent: 1,
-        flat: 0,
-        multiplier: 1,
-        maxBase: undefined,
-        cap: undefined,
-    };
-    const statBlock = new (class Stat {
-        get missing() {
-            return statBlock.max - bounds.current;
-        }
-        get current() {
-            return bounds.current;
-        }
-        set current(val) {
-            if (Number.isNaN(val)) debugger;
-            if (bounds.current === val) return;
-            bounds.current = statBlock.adjust?.call(obj, statBlock, current, val) ?? val;
-            statBlock.change();
-        }
-        recalculate(missing, prior) {
-            bounds.base = Math.min(bounds.base, bounds.maxBase ?? bounds.base);
-            bounds.current = clamp(statBlock.max - missing, prior, statBlock.max);
-        }
-        change() {
-            statBlock.onchange?.call(obj, statBlock);
-        }
-        get internal() {
-            return bounds;
-        }
-        set internal(val) {
-            bounds = val;
-        }
-        get max() {
-            const result = (bounds.base * bounds.percent + bounds.flat) * bounds.multiplier;
-            if (bounds.cap !== undefined) return Math.min(result, bounds.cap);
-            return result;
-        }
-        get missingPercent() {
-            return this.missing / statBlock.max;
-        }
-        get base() {
-            return bounds.base;
-        }
-        set base(val) {
-            const missing = statBlock.missing,
-                prior = statBlock.current;
-            bounds.base = val;
-            statBlock.recalculate(missing, prior);
-        }
-        get maxBase() {
-            return bounds.maxBase;
-        }
-        set maxBase(val) {
-            const missing = statBlock.missing,
-                prior = statBlock.current;
-            bounds.maxBase = val;
-            statBlock.recalculate(missing, prior);
-        }
-        get percent() {
-            return bounds.current / statBlock.max;
-        }
-        set percent(val) {
-            bounds.current = statBlock.max * val;
-        }
-        get percentBuff() {
-            return bounds.percent;
-        }
-        set percentBuff(val) {
-            const missing = statBlock.missing,
-                prior = statBlock.current;
-            bounds.percent = val;
-            statBlock.recalculate(missing, prior);
-        }
-        get flat() {
-            return bounds.flat;
-        }
-        set flat(val) {
-            const missing = statBlock.missing,
-                prior = statBlock.current;
-            bounds.flat = val;
-            statBlock.recalculate(missing, prior);
-        }
-        get multiplier() {
-            return bounds.multiplier;
-        }
-        set multiplier(val) {
-            const missing = statBlock.missing,
-                prior = statBlock.current;
-            bounds.multiplier = val;
-            statBlock.recalculate(missing, prior);
-        }
-        get cap() {
-            return bounds.cap;
-        }
-        set cap(val) {
-            const missing = statBlock.missing,
-                prior = statBlock.current;
-            bounds.cap = val;
-            statBlock.recalculate(missing, prior);
-        }
-        [Symbol.toPrimitive](hint) {
-            return statBlock.current;
-        }
-    })();
-    bounds.current = statBlock.max;
-    Object.defineProperty(obj, propertyName, {
-        get() {
-            return statBlock;
-        },
-        set(newVal) {
-            statBlock.current = newVal;
-        },
-    });
-    AddAccessor(obj, "on" + propertyName + "change", statBlock.onchange);
-    obj.stats[propertyName] = statBlock;
-};
 
 function registerAbility(name, options = {}) {
     const upperName = name[0].toUpperCase() + name.slice(1);

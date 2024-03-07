@@ -25,27 +25,7 @@
             <button onclick="processInput()">Enter</button>
         </div>
     </body>
-    <!-- <script src="../Engine/CodeboardEngine.js"></script> -->
-
-    <script src="../Engine/EngineCore.js"></script>
-    <script src="../Engine/EngineUtilities.js"></script>
-    <script src="../Engine/EnginePhysics.js"></script>
-    <script src="../Engine/EngineAsync.js"></script>
-    <script src="../Engine/EngineEntity.js"></script>
-    <script src="../Engine/EngineUI.js"></script>
-    <script src="../Engine/EngineLayers.js"></script>
-
     <script lang="javascript">
-        function load(){
-        	game.width = 300
-        	game.height = 100;
-        	UI.TextInput(
-        		16, 10, { placeholder: "TypeHere", width:160, font: "24px monospace",
-        		onsubmit:(text)=>console.log(text)
-        	}
-        		// font, color, oninput, onsubmit,
-        	).show();
-        }
         // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         // CORE GAMEPLAY FUNCTIONS TOUCH AT YOUR OWN RISK
         // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

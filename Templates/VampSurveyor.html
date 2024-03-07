@@ -4,16 +4,22 @@
         <title>Your Game Name Goes Here</title>
     </head>
     <body></body>
-    <!-- <script src="../Engine/CodeboardEngine.js"></script> -->
+    <!-- <script src="CodeboardEngine.js"></script> -->
 
     <script src="../Engine/EngineCore.js"></script>
+    <script src="../Engine/EngineGlobal.js"></script>
     <script src="../Engine/EngineGraphics.js"></script>
+    <script src="../Engine/EngineAnimation.js"></script>
+    <script src="../Engine/EngineParticles.js"></script>
     <script src="../Engine/EngineUtilities.js"></script>
     <script src="../Engine/EnginePhysics.js"></script>
     <script src="../Engine/EngineAsync.js"></script>
     <script src="../Engine/EngineAbilities.js"></script>
+    <script src="../Engine/EngineStats.js"></script>
     <script src="../Engine/EngineAI.js"></script>
     <script src="../Engine/EngineEntity.js"></script>
+    <script src="../Engine/EngineItems.js"></script>
+    <script src="../Engine/EnginePlayer.js"></script>
     <script src="../Engine/EngineUI.js"></script>
     <script src="../Engine/EngineLayers.js"></script>
 
@@ -26,7 +32,6 @@
         game.height = 600;
         game.cameraX = 0;
         game.cameraY = 0;
-        game.debug = 1;
         // currentLayer.deltaMod = 0.2;
         game.background = "#2a4720";
 
@@ -468,6 +473,7 @@
             acceleration: 7.5,
             weapons: [],
             pickupRadius: 100,
+            maxHP: 120,
             hp: 120,
             kills: 0,
             onupdate: function (delta) {
@@ -499,23 +505,5 @@
             color: "olive",
             size: 20,
         });
-
-        registerAbility("Zoom", {
-            onactivate: (player) => {
-                console.log("activate");
-                forEveryPickupDo(function () {
-                    if (this.type == "vaccum" || this.type == "chest") return;
-                    this.speed = 500 + this.distanceTo(player);
-                    this.onupdate = () => this.angleTowards(player);
-                });
-            },
-            ondeactivate: (player) => {
-                console.log("deactivate");
-            },
-            ontick: (player) => {
-                console.log("tick", player.xp);
-            },
-        });
-        player.addAbility("Zoom");
     </script>
 </html>

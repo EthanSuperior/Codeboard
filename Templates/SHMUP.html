@@ -4,13 +4,22 @@
         <title>Your Game Name Goes Here</title>
     </head>
     <body></body>
-    <!-- <script src="../Engine/CodeboardEngine.js"></script> -->
+    <!-- <script src="CodeboardEngine.js"></script> -->
 
     <script src="../Engine/EngineCore.js"></script>
+    <script src="../Engine/EngineGlobal.js"></script>
+    <script src="../Engine/EngineGraphics.js"></script>
+    <script src="../Engine/EngineAnimation.js"></script>
+    <script src="../Engine/EngineParticles.js"></script>
     <script src="../Engine/EngineUtilities.js"></script>
     <script src="../Engine/EnginePhysics.js"></script>
     <script src="../Engine/EngineAsync.js"></script>
+    <script src="../Engine/EngineAbilities.js"></script>
+    <script src="../Engine/EngineStats.js"></script>
+    <script src="../Engine/EngineAI.js"></script>
     <script src="../Engine/EngineEntity.js"></script>
+    <script src="../Engine/EngineItems.js"></script>
+    <script src="../Engine/EnginePlayer.js"></script>
     <script src="../Engine/EngineUI.js"></script>
     <script src="../Engine/EngineLayers.js"></script>
 
@@ -41,12 +50,12 @@
         };
 
         function stopShooting() {
-            game.clearTask("shoot");
+            clearTask("shoot");
         }
 
         function startShooting(type = player.bulletType) {
             player.bulletType = type;
-            game.scheduleTask(
+            scheduleTask(
                 (type) => {
                     for (let i = 0; i < (type.count ?? 1); i++) {
                         spawnBullet(type, { spawnOrder: i + 1, direction: -Math.PI / 2 });
@@ -59,9 +68,9 @@
 
         function load() {
             for (let time in waves) scheduleTask(spawnWave, { time: +time }, waves[time]);
-            game.playMusic("theme.mp3");
+            playMusic("theme.mp3");
             // Give points for time survived
-            game.scheduleTask(() => player.score++, { loop: 1, time: 2 });
+            scheduleTask(() => player.score++, { loop: 1, time: 2 });
             addUI();
         }
 
