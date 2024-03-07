@@ -17,6 +17,10 @@ For more details, view the full legal text at: [CC0 License](https://creativecom
 -   Evan Chase
 -   Brandon Graham
 
+#### Beta Testers
+
+-   Spencer Chase
+
 ---
 
 ## TODO LIST:

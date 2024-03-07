@@ -49,13 +49,12 @@ class Vector {
     }
 }
 
-/**
-SpacialMap {IO}
-├───Tile{Entity}
-└───NavMesh
-    ├───Collisions
-    └───Pathfinding
- */
+// SpacialMap {IO}
+// ├───Tile{Entity}
+// └───NavMesh
+//     ├───Collisions
+//     └───Pathfinding
+
 class SpacialMap extends Interactable {
     entities = {};
     constructor(layer) {
