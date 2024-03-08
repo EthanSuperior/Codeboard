@@ -78,6 +78,7 @@ const LayerManager = new (class LayerManager extends Interactable {
     propagate = (call, ...args) => {
         if (!this.global.ispaused) this.global.raise(call, ...args);
         if (!!this.layers.length && !this.currentLayer.ispaused) this.currentLayer.raise(call, ...args);
+        ParticleSystem.raise(call, ...args);
     };
     get global() {
         return this.layers[-1];
@@ -160,3 +161,17 @@ const LayerManager = new (class LayerManager extends Interactable {
         return layer;
     };
 })();
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// SOUND FUNCTIONS - https://sfxr.me/
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+const playSoundEffect = (source, options) => {
+    if (options?.global) return LayerManager.global.playSoundEffect(source, options);
+    else return LayerManager.currentLayer.playSoundEffect(source, options);
+};
+
+const playMusic = (source, options) => {
+    if (options?.global) return LayerManager.global.playMusic(source, options);
+    else return LayerManager.currentLayer.playMusic(source, options);
+};

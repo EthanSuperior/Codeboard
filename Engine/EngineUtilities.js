@@ -41,6 +41,62 @@ function round(value, decimals = 0) {
     return roundBy(value, 1 / Math.pow(10, decimals));
 }
 
+function enforceArray(val) {
+    return Array.isArray(val) ? val : [val];
+}
+function getArrayDepth(value) {
+    return Array.isArray(value) ? 1 + Math.max(0, ...value.map(getArrayDepth)) : 0;
+}
+
+function createTransformationMatrix(x, y, z, thetaX, thetaY, thetaZ) {
+    const cosX = Math.cos(thetaX);
+    const sinX = Math.sin(thetaX);
+    const cosY = Math.cos(thetaY);
+    const sinY = Math.sin(thetaY);
+    const cosZ = Math.cos(thetaZ);
+    const sinZ = Math.sin(thetaZ);
+
+    const matrix = [
+        [cosY * cosZ, -cosY * sinZ, sinY, 0],
+        [cosX * sinZ + sinX * sinY * cosZ, cosX * cosZ - sinX * sinY * sinZ, -sinX * cosY, 0],
+        [sinX * sinZ - cosX * sinY * cosZ, sinX * cosZ + cosX * sinY * sinZ, cosX * cosY, 0],
+        [x, y, z, 1],
+    ];
+    return matrix;
+}
+
+function multiplyMatrixAndPoint(matrix, point) {
+    // Access each part of the matrix with two indices (row and column)
+    const c0r0 = matrix[0][0],
+        c1r0 = matrix[0][1],
+        c2r0 = matrix[0][2],
+        c3r0 = matrix[0][3];
+    const c0r1 = matrix[1][0],
+        c1r1 = matrix[1][1],
+        c2r1 = matrix[1][2],
+        c3r1 = matrix[1][3];
+    const c0r2 = matrix[2][0],
+        c1r2 = matrix[2][1],
+        c2r2 = matrix[2][2],
+        c3r2 = matrix[2][3];
+    const c0r3 = matrix[3][0],
+        c1r3 = matrix[3][1],
+        c2r3 = matrix[3][2],
+        c3r3 = matrix[3][3];
+
+    const x = point[0],
+        y = point[1],
+        z = point[2] ?? 0,
+        w = point[3] ?? 1;
+
+    const resultX = x * c0r0 + y * c0r1 + z * c0r2 + w * c0r3;
+    const resultY = x * c1r0 + y * c1r1 + z * c1r2 + w * c1r3;
+    const resultZ = x * c2r0 + y * c2r1 + z * c2r2 + w * c2r3;
+    const resultW = x * c3r0 + y * c3r1 + z * c3r2 + w * c3r3;
+
+    return [resultX, resultY, resultZ, resultW];
+}
+
 function appendToFunction(obj, funcName, additionalFunc, { hasPriority } = {}) {
     const baseFunc = obj[funcName];
     obj[funcName] = function (...args) {
@@ -95,20 +151,6 @@ function cloneMouseEvent(originalEvent) {
         canvasY,
     });
 }
-
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// SOUND FUNCTIONS - https://sfxr.me/
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-const playSoundEffect = (source, options) => {
-    if (options?.global) return LayerManager.global.playSoundEffect(source, options);
-    else return LayerManager.currentLayer.playSoundEffect(source, options);
-};
-
-const playMusic = (source, options) => {
-    if (options?.global) return LayerManager.global.playMusic(source, options);
-    else return LayerManager.currentLayer.playMusic(source, options);
-};
 function deepClone(obj) {
     if (obj === null || typeof obj !== "object") {
         // If the input is not an object or is null, return it directly

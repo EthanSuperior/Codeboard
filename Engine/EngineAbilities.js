@@ -141,7 +141,7 @@ class Ability extends Interactable {
         this.keydownEvents = {};
         this.keypressEvents = {};
         this.keyupEvents = {};
-        this.#keybinds = Array.isArray(keys) ? keys : [keys];
+        this.#keybinds = enforceArray(keys);
         for (const key of this.#keybinds) {
             this.keydownEvents[key] = (e) => this.#keydown?.call(this, e);
             this.keyupEvents[key] = (e) => this.#keyup?.call(this, e);
