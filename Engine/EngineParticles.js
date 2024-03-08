@@ -41,18 +41,38 @@ const ParticleSystem = new (class extends Updatable {
 })();
 
 class Particle extends Updatable {
-    constructor({ x, y, color, shape, speed, theta, frame, deltaAngle, deltaSpeed, deltaTheta, lifespan } = {}) {
+    constructor({
+        x,
+        y,
+        color,
+        shape,
+        speed,
+        theta,
+        frame,
+        deltaAngle,
+        deltaSpeed,
+        deltaTheta,
+        deltaThetaX,
+        deltaThetaY,
+        thetaX,
+        thetaY,
+        lifespan,
+    } = {}) {
         super();
         this.x = x;
         this.y = y;
         this.colors = enforceArray(color);
         this.shape = getArrayDepth(shape) != 3 ? [shape] : shape;
         this.deltaTheta = deltaTheta;
+        this.deltaThetaX = deltaThetaX;
+        this.deltaThetaY = deltaThetaY;
         this.deltaAngle = deltaAngle;
         this.deltaSpeed = deltaSpeed;
         this.lifespan = lifespan ?? 10;
         this.velocity = new Vector(0, speed);
-        this.theta = theta ?? 0;
+        this.thetaX = +(thetaX ?? 0);
+        this.thetaY = +(thetaY ?? 0);
+        this.theta = +(theta ?? 0);
         this.frame = frame ?? 0;
         this.framelength = 0.1;
         this.frametime = this.framelength;
@@ -80,9 +100,11 @@ class Particle extends Updatable {
             this.y += this.velocity.y * delta;
         }
         if (this.deltaTheta) this.theta += this.deltaTheta * delta;
+        if (this.deltaThetaX) this.thetaX += this.deltaThetaX * delta;
+        if (this.deltaThetaY) this.thetaY += this.deltaThetaY * delta;
         if (this.deltaAngle) this.velocity.direction += this.deltaAngle * delta;
         if (this.deltaSpeed) this.velocity.speed += this.deltaSpeed * delta;
-        this.matrix = createTransformationMatrix(0, 0, 0, 0, 0, this.theta);
+        this.matrix = createTransformationMatrix(0, 0, 0, this.thetaX, this.thetaY, this.theta);
     };
     ondraw = () => {
         const shape = this.shape[this.frame];
@@ -91,9 +113,12 @@ class Particle extends Updatable {
                 const val = shape[y][x];
                 if (val === 0) continue;
 
-                const finalPos = multiplyMatrixAndPoint(this.matrix, [x, y]);
-                let posX = finalPos[0] + this.x - (shape[0].length - 1) / 2;
-                let posY = finalPos[1] + this.y - (shape.length - 1) / 2;
+                const finalPos = multiplyMatrixAndPoint(this.matrix, [
+                    x - (shape[0].length - 1) / 2,
+                    y - (shape.length - 1) / 2,
+                ]);
+                let posX = finalPos[0] + this.x;
+                let posY = finalPos[1] + this.y;
                 if (posX < 0 || posY < 0 || posX >= game.width || posY >= game.height) continue;
                 this.setPixel(Math.round(posX), Math.round(posY), this.colors[val - 1]);
             }
@@ -110,13 +135,12 @@ class Particle extends Updatable {
     };
 }
 class ParticleEmitter extends Updatable {
-    rate = 0;
-    currentTime = 0;
     constructor(x, y, rate, particleProps = {}) {
         super();
         this.x = x;
         this.y = y;
         this.rate = rate;
+        this.currentTime = rate;
         this.particleProps = particleProps;
         ParticleSystem.addEmitter(this);
     }
@@ -458,17 +482,261 @@ class DefaultParticleShapes {
                 x: x,
                 y: y,
                 color: "#ff0000",
-                shape: DefaultParticleShapes[char],
+                shape: DefaultParticleShapes["rune" + char],
                 lifespan: 100,
             })
-        );
+        ).c = char;
     }
     static drawText(x, y, text) {
         text = text.toUpperCase();
         for (let i = 0; i < text.length; i++) {
-            if (text[i] === "W" || text[i] === "M") x += 2;
-            drawLetter(x + i * 5, y, text[i]);
-            if (text[i] === "W" || text[i] === "M") x++;
+            // if (text[i] === "W" || text[i] === "M") x += 2;
+            DefaultParticleShapes.drawLetter(x + i * 6, y, text[i]);
+            // if (text[i] === "W" || text[i] === "M") x++;
         }
     }
+
+    static runeA = [
+        [0, 0, 1, 1, 0],
+        [0, 1, 0, 0, 1],
+        [0, 1, 0, 0, 0],
+        [0, 1, 0, 0, 0],
+        [0, 1, 0, 0, 0],
+        [0, 1, 0, 0, 0],
+        [1, 1, 0, 0, 0],
+    ];
+    static runeB = [
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 0, 1, 0],
+        [0, 0, 0, 0, 1],
+        [1, 1, 1, 1, 1],
+    ];
+    static runeC = [
+        [0, 1, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 1, 0, 0, 0],
+        [0, 1, 0, 0, 0],
+        [0, 1, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+    ];
+    static runeD = [
+        [1, 1, 1, 1, 1],
+        [0, 0, 0, 0, 0],
+        [1, 1, 0, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 0, 1, 1],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+    ];
+    static runeE = [
+        [1, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0],
+        [1, 0, 0, 0, 0],
+        [1, 0, 0, 0, 0],
+        [1, 0, 0, 0, 0],
+        [1, 0, 0, 0, 0],
+        [1, 1, 1, 1, 1],
+    ];
+    static runeF = [
+        [1, 1, 1, 1, 1],
+        [1, 0, 1, 0, 1],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+    ];
+    static runeG = [
+        [0, 0, 0, 1, 0],
+        [0, 0, 0, 1, 0],
+        [0, 0, 0, 1, 0],
+        [0, 1, 1, 1, 0],
+        [0, 0, 0, 1, 0],
+        [0, 0, 0, 1, 0],
+        [0, 0, 0, 1, 0],
+    ];
+    static runeH = [
+        [1, 1, 1, 1, 1],
+        [0, 0, 0, 0, 0],
+        [1, 1, 1, 1, 1],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+    ];
+    static runeI = [
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+    ];
+    static runeJ = [
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+    ];
+    static runeK = [
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [1, 0, 1, 0, 1],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+    ];
+    static runeL = [
+        [0, 1, 0, 0, 0],
+        [0, 1, 0, 1, 0],
+        [0, 1, 0, 0, 0],
+        [0, 1, 0, 0, 0],
+        [0, 1, 0, 0, 0],
+        [0, 1, 0, 1, 0],
+        [0, 1, 0, 0, 0],
+    ];
+    static runeM = [
+        [1, 0, 0, 0, 1],
+        [0, 0, 0, 0, 1],
+        [0, 0, 0, 0, 1],
+        [0, 0, 0, 0, 1],
+        [0, 0, 0, 0, 1],
+        [0, 0, 0, 0, 1],
+        [1, 1, 1, 1, 1],
+    ];
+    static runeN = [
+        [1, 0, 0, 1, 0],
+        [1, 0, 0, 1, 0],
+        [0, 0, 0, 1, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 1, 0, 0, 0],
+        [1, 0, 0, 0, 0],
+    ];
+    static runeO = [
+        [1, 1, 1, 1, 0],
+        [0, 0, 0, 1, 0],
+        [0, 0, 0, 1, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 1, 0, 0, 0],
+        [1, 0, 0, 0, 0],
+    ];
+    static runeP = [
+        [0, 1, 0, 1, 0],
+        [0, 0, 0, 1, 0],
+        [0, 1, 0, 1, 0],
+        [0, 1, 0, 1, 0],
+        [0, 1, 0, 1, 0],
+        [0, 1, 0, 0, 0],
+        [0, 1, 0, 1, 0],
+    ];
+    static runeQ = [
+        [0, 0, 1, 0, 0],
+        [0, 0, 0, 0, 0],
+        [1, 1, 1, 1, 1],
+        [0, 0, 0, 0, 1],
+        [0, 0, 0, 0, 1],
+        [0, 0, 0, 0, 1],
+        [1, 1, 1, 1, 1],
+    ];
+    static runeR = [
+        [1, 0, 0, 0, 1],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [1, 0, 0, 0, 1],
+    ];
+    static runeS = [
+        [0, 1, 0, 0, 0],
+        [0, 1, 0, 0, 0],
+        [0, 1, 0, 0, 0],
+        [0, 1, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+    ];
+    static runeT = [
+        [1, 1, 1, 1, 1],
+        [0, 0, 0, 0, 1],
+        [0, 0, 0, 0, 1],
+        [0, 0, 0, 0, 1],
+        [0, 0, 0, 0, 1],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 1],
+    ];
+    static runeU = [
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 1, 0, 1, 0],
+        [0, 0, 0, 0, 0],
+        [1, 1, 1, 1, 1],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+    ];
+    static runeV = [
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [1, 1, 1, 1, 1],
+        [0, 0, 0, 0, 0],
+        [1, 1, 1, 1, 1],
+    ];
+    static runeW = [
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [1, 0, 0, 0, 1],
+        [0, 0, 0, 0, 0],
+    ];
+    static runeX = [
+        [1, 0, 0, 0, 1],
+        [0, 0, 0, 1, 0],
+        [0, 0, 0, 1, 0],
+        [0, 0, 1, 0, 0],
+        [0, 1, 0, 0, 0],
+        [0, 1, 0, 0, 0],
+        [1, 0, 0, 0, 0],
+    ];
+    static runeY = [
+        [0, 1, 0, 1, 0],
+        [0, 1, 0, 1, 0],
+        [0, 1, 0, 1, 0],
+        [0, 1, 0, 1, 0],
+        [0, 1, 0, 1, 0],
+        [0, 1, 0, 1, 0],
+        [0, 1, 0, 1, 0],
+    ];
+    static runeZ = [
+        [0, 0, 1, 0, 0],
+        [0, 1, 0, 1, 0],
+        [1, 0, 0, 0, 1],
+        [1, 0, 0, 0, 1],
+        [1, 0, 0, 0, 1],
+        [1, 0, 0, 0, 1],
+        [1, 0, 0, 0, 1],
+    ];
+    static "rune " = [
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+    ];
 }
