@@ -40,6 +40,45 @@ const ParticleSystem = new (class extends Updatable {
     };
 })();
 
+class ParticleEmitter extends Updatable {
+    constructor(x, y, { rate = 1, shape = "circle", ...options } = {}, particleProps = {}) {
+        super();
+        this.x = x;
+        this.y = y;
+        this.rate = rate;
+        this.options = options;
+        this.extraProps = {};
+        this.shape = shape;
+        this.currentTime = rate;
+        this.particleProps = particleProps;
+        this.lastEmittedDirection = randomRange(0, Math.PI * 2);
+        ParticleSystem.addEmitter(this);
+    }
+    update = (delta) => {
+        this.currentTime += delta;
+        if (this.currentTime >= this.rate) {
+            this.currentTime -= this.rate;
+            new Particle({ ...this.extraProps, ...this.particleProps });
+        }
+    };
+    set shape(shape) {
+        this.extraProps = {
+            x: () => this.x,
+            y: () => this.y,
+            angle: () => (this.lastEmittedDirection = randomRange(0, Math.PI * 2)),
+        };
+        if (shape === "spiral") this.extraProps.angle = () => (this.lastEmittedDirection += 0.314);
+        else if (shape === "line") this.extraProps.x = () => this.x + randomInt(-30, 30);
+        else if (shape === "verticalLine") this.extraProps.y = () => this.y + randomInt(-30, 30);
+        else if (shape === "square") {
+            this.extraProps.x = () => this.x + randomInt(-30, 30);
+            this.extraProps.y = () => this.y + randomInt(-30, 30);
+        } else if (shape === "circle") this.extraProps.angle = () => (this.lastEmittedDirection += 0.314 * 2);
+        else if (shape === "cone")
+            this.extraProps.angle = () =>
+                (this.lastEmittedDirection = +(this.options.angle ?? 0) + randomSomething(Math.PI / 10));
+    }
+}
 class Particle extends Updatable {
     constructor({
         x,
@@ -49,6 +88,7 @@ class Particle extends Updatable {
         speed,
         theta,
         frame,
+        angle,
         deltaAngle,
         deltaSpeed,
         deltaTheta,
@@ -59,8 +99,8 @@ class Particle extends Updatable {
         lifespan,
     } = {}) {
         super();
-        this.x = x;
-        this.y = y;
+        this.x = +(x ?? 0);
+        this.y = +(y ?? 0);
         this.colors = enforceArray(color);
         this.shape = getArrayDepth(shape) != 3 ? [shape] : shape;
         this.deltaTheta = +(deltaTheta ?? 0);
@@ -69,7 +109,7 @@ class Particle extends Updatable {
         this.deltaAngle = +(deltaAngle ?? 0);
         this.deltaSpeed = +(deltaSpeed ?? 0);
         this.lifespan = +(lifespan ?? 1);
-        this.velocity = new Vector(0, +(speed ?? 0));
+        this.velocity = new Vector(+(angle ?? 0), +(speed ?? 0));
         this.thetaX = +(thetaX ?? 0);
         this.thetaY = +(thetaY ?? 0);
         this.theta = +(theta ?? 0);
@@ -77,6 +117,7 @@ class Particle extends Updatable {
         this.framelength = 0.1;
         this.frametime = this.framelength;
         this.matrix = createTransformationMatrix(0, 0, 0, this.thetaX, this.thetaY, this.theta);
+        ParticleSystem.addParticle(this);
     }
     draw = (imgData) => {
         this.data = imgData;
@@ -129,27 +170,9 @@ class Particle extends Updatable {
         if (a) this.data.data[this.getPixelLoc(x, y) + 3] = a;
     };
 }
-class ParticleEmitter extends Updatable {
-    constructor(x, y, rate, particleProps = {}) {
-        super();
-        this.x = x;
-        this.y = y;
-        this.rate = rate;
-        this.currentTime = rate;
-        this.particleProps = particleProps;
-        ParticleSystem.addEmitter(this);
-    }
-    update = (delta) => {
-        this.currentTime += delta;
-        if (this.currentTime >= this.rate) {
-            this.currentTime -= this.rate;
-            ParticleSystem.addParticle(new Particle({ ...this.particleProps, x: this.x, y: this.y }));
-        }
-    };
-}
-class DefaultParticleShapes {
+class ParticleShapes {
     static letter(which) {
-        if (which === " ") return DefaultParticleShapes[" "];
+        if (which === " ") return ParticleShapes[" "];
         if (!which) which = String.fromCharCode(randomInt(65, 90));
         which = which.toUpperCase();
         which = which.charCodeAt(0) - 65;
@@ -485,7 +508,7 @@ class DefaultParticleShapes {
                 x: x,
                 y: y,
                 color: "#ff0000",
-                shape: DefaultParticleShapes["rune" + char],
+                shape: ParticleShapes["rune" + char],
                 lifespan: 100,
             })
         ).c = char;
@@ -494,11 +517,17 @@ class DefaultParticleShapes {
         text = text.toUpperCase();
         for (let i = 0; i < text.length; i++) {
             // if (text[i] === "W" || text[i] === "M") x += 2;
-            DefaultParticleShapes.drawLetter(x + i * 6, y, text[i]);
+            ParticleShapes.drawLetter(x + i * 6, y, text[i]);
             // if (text[i] === "W" || text[i] === "M") x++;
         }
     }
-
+    static cross = [
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [1, 1, 1, 1, 1],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+    ];
     static runeA = [
         [0, 0, 1, 1, 0],
         [0, 1, 0, 0, 1],

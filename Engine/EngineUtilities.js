@@ -12,6 +12,10 @@ function randomChance(chance) {
     return Math.random() < chance;
 }
 
+function randomSomething(x) {
+    return randomRange(-x / 2, x / 2);
+}
+
 function randomChoice(contianer) {
     if (!Array.isArray(contianer)) return contianer[randomChoice(Object.keys(contianer))];
     return contianer[randomInt(contianer.length - 1)];
