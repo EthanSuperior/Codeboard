@@ -51,10 +51,10 @@
             addUI();
             game.draw();
             new ParticleEmitter(
-                40,
-                40,
-                { rate: 0.1, shape: "circle", angle: () => Math.PI + player.facingDirection },
-                { color: "#ff0000", speed: 10, lifespan: 10, shape: ParticleShapes.cross, deltaTheta: Math.PI / 4 }
+                game.width / 2,
+                game.height / 2,
+                { rate: 0.1, shape: "cone", angle: () => Math.PI + player.facingDirection },
+                { color: "#00ff0000", speed: 10, lifespan: 10, shape: ParticleShapes.cross, deltaTheta: Math.PI / 4 }
             );
         }
 
