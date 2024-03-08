@@ -73,10 +73,9 @@ class ParticleEmitter extends Updatable {
         else if (shape === "square") {
             this.extraProps.x = () => this.x + randomInt(-30, 30);
             this.extraProps.y = () => this.y + randomInt(-30, 30);
-        } else if (shape === "circle") this.extraProps.angle = () => (this.lastEmittedDirection += 0.314 * 2);
-        else if (shape === "cone")
+        } else if (shape === "cone")
             this.extraProps.angle = () =>
-                (this.lastEmittedDirection = +(this.options.angle ?? 0) + randomSomething(Math.PI / 10));
+                (this.lastEmittedDirection = +(this.options.angle ?? 0) + randomSomething(Math.PI / 8));
     }
 }
 class Particle extends Updatable {
@@ -163,11 +162,16 @@ class Particle extends Updatable {
     getPixelLoc = (x, y) => 4 * (x + y * game.width);
     setPixel = (x, y, color) => {
         const { r, g, b, a } = hexToRgb(color);
-        // console.log(x, y, this.r, this.g, this.b, this.a);
-        this.data.data[this.getPixelLoc(x, y) + 0] = r;
-        this.data.data[this.getPixelLoc(x, y) + 1] = g;
-        this.data.data[this.getPixelLoc(x, y) + 2] = b;
-        if (a) this.data.data[this.getPixelLoc(x, y) + 3] = a;
+        const index = this.getPixelLoc(x, y);
+        if (a !== undefined) {
+            this.data.data[index + 0] = lerp(this.data.data[index + 0], r, a / 255);
+            this.data.data[index + 1] = lerp(this.data.data[index + 1], g, a / 255);
+            this.data.data[index + 2] = lerp(this.data.data[index + 2], b, a / 255);
+        } else {
+            this.data.data[index + 0] = r;
+            this.data.data[index + 1] = g;
+            this.data.data[index + 2] = b;
+        }
     };
 }
 class ParticleShapes {

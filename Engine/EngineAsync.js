@@ -141,7 +141,6 @@ class Lerp extends Updatable {
     };
     remove = () => this.layer.asyncManager.removeLerp(this);
 }
-const lerp = (start, end, progress) => start + progress * (end - start);
 function startLerp(obj, lerpFunc, duration, { layer } = {}) {
     new Lerp(obj, lerpFunc, duration, layer ?? LayerManager.currentLayer);
 }

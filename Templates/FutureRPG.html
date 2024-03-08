@@ -53,8 +53,8 @@
             new ParticleEmitter(
                 40,
                 40,
-                { rate: 0.1, shape: "cone", angle: () => -player.facingDirection },
-                { color: "#ff0000", speed: 10, lifespan: 10, shape: ParticleShapes.cross }
+                { rate: 0.1, shape: "circle", angle: () => Math.PI + player.facingDirection },
+                { color: "#ff0000", speed: 10, lifespan: 10, shape: ParticleShapes.cross, deltaTheta: Math.PI / 4 }
             );
         }
 

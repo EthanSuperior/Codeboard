@@ -31,7 +31,7 @@ function hexToRgb(hex) {
     const bigint = parseInt(hex, 16);
 
     // Extract RGB components
-    const a = bigint > 16777215 ? (bigint >> 24) & 255 : undefined;
+    const a = hex.length > 6 ? (bigint >> 24) & 255 : undefined;
     const r = (bigint >> 16) & 255;
     const g = (bigint >> 8) & 255;
     const b = bigint & 255;

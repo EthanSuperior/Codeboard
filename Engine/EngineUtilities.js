@@ -33,7 +33,7 @@ function randomPointInCircle(radius, { minRadius = undefined, start = { x: 0, y:
 function randomColor() {
     return rgbToHex({ r: randomInt(0, 255), g: randomInt(0, 255), b: randomInt(0, 255) });
 }
-
+const lerp = (start, end, progress) => start + progress * (end - start);
 function clamp(val, min, max) {
     return Math.min(Math.max(val, min), max);
 }
