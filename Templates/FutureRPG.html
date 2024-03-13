@@ -1,196 +1,195 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <title>Your Game Name Goes Here</title>
-    </head>
-    <body></body>
-    <!-- <script src="CodeboardEngine.js"></script> -->
 
-    <script src="../Engine/EngineCore.js"></script>
-    <script src="../Engine/EngineGlobal.js"></script>
-    <script src="../Engine/EngineGraphics.js"></script>
-    <script src="../Engine/EngineAnimation.js"></script>
-    <script src="../Engine/EngineParticles.js"></script>
-    <script src="../Engine/EngineUtilities.js"></script>
-    <script src="../Engine/EnginePhysics.js"></script>
-    <script src="../Engine/EngineAsync.js"></script>
-    <script src="../Engine/EngineAbilities.js"></script>
-    <script src="../Engine/EngineStats.js"></script>
-    <script src="../Engine/EngineAI.js"></script>
-    <script src="../Engine/EngineEntity.js"></script>
-    <script src="../Engine/EngineItems.js"></script>
-    <script src="../Engine/EnginePlayer.js"></script>
-    <script src="../Engine/EngineUI.js"></script>
-    <script src="../Engine/EngineLayers.js"></script>
+<head>
+    <title>Your Game Name Goes Here</title>
+</head>
 
-    <script src="Abilities.js"></script>
+<body></body>
+<!-- <script src="CodeboardEngine.js"></script> -->
 
-    <script>
-        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        // GAME SETUP FUNCTIONS | TOUCH AT YOUR OWN RISK
-        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+<script src="../Engine/EngineCore.js"></script>
+<script src="../Engine/EngineGlobal.js"></script>
+<script src="../Engine/EngineGraphics.js"></script>
+<script src="../Engine/EngineAnimation.js"></script>
+<script src="../Engine/EngineParticles.js"></script>
+<script src="../Engine/EngineUtilities.js"></script>
+<script src="../Engine/EnginePhysics.js"></script>
+<script src="../Engine/EngineAsync.js"></script>
+<script src="../Engine/EngineAbilities.js"></script>
+<script src="../Engine/EngineStats.js"></script>
+<script src="../Engine/EngineAI.js"></script>
+<script src="../Engine/EngineEntity.js"></script>
+<script src="../Engine/EngineItems.js"></script>
+<script src="../Engine/EnginePlayer.js"></script>
+<script src="../Engine/EngineUI.js"></script>
+<script src="../Engine/EngineLayers.js"></script>
 
-        game.width = 800;
-        game.height = 600;
-        game.cameraX = 0;
-        game.cameraY = 0;
-        game.debug = false;
-        // currentLayer.deltaMod = 0.2;
-        game.background = "#2a4720";
+<script src="Abilities.js"></script>
 
-        function load() {
-            player.mousedownEvent = player.abilities["Attack"].activate;
-            player.mouseupEvent = player.abilities["Attack"].deactivate;
-            player.controller = new PlayerController(player);
-            player.layer.cameraFollow = player;
-            const spawnFunc = function () {
-                if (randomChance(0.1)) spawnFunc();
-                spawnEnemy(randomChoice(enemyTypes), randomPointInCircle(game.diagonal / 2, { start: player }));
-            };
-            const spawnTask = scheduleTask(spawnFunc, { time: 0.5, loop: true });
-            addUI();
-            game.draw();
-            new ParticleEmitter(
-                50,
-                50,
-                { rate: 0.1, shape: "cone", angle: () => Math.PI + player.facingDirection },
-                { color: "#ffff0000", speed: 10, lifespan: 10, shape: ParticleShapes.cross, deltaTheta: Math.PI / 4 }
-            );
-        }
+<script>
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    // GAME SETUP FUNCTIONS | TOUCH AT YOUR OWN RISK
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-        function addUI() {
-            UI.ProgressBar(() => player.health / player.health.max, 5, 5, canvas.width - 10, 12, {
-                background: "black",
-                fill: "red",
-                stroke: "#cd9958",
-                strokeWidth: 3,
-                cornerRadius: 30,
-                overlay: true,
-            }).show();
-            // hud.add(UI.ProgressBar(() => player.health.percent, 385, 285, 30, 4, { background: "black", fill: "red" }));
-        }
+    game.width = 800;
+    game.height = 600;
+    game.cameraX = 0;
+    game.cameraY = 0;
+    game.debug = false;
+    // currentLayer.deltaMod = 0.2;
+    game.background = "#2a4720";
 
-        function showDeath() {
-            UI.Dialogue(250, 200, 300, 200, "You Died", `Final Score: ${player.kills}`, 50, {
-                cornerRadius: 25,
-                background: "white",
-                color: "black",
-                stroke: "black",
-                fill: "red",
-                buttonText: "Restart",
-                onmyclick: () => location.reload(),
-            }).show();
-        }
-        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        // GAME DATA | ADD TO AND CUSTOMIZE FREELY
-        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        const DownKeyEvents = {
-            KeyP: togglePause,
-            KeyH: () => (player.health.percent = 1),
-            KeyK: () => (player.health.percent = 0),
+    function load() {
+        player.mousedownEvent = player.abilities["Attack"].activate;
+        player.mouseupEvent = player.abilities["Attack"].deactivate;
+        player.controller = new PlayerController(player);
+        player.layer.cameraFollow = player;
+        const spawnFunc = function () {
+            if (randomChance(0.1)) spawnFunc();
+            spawnEnemy(randomChoice(enemyTypes), randomPointInCircle(game.diagonal / 2, { start: player }));
         };
+        const spawnTask = scheduleTask(spawnFunc, { time: 0.5, loop: true });
+        addUI();
+        game.draw();
+        registerParticle('Test', { color: "#ffff0000", speed: 10, lifespan: 10, shape: ParticleShapes.cross, deltaTheta: Math.PI / 4 });
+        // new ParticleEmitter({ x: 50, y: 50, rate: 0.1, shape: "cone", angle: () => Math.PI + player.facingDirection }, 'Test');
+    }
 
-        game.baseEntity = {
-            attack: function (amount, target) {
-                target.injure(this.evaluateEffects("attack", amount, target), this);
-            },
-            injure: function (amount, source) {
-                this.health -= this.evaluateEffects("injure", amount, source);
-                if (this.health <= 0) this.death();
-            },
-            heal: function (amount, target) {
-                target.recover(this.evaluateEffects("heal", amount, target), this);
-            },
-            recover: function (amount, source) {
-                this.health += this.evaluateEffects("recover", amount, source);
-            },
-            ondeath: () => {},
-        };
-        const enemyTypes = {
-            bat: {
-                stats: { damage: 4, health: 5 },
-                speed: 105,
-                size: 16,
-                color: "RebeccaPurple",
-            },
-            weak_bat: {
-                stats: { damage: 4, health: 1 },
-                speed: 105,
-                size: 10,
-                color: "RebeccaPurple",
-            },
-            zombie: {
-                stats: { damage: 9, health: 10 },
-                speed: 105,
-                size: 24,
-                color: "gray",
-            },
-        };
-        const enemyInfo = {
-            collisions: ["Player"],
-            onspawn: function () {
-                this.addAbility("Attack");
-                this.controller = new EnemyController(this, player);
-            },
-            oncollide: function (other) {
-                this.abilities["Attack"].activate();
-                this.x -= (this.velocity.x * this.size) / 20;
-                this.y -= (this.velocity.y * this.size) / 20;
-            },
-            ondeath: function () {
-                this.despawn();
-                player.kills += 1;
-            },
-        };
+    function addUI() {
+        UI.ProgressBar(() => player.health / player.health.max, 5, 5, canvas.width - 10, 12, {
+            background: "black",
+            fill: "red",
+            stroke: "#cd9958",
+            strokeWidth: 3,
+            cornerRadius: 30,
+            overlay: true,
+        }).show();
+        // hud.add(UI.ProgressBar(() => player.health.percent, 385, 285, 30, 4, { background: "black", fill: "red" }));
+    }
 
-        registerAbility("Attack", {
-            noNotice: true,
-            cooldown: 0.2,
-            ontick: function () {
-                function atk(other) {
-                    if (detectCone(this.x, this.y, this.facingDirection, Math.PI / 2, 60, other.x, other.y)) {
-                        this.attack(this.damage, other);
-                    }
+    function showDeath() {
+        UI.Dialogue(250, 200, 300, 200, "You Died", `Final Score: ${player.kills}`, 50, {
+            cornerRadius: 25,
+            background: "white",
+            color: "black",
+            stroke: "black",
+            fill: "red",
+            buttonText: "Restart",
+            onmyclick: () => location.reload(),
+        }).show();
+    }
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    // GAME DATA | ADD TO AND CUSTOMIZE FREELY
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    const DownKeyEvents = {
+        KeyP: togglePause,
+        KeyH: () => (player.health.percent = 1),
+        KeyK: () => (player.health.percent = 0),
+    };
+
+    game.baseEntity = {
+        attack: function (amount, target) {
+            target.injure(this.evaluateEffects("attack", amount, target), this);
+        },
+        injure: function (amount, source) {
+            this.health -= this.evaluateEffects("injure", amount, source);
+            if (this.health <= 0) this.death();
+        },
+        heal: function (amount, target) {
+            target.recover(this.evaluateEffects("heal", amount, target), this);
+        },
+        recover: function (amount, source) {
+            this.health += this.evaluateEffects("recover", amount, source);
+        },
+        ondeath: () => { },
+    };
+    const enemyTypes = {
+        bat: {
+            stats: { damage: 4, health: 5 },
+            speed: 105,
+            size: 16,
+            color: "RebeccaPurple",
+        },
+        weak_bat: {
+            stats: { damage: 4, health: 1 },
+            speed: 105,
+            size: 10,
+            color: "RebeccaPurple",
+        },
+        zombie: {
+            stats: { damage: 9, health: 10 },
+            speed: 105,
+            size: 24,
+            color: "gray",
+        },
+    };
+    const enemyInfo = {
+        collisions: ["Player"],
+        onspawn: function () {
+            this.addAbility("Attack");
+            this.controller = new EnemyController(this, player);
+        },
+        oncollide: function (other) {
+            this.abilities["Attack"].activate();
+            this.x -= (this.velocity.x * this.size) / 20;
+            this.y -= (this.velocity.y * this.size) / 20;
+        },
+        ondeath: function () {
+            this.despawn();
+            player.kills += 1;
+        },
+    };
+
+    registerAbility("Attack", {
+        noNotice: true,
+        cooldown: 0.2,
+        ontick: function () {
+            function atk(other) {
+                if (detectCone(this.x, this.y, this.facingDirection, Math.PI / 2, 60, other.x, other.y)) {
+                    this.attack(this.damage, other);
                 }
-                this.owner.forPossibleCollisons(atk);
-                this.tickrate = +this.owner.attackspeed ?? 0.2;
-            },
-            onactive: function (percent, tickPercent) {
-                if (this.deltaTimer < 0.1) return;
-                drawCone(0, 0, 0, this.owner.facingDirection, Math.PI / 2, 60, { fill: "#a534" });
-            },
-            oncooldowndraw: function (percent) {
-                drawCone(0, 0, 0, this.owner.facingDirection, Math.PI / 2, 60 * percent, {
-                    fill: "#a534",
-                });
-            },
-        });
-        registerEntity("Enemy", enemyInfo, enemyTypes);
-        registerEntity("Player");
+            }
+            this.owner.forPossibleCollisons(atk);
+            this.tickrate = +this.owner.attackspeed ?? 0.2;
+        },
+        onactive: function (percent, tickPercent) {
+            if (this.deltaTimer < 0.1) return;
+            drawCone(0, 0, 0, this.owner.facingDirection, Math.PI / 2, 60, { fill: "#a534" });
+        },
+        oncooldowndraw: function (percent) {
+            drawCone(0, 0, 0, this.owner.facingDirection, Math.PI / 2, 60 * percent, {
+                fill: "#a534",
+            });
+        },
+    });
+    registerEntity("Enemy", enemyInfo, enemyTypes);
+    registerEntity("Player");
 
-        const player = spawnPlayer({
-            color: "olive",
-            id: "player",
-            size: 20,
-            maxSpeed: 225,
-            acceleration: 7.5,
-            weapons: [],
-            pickupRadius: 100,
-            stats: { health: 120, maxhealth: 120, damage: 20, attackspeed: 0.2 },
-            kills: 0,
-            collisions: ["Enemy"],
-            onspawn: function () {
-                this.addAbility("Bloodthirst_1");
-                this.addAbility("RecklessRage_1", { keys: "Digit1" });
-                this.addAbility("RecklessRage_2");
-                this.addAbility("Dash_1", { keys: "Digit2" });
-                this.addAbility("Attack", { keys: "Space" });
-                this.abilities["Attack"].mode = "Channel";
-            },
-            ondash: function () {
-                console.log("dashed");
-            },
-            ondeath: showDeath,
-        });
-    </script>
+    const player = spawnPlayer({
+        color: "olive",
+        id: "player",
+        size: 20,
+        maxSpeed: 225,
+        acceleration: 7.5,
+        weapons: [],
+        pickupRadius: 100,
+        stats: { health: 120, maxhealth: 120, damage: 20, attackspeed: 0.2 },
+        kills: 0,
+        collisions: ["Enemy"],
+        onspawn: function () {
+            this.addAbility("Bloodthirst_1");
+            this.addAbility("RecklessRage_1", { keys: "Digit1" });
+            this.addAbility("RecklessRage_2");
+            this.addAbility("Dash_1", { keys: "Digit2" });
+            this.addAbility("Attack", { keys: "Space" });
+            this.abilities["Attack"].mode = "Channel";
+        },
+        ondash: function () {
+            console.log("dashed");
+        },
+        ondeath: showDeath,
+    });
+</script>
+
 </html>

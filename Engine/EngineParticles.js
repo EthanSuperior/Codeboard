@@ -4,6 +4,8 @@
 // └───Entities?
 
 const ParticleSystem = new (class extends Updatable {
+	static particleTypes = {};
+	static emitterTypes = {};
 	particles = {};
 	emitters = [];
 	addEmitter = (emitter) => {
@@ -51,9 +53,7 @@ const ParticleSystem = new (class extends Updatable {
 
 class ParticleEmitter extends Updatable {
 	constructor(
-		x,
-		y,
-		{ rate = 1, shape = "circle", ...options } = {},
+		{ x = 0, y = 0, rate = 1, shape = "circle", ...options } = {},
 		particleProps = {}
 	) {
 		super();
@@ -64,6 +64,8 @@ class ParticleEmitter extends Updatable {
 		this.extraProps = {};
 		this.shape = shape;
 		this.currentTime = rate;
+		if (typeof particleProps === "string")
+			particleProps = ParticleSystem.particleTypes[particleProps];
 		this.particleProps = particleProps;
 		this.lastEmittedDirection = randomRange(0, Math.PI * 2);
 		ParticleSystem.addEmitter(this);
@@ -208,6 +210,7 @@ class Particle extends Updatable {
 	};
 }
 class ParticleShapes {
+	static custom = {};
 	static letter(which) {
 		if (which === " ") return ParticleShapes[" "];
 		if (!which) which = String.fromCharCode(randomInt(65, 90));
@@ -813,4 +816,20 @@ class ParticleShapes {
 function registerParticle(name, props) {
 	const upperName = name[0].toUpperCase() + name.slice(1);
 	if (props.shape) ParticleShapes.custom[upperName] = props.shape;
+	ParticleSystem.particles[upperName] = props;
+	globalThis["emit" + upperName] = (options = {}) => {
+		ParticleSystem.addParticle(new Particle({ ...props, ...options }));
+	};
+}
+
+function registerEmitter(name, props) {
+	const upperName = name[0].toUpperCase() + name.slice(1);
+	ParticleSystem.emitters[upperName] = props;
+	globalThis["emit" + upperName] = (particle, options = {}) => {
+		ParticleSystem.addEmitter(new Emitter({ ...props, ...options }, particle));
+	};
+}
+
+function addEmitter(particle, options = {}) {
+	ParticleSystem.addEmitter(new ParticleEmitter(options, particle));
 }
